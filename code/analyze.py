@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
+#todo: make clusters
 from __future__ import unicode_literals
 
 import multiprocessing as mp
@@ -232,25 +232,21 @@ def compute_iou(formula, acts, feats, dataset, feat_type="word"):
 
     return comp_iou
 
-def process_states(states):
-    states=np.array(states)
-    return states
-def compute_best_sentence_iou(args):#, activationRange):
+#call this for each activ range from search_feats
+def compute_best_sentence_iou(args):
     (unit,) = args
     
-    acts = GLOBALS["acts"][:,unit] #dont need
-    states = GLOBALS["states"] #youd have to go to col 1 (not row1) and go to each entry in the col and find the rows where aciv  in range
-    states = process_states(states)
-    print("UNIT : ", unit, "activations: ", states[:,unit]) #this shouls get you to the neurons col (esch samples activ at neuron number unit)
+    acts = GLOBALS["acts"][:,unit]
+       #acts reprseent states in activrange
+    #for each neuron identify the samples where acts in col# neuron#==1
+
+    
+    
 
     feats = GLOBALS["feats"]
-    dataset = GLOBALS["dataset"]
+    print("FEATS. ", feats[0]) #10,000rows each row holds num concepts saying true if concept at the index is in the sample else false  
+    dataset = GLOBALS["dataset"] #holds each concept ex: hyp:tok:dog
     
-    #get state map (smth like GLOBALS['states']) states is a list of 10,000 elems each is a np array. should converr array to list so it becomes a list of lists?
-    #get 10000x1024 each neuron has 10000 vals
-    #go through each col go to each neuron row wise and get all the samples whose activaios are within a range
-    #like the func beow w/ np.extend.... use that to get the activation map for each sample
-    #
 
     feats_to_search = list(range(feats.shape[1]))
     formulas = {}
@@ -357,6 +353,7 @@ def extract_features(
     all_multifeats = []
     all_idxs = []
     for src, src_feats, src_multifeats, src_lengths, idx in tqdm(loader):
+        
         #  words = dataset.to_text(src)
         if settings.CUDA:
             src = src.cuda()
@@ -388,34 +385,32 @@ def extract_features(
         all_idxs.extend(list(pairs(idx).cpu().numpy()))
 
     all_feats = {"onehot": all_feats, "multi": all_multifeats}
-
+    #print(all_feats["onehot"])
     return all_srcs, all_states, all_feats, all_idxs
 
 
-def get_quantiles(feats, alpha):
-    quantiles = np.apply_along_axis(lambda a: np.quantile(a, 1 - alpha), 0, feats)
-    return quantiles
-
-
-def quantile_features(feats):
-    if settings.ALPHA is None:
-        return np.stack(feats) > 0
-
-    quantiles = get_quantiles(feats, settings.ALPHA)
-    return feats > quantiles[np.newaxis]
+def build_act_mask(states, activ_range):
+    #here you're looking at the activations (its called on the states dk why says feats here) and if theyre greater than 0 it goes into the mask as true else false 
+    #change this to do a binary map within a range
+    
+    activ_ranges=np.arange(activ_range[0],activ_range[1])
+    return np.isin(np.stack(states),activ_ranges) #returns binary map saying which neurons activates (true if neuron a col does else false)
 
 
 def search_feats(acts, states, feats, weights, dataset):
+    print("acts ", acts[0])
     rfile = os.path.join(settings.RESULT, "result.csv")
     #if os.path.exists(rfile):
-      #  print(f"Loading cached {rfile}")
-     #   return pd.read_csv(rfile).to_dict("records")
+        #print(f"Loading cached {rfile}")
+        #return pd.read_csv(rfile).to_dict("records")
 
     # Set global vars
-    GLOBALS["acts"] = acts
+    GLOBALS["acts"] = acts #build in build axt mask
     GLOBALS["states"] = states
-
+      #feats: 10000 rows 40087 cols
+        # each row is a sentence and each col says if concept at col is in sent
     GLOBALS["feats"] = feats[0]
+    
     GLOBALS["dataset"] = feats[1]
     feats_vocab = feats[1]
 
@@ -446,6 +441,7 @@ def search_feats(acts, states, feats, weights, dataset):
     with pool_cls(settings.PARALLEL) as pool, tqdm(
         total=len(units), desc="Units"
     ) as pbar:
+        #do for each neuron and foor each range
         for res in pool.imap_unordered(ioufunc, mp_args):
             unit = res["unit"]
             best_lab, best_iou = res["best"]
@@ -647,7 +643,8 @@ def main():
     )
 
     print("Computing quantiles")
-    acts = quantile_features(states)
+    
+    acts = build_act_mask(states, #activ_range)
 
     print("Extracting sentence token features")
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
