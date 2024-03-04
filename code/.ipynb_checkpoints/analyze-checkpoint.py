@@ -25,7 +25,7 @@ from vis import report, pred_report
 import data
 import data.snli
 import data.analysis
-
+from activation_utils import build_act_mask, compute_activ_ranges, create_clusters
 
 GLOBALS = {}
 
@@ -240,11 +240,9 @@ def compute_best_sentence_iou(args):
        #acts reprseent states in activrange
     #for each neuron identify the samples where acts in col# neuron#==1
 
-    
-    
-
+    print("ACts in computer ", acts)
     feats = GLOBALS["feats"]
-    print("FEATS. ", feats[0]) #10,000rows each row holds num concepts saying true if concept at the index is in the sample else false  
+    print("FEATS. ", feats.shape) #10,000rows each row holds num concepts saying true if concept at the index is in the sample else false  
     dataset = GLOBALS["dataset"] #holds each concept ex: hyp:tok:dog
     
 
@@ -389,14 +387,6 @@ def extract_features(
     return all_srcs, all_states, all_feats, all_idxs
 
 
-def build_act_mask(states, activ_range):
-    #here you're looking at the activations (its called on the states dk why says feats here) and if theyre greater than 0 it goes into the mask as true else false 
-    #change this to do a binary map within a range
-    
-    activ_ranges=np.arange(activ_range[0],activ_range[1])
-    return np.isin(np.stack(states),activ_ranges) #returns binary map saying which neurons activates (true if neuron a col does else false)
-
-
 def search_feats(acts, states, feats, weights, dataset):
     print("acts ", acts[0])
     rfile = os.path.join(settings.RESULT, "result.csv")
@@ -406,6 +396,7 @@ def search_feats(acts, states, feats, weights, dataset):
 
     # Set global vars
     GLOBALS["acts"] = acts #build in build axt mask
+    print(type(acts), acts)
     GLOBALS["states"] = states
       #feats: 10000 rows 40087 cols
         # each row is a sentence and each col says if concept at col is in sent
@@ -444,6 +435,7 @@ def search_feats(acts, states, feats, weights, dataset):
         #do for each neuron and foor each range
         for res in pool.imap_unordered(ioufunc, mp_args):
             unit = res["unit"]
+            print("UNIT: ", unit)
             best_lab, best_iou = res["best"]
             best_name = best_lab.to_str(namer, sort=True)
             best_cat = best_lab.to_str(cat_namer, sort=True)
@@ -618,7 +610,12 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
 
     return token_masks, tok_feats_vocab
 
+def quantile_features(feats):
+    if settings.ALPHA is None:
+        return np.stack(feats) > 0
 
+    quantiles = get_quantiles(feats, settings.ALPHA)
+    return feats > quantiles[np.newaxis]
 def main():
     os.makedirs(settings.RESULT, exist_ok=True)
 
@@ -643,20 +640,27 @@ def main():
     )
 
     print("Computing quantiles")
-    
-    acts = build_act_mask(states, #activ_range)
-
+    for i in states[0]:
+        if i > 0:
+            print(i)
+            break
+    #print(states) #list of arrays
+    states = torch.tensor(np.array(states)) #rn its 10,000x1024 so each col is the actis of the neurons for a saple but you want each row to be the activs?
+    activ_ranges = create_clusters(states, 3)
+    print("Using ", activ_ranges[0])
+    acts = build_act_mask(states, activ_ranges[0])
+   
     print("Extracting sentence token features")
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
     print("Mask search")
+    #acts = quantile_features(states)
     records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset)
-
+    return
     print("Mask search")
     records = search_feats(acts, states, feats, weights, dataset)
 
     print("Load predictions")
-    mbase = os.path.splitext(os.path.basename(settings.MODEL))[0]
-    dbase = os.path.splitext(os.path.basename(settings.DATA))[0]
+    base = os.path.splitext(os.path.basename(settings.DATA))[0]
     predf = f"data/analysis/preds/{mbase}_{dbase}.csv"
     # Add the feature activations so we can do correlation
     preds = pd.read_csv(predf)
@@ -679,6 +683,7 @@ def main():
         dataset,
         settings.RESULT,
     )
+
 
 
 if __name__ == "__main__":
