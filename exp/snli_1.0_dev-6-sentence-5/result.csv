@@ -1,9 +1,13 @@
 neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neutral,w_contra
-2,pre:tok:in,pre,pre:tok,0.0,1,-0.028240746,-0.018325444,-0.01801046
-1,pre:tok:in,pre,pre:tok,0.0,1,0.0047763498,0.0021374722,0.014035168
-4,pre:tok:in,pre,pre:tok,0.0,1,-0.03327432,0.009516349,0.005223358
 3,pre:tok:in,pre,pre:tok,0.0,1,0.0005738688,-0.0071000154,0.013591588
+1,pre:tok:in,pre,pre:tok,0.0,1,0.0047763498,0.0021374722,0.014035168
+2,pre:tok:in,pre,pre:tok,0.0,1,-0.028240746,-0.018325444,-0.01801046
+4,pre:tok:in,pre,pre:tok,0.0,1,-0.03327432,0.009516349,0.005223358
 5,pre:tok:in,pre,pre:tok,0.0,1,-0.01811511,0.01101393,0.029370204
 7,pre:tok:in,pre,pre:tok,0.0,1,-0.017232083,-0.0118125025,0.0006597078
 9,pre:tok:in,pre,pre:tok,0.0,1,-0.015833614,0.0036869862,-0.023049906
 10,pre:tok:in,pre,pre:tok,0.0,1,0.026105339,0.008309716,-0.005927887
+11,pre:tok:in,pre,pre:tok,0.0,1,-0.039270308,0.0039053678,-0.08502867
+12,(hyp:tok:pins AND hyp:tok:with),(hyp AND hyp),(hyp:tok AND hyp:tok),0.25,2,-0.01652821,-0.014502258,-0.03231055
+13,pre:tok:in,pre,pre:tok,0.0,1,0.00069109304,-0.022033479,-0.039120488
+14,pre:tok:in,pre,pre:tok,0.0,1,0.015123305,0.0017837533,-0.029876685

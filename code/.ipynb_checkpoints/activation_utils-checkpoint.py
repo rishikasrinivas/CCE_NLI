@@ -8,10 +8,10 @@ def build_act_mask(states, activ_ranges):
     #change this to do a binary map within a range
     lower_thresh_in_range=activ_ranges[0]
     upper_thresh_in_range = activ_ranges[1]
-    act_masks = torch.where((states > lower_thresh_in_range) & (states < upper_thresh_in_range, True, False))
+    act_masks = torch.where((states > lower_thresh_in_range) & (states < upper_thresh_in_range), True, False)
         
     #print("act_masks_per_range: ", act_masks)
-    return act_masks #returns binary map saying which neurons activates (true if neuron a col does else false)
+    return np.array(act_masks) #returns binary map saying which neurons activates (true if neuron a col does else false)
 
 def compute_activ_ranges(activations, clusters, num_clusters):
     #all activations will be >0 here

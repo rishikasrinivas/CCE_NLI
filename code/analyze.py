@@ -240,9 +240,9 @@ def compute_best_sentence_iou(args):
        #acts reprseent states in activrange
     #for each neuron identify the samples where acts in col# neuron#==1
 
-    print("ACts in computer ", acts)
+
     feats = GLOBALS["feats"]
-    print("FEATS. ", feats.shape) #10,000rows each row holds num concepts saying true if concept at the index is in the sample else false  
+    #print("FEATS. ", feats.shape) #10,000rows each row holds num concepts saying true if concept at the index is in the sample else false  
     dataset = GLOBALS["dataset"] #holds each concept ex: hyp:tok:dog
     
 
@@ -388,7 +388,7 @@ def extract_features(
 
 
 def search_feats(acts, states, feats, weights, dataset):
-    print("acts ", acts[0])
+
     rfile = os.path.join(settings.RESULT, "result.csv")
     #if os.path.exists(rfile):
         #print(f"Loading cached {rfile}")
@@ -396,7 +396,7 @@ def search_feats(acts, states, feats, weights, dataset):
 
     # Set global vars
     GLOBALS["acts"] = acts #build in build axt mask
-    print(type(acts), acts)
+   
     GLOBALS["states"] = states
       #feats: 10000 rows 40087 cols
         # each row is a sentence and each col says if concept at col is in sent
@@ -640,10 +640,7 @@ def main():
     )
 
     print("Computing quantiles")
-    for i in states[0]:
-        if i > 0:
-            print(i)
-            break
+    
     #print(states) #list of arrays
     states = torch.tensor(np.array(states)) #rn its 10,000x1024 so each col is the actis of the neurons for a saple but you want each row to be the activs?
     activ_ranges = create_clusters(states, 3)
@@ -655,7 +652,7 @@ def main():
     print("Mask search")
     #acts = quantile_features(states)
     records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset)
-    return
+
     print("Mask search")
     records = search_feats(acts, states, feats, weights, dataset)
 
