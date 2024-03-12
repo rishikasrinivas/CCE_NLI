@@ -66,12 +66,14 @@ class AnalysisDataset:
         # cats (short: c) are the categories (e.g. POS, Lemma, Synset)
         # Mappings - feat names to individual features
         self.cnames2fis = {cn: set() for cn in self.cnames}
+    
         self.parse_docs()
         self.fis2cnames = {}
         for cname, fis in self.cnames2fis.items():
             for fi in fis:
                 self.fis2cnames[fi] = cname
-
+   
+     
         self.citos = dict(zip(self.cs, self.cnames))
         self.cstoi = dict(zip(self.cnames, self.cs))
 

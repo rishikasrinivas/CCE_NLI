@@ -78,6 +78,7 @@ def get_neighbors(lemma):
     nearest_i = np.argsort(dists)[1 : settings.EMBEDDING_NEIGHBORHOOD_SIZE + 1]
     nearest = [VECS_ITOS[i] for i in nearest_i]
     NEIGHBORS_CACHE[lemma] = nearest
+ 
     return nearest
 
 
@@ -86,8 +87,9 @@ def get_mask(feats, f, dataset, feat_type):
     Serializable/global version of get_mask for multiprocessing
     """
     # Mask has been cached
-    if f.mask is not None:
+    '''if f.mask is not None:
         return f.mask
+'''
     if isinstance(f, FM.And):
         masks_l = get_mask(feats, f.left, dataset, feat_type)
         masks_r = get_mask(feats, f.right, dataset, feat_type)
@@ -128,6 +130,9 @@ def get_mask(feats, f, dataset, feat_type):
 
             # Get neighbors in vector space
             neighbors = get_neighbors(fname)
+            if neighbors == []:
+                return np.zeros(feats.shape[0], dtype=bool)
+            
             # Turn neighbors into candidate feature names
             neighbor_fnames = set([f"lemma:{word}" for word in neighbors])
             # Add the original feature name
@@ -138,6 +143,7 @@ def get_mask(feats, f, dataset, feat_type):
                 for fname in neighbor_fnames
                 if fname in dataset.fstoi
             ]
+            print("nigh mk", np.isin(feats["onehot"][:, ci].shape))
             return np.isin(feats["onehot"][:, ci], neighbors)
         else:
             assert isinstance(f.val, FM.Leaf)
@@ -146,6 +152,8 @@ def get_mask(feats, f, dataset, feat_type):
             part, fword = fname.split(":", maxsplit=1)
 
             neighbors = get_neighbors(fword)
+            if neighbors == []:
+                return np.zeros(feats.shape[0], dtype=bool)
             part_neighbors = [f"{part}:{word}" for word in neighbors]
             neighbor_idx = [
                 dataset["stoi"][word]
@@ -154,8 +162,9 @@ def get_mask(feats, f, dataset, feat_type):
             ]
             neighbor_idx.append(fval)
             neighbor_idx = np.array(list(set(neighbor_idx)))
-
+           
             neighbors_mask = np.logical_or.reduce(feats[:, neighbor_idx], 1)
+            print("nigh mk", neighbors_mask.shape)
             return neighbors_mask
     elif isinstance(f, FM.Leaf):
         if feat_type == "word":
@@ -174,7 +183,37 @@ def get_mask(feats, f, dataset, feat_type):
     else:
         raise ValueError("Most be passed formula")
 
+def auc(masks,acts):
+    
+    #mask0 = array with all indexes in mask where mask[i] = 0
+    mask_0 = np.where(masks == 0)[0]
+    # mask1 = arra with all indexes in mask where mask[i] = 1
+    mask_1 = np.where(masks == 1)[0]
 
+    #sum where acts[mask0 indices] < acts[mask1 indices]
+    mask_0_len = int(mask_0.shape[0])
+    mask_1_len=int(mask_1.shape[0]) 
+    total = mask_0_len * mask_1_len
+    
+    acts_vals_of_mask_0 = [acts[mask0_idx] for mask0_idx in mask_0]
+    acts_vals_of_mask_1 = [acts[mask1_idx] for mask1_idx in mask_1]
+    
+    summ=0;
+    for ind_0 in range(mask_0_len):
+        ind0_acts = acts[ind_0]
+        for ind_1 in range(mask_1_len): 
+            if int(ind0_acts) < int(acts[ind_1]):
+                summ += 1;
+        
+    print(summ)
+    if total == 0:
+        print(0)
+    else:
+        print("Calc AUC: ", summ/total)
+    
+    #len(mask0) * len(mask1)
+    pass
+    
 def iou(a, b):
     intersection = (a & b).sum()
     union = (a | b).sum()
@@ -216,12 +255,13 @@ OPS = defaultdict(
 
 
 def compute_iou(formula, acts, feats, dataset, feat_type="word"):
-    masks = get_mask(feats, formula, dataset, feat_type)
+    masks = get_mask(feats, formula, dataset, feat_type) #10,000x1 saying if the formula is in the sample
     # Cache mask
     formula.mask = masks
 
     if settings.METRIC == "iou":
         comp_iou = iou(masks, acts)
+        comp_auc = auc(masks,acts)
     elif settings.METRIC == "precision":
         comp_iou = precision_score(masks, acts)
     elif settings.METRIC == "recall":
@@ -239,12 +279,12 @@ def compute_best_sentence_iou(args):
     acts = GLOBALS["acts"][:,unit]
        #acts reprseent states in activrange
     #for each neuron identify the samples where acts in col# neuron#==1
-
+    
 
     feats = GLOBALS["feats"]
     #print("FEATS. ", feats.shape) #10,000rows each row holds num concepts saying true if concept at the index is in the sample else false  
     dataset = GLOBALS["dataset"] #holds each concept ex: hyp:tok:dog
-    
+
 
     feats_to_search = list(range(feats.shape[1]))
     formulas = {}
@@ -253,13 +293,17 @@ def compute_best_sentence_iou(args):
         formulas[formula] = compute_iou(
             formula, acts, feats, dataset, feat_type="sentence"
         )
+        
 
         for op, negate in OPS["lemma"]:
             # FIXME: Don't evaluate on neighbors if they don't exist
+           
             new_formula = formula
             if negate:
                 new_formula = FM.Not(new_formula)
-            new_formula = op(new_formula)
+            #handling if neightbors dont exist --added
+            if np.count_nonzero(formula.mask) != 0:
+                new_formula = op(new_formula)
             new_iou = compute_iou(
                 new_formula, acts, feats, dataset, feat_type="sentence"
             )
@@ -268,6 +312,7 @@ def compute_best_sentence_iou(args):
     nonzero_iou = [k.val for k, v in formulas.items() if v > 0]
     formulas = dict(Counter(formulas).most_common(settings.BEAM_SIZE))
     best_noncomp = Counter(formulas).most_common(1)[0]
+  
 
     for i in range(settings.MAX_FORMULA_LENGTH - 1):
         new_formulas = {}
@@ -435,7 +480,6 @@ def search_feats(acts, states, feats, weights, dataset):
         #do for each neuron and foor each range
         for res in pool.imap_unordered(ioufunc, mp_args):
             unit = res["unit"]
-            print("UNIT: ", unit)
             best_lab, best_iou = res["best"]
             best_name = best_lab.to_str(namer, sort=True)
             best_cat = best_lab.to_str(cat_namer, sort=True)
@@ -471,7 +515,7 @@ def search_feats(acts, states, feats, weights, dataset):
     pd.DataFrame(records).to_csv(rfile, index=False)
     return records
 
-
+#explanatiosn hard to intepret makbe better explanations 
 def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
     """
     Convert token-level feats to sentence feats
@@ -543,12 +587,14 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
         # Keep top tokens, use as features
         tokens_by_count = np.argsort(tokens)[::-1]
         tokens_by_count = tokens_by_count[: settings.N_SENTENCE_FEATS]
-
+    
         # Create feature dict
         # Token features
         tokens_stoi = {}
         for prefix in ["pre", "hyp"]:
             for t in tokens_by_count:
+                if t == 0:
+                    break
                 ts = dataset.itos[t]
                 t_prefixed = f"{prefix}:tok:{ts}"
                 tokens_stoi[t_prefixed] = len(tokens_stoi)
@@ -571,7 +617,7 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
             "itos": tokens_itos,
             "stoi": tokens_stoi,
         }
-
+   
     # Binary mask - encoder/decoder
     token_masks = np.zeros((len(toks), len(tok_feats_vocab["stoi"])), dtype=np.bool)
     for i, (encu, decu, enctagu, dectagu, oth) in enumerate(
@@ -643,14 +689,16 @@ def main():
     
     #print(states) #list of arrays
     states = torch.tensor(np.array(states)) #rn its 10,000x1024 so each col is the actis of the neurons for a saple but you want each row to be the activs?
-    activ_ranges = create_clusters(states, 3)
+
+    
+    activ_ranges = create_clusters(states, 5)
     print("Using ", activ_ranges[0])
-    acts = build_act_mask(states, activ_ranges[0])
-   
+    acts = build_act_mask(states, activ_ranges[4])
+  
     print("Extracting sentence token features")
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
     print("Mask search")
-    #acts = quantile_features(states)
+
     records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset)
 
     print("Mask search")
@@ -667,11 +715,12 @@ def main():
     print("Visualizing features")
     from vis import sentence_report
 
-    sentence_report.make_html(
+    '''sentence_report.make_html(
         records,
         # Features
         toks,
         states,
+        activ_ranges,
         (tok_feats, tok_feats_vocab),
         idxs,
         preds,
@@ -679,7 +728,7 @@ def main():
         weights,
         dataset,
         settings.RESULT,
-    )
+    )'''
 
 
 

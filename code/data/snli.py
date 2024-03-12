@@ -36,9 +36,10 @@ def load_for_analysis(
     model.load_state_dict(ckpt["state_dict"])
 
     vocab = {"itos": ckpt["itos"], "stoi": ckpt["stoi"]}
+
     with open(analysis_path, "r") as f:
         lines = f.readlines()
-
+    
     dataset = analysis.AnalysisDataset(lines, vocab)
 
     if cuda:

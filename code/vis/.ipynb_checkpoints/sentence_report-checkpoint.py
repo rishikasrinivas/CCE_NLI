@@ -111,6 +111,7 @@ def make_card(
     tok_feats,
     tok_feats_vocab,
     states,
+    activation_range,
     preds,
     dataset,
 ):
@@ -121,7 +122,7 @@ def make_card(
     states = states[:, neuron]
 
     # Count how often neuron activates. If it's for less than 5 examples across 10k, discard it
-    if (states > 0).sum() < settings.MIN_ACTS:
+    if (states < activation_range[0] && states > activation_range[0]).sum() == 0:
         return ""
 
     # Highest activations pairs
@@ -191,6 +192,7 @@ def make_html(
     # Standard feats
     toks,
     states,
+    activation_ranges,
     tok_feats,
     idxs,
     preds,
@@ -209,10 +211,11 @@ def make_html(
 
     # Loop through units
     for record in records:
-        card_html = make_card(
-            record, toks, tok_feats, tok_feats_vocab, states, preds, dataset
-        )
-        html.append(card_html)
+        for range_ in activation_ranges:
+            card_html = make_card(
+                record, toks, tok_feats, tok_feats_vocab, states, range_, preds, dataset
+            )
+            html.append(card_html)
 
     html.append(c.HTML_SUFFIX)
     html_final = "\n".join(html)
