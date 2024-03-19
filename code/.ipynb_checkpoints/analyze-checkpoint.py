@@ -25,7 +25,7 @@ from vis import report, pred_report
 import data
 import data.snli
 import data.analysis
-from activation_utils import build_act_mask, compute_activ_ranges, create_clusters
+from activation_utils import compute_activ_ranges, create_clusters, build_masks
 
 GLOBALS = {}
 
@@ -440,6 +440,7 @@ def search_feats(acts, states, feats, weights, dataset):
         #return pd.read_csv(rfile).to_dict("records")
 
     # Set global vars
+    print("sjape ", acts.shape)
     GLOBALS["acts"] = acts #build in build axt mask
    
     GLOBALS["states"] = states
@@ -463,11 +464,11 @@ def search_feats(acts, states, feats, weights, dataset):
 
     records = []
     if settings.NEURONS is None:
-        units = range(acts.shape[1])
+        units = range(acts.shape[2])
     else:
         units = settings.NEURONS
     mp_args = [(u,) for u in units]
-
+    print("mp args ", len(mp_args))
     if settings.PARALLEL < 1:
         pool_cls = util.FakePool
     else:
@@ -690,11 +691,10 @@ def main():
     #print(states) #list of arrays
     states = torch.tensor(np.array(states)) #rn its 10,000x1024 so each col is the actis of the neurons for a saple but you want each row to be the activs?
 
-    
-    activ_ranges = create_clusters(states, 5)
-    print("Using ", activ_ranges[0])
-    acts = build_act_mask(states, activ_ranges[4])
-  
+    print("states shape: ", states.shape)
+    acts = build_masks(states, 3, 1)
+
+
     print("Extracting sentence token features")
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
     print("Mask search")
