@@ -261,7 +261,7 @@ def compute_iou(formula, acts, feats, dataset, feat_type="word"):
 
     if settings.METRIC == "iou":
         comp_iou = iou(masks, acts)
-        comp_auc = auc(masks,acts)
+        #comp_auc = auc(masks,acts)
     elif settings.METRIC == "precision":
         comp_iou = precision_score(masks, acts)
     elif settings.METRIC == "recall":
@@ -432,7 +432,7 @@ def extract_features(
     return all_srcs, all_states, all_feats, all_idxs
 
 
-def search_feats(acts, states, feats, weights, dataset):
+def search_feats(acts, states, feats, weights, dataset, cluster):
 
     rfile = os.path.join(settings.RESULT, "result.csv")
     #if os.path.exists(rfile):
@@ -440,7 +440,7 @@ def search_feats(acts, states, feats, weights, dataset):
         #return pd.read_csv(rfile).to_dict("records")
 
     # Set global vars
-    print("sjape ", acts.shape)
+    print("cluster ",cluster)
     GLOBALS["acts"] = acts #build in build axt mask
    
     GLOBALS["states"] = states
@@ -464,11 +464,12 @@ def search_feats(acts, states, feats, weights, dataset):
 
     records = []
     if settings.NEURONS is None:
-        units = range(acts.shape[2])
+        units = range(acts.shape[1])
     else:
         units = settings.NEURONS
     mp_args = [(u,) for u in units]
-    print("mp args ", len(mp_args))
+    
+    print("mp args ", len(mp_args), mp_args)
     if settings.PARALLEL < 1:
         pool_cls = util.FakePool
     else:
@@ -493,6 +494,7 @@ def search_feats(acts, states, feats, weights, dataset):
             if best_iou > 0:
                 tqdm.write(f"{unit:02d}\t{best_name}\t{best_iou:.3f}")
             r = {
+                "cluster": cluster,
                 "neuron": unit,
                 "feature": best_name,
                 "category": best_cat,
@@ -506,8 +508,8 @@ def search_feats(acts, states, feats, weights, dataset):
             records.append(r)
             pbar.update()
             n_done += 1
-            if n_done % settings.SAVE_EVERY == 0:
-                pd.DataFrame(records).to_csv(rfile, index=False)
+            #if n_done % settings.SAVE_EVERY == 0:
+            pd.DataFrame(records).to_csv(rfile, index=False)
 
         # Save progress
         if len(records) % 32 == 0:
@@ -663,6 +665,28 @@ def quantile_features(feats):
 
     quantiles = get_quantiles(feats, settings.ALPHA)
     return feats > quantiles[np.newaxis]
+
+def default(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
+    acts = quantile_features(states)
+
+    print("Mask search")
+    records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset)
+
+    print("Mask search")
+    records = search_feats(acts, states, feats, weights, dataset)
+
+
+
+def single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
+   
+    states = torch.tensor(np.array(states)) #rn its 10,000x1024 so each col is the actis of the neurons for a saple but you want each row to be the activs?
+    print("Mask search")
+    for cluster_num in range(1,4):
+        print("Making masks for: ", cluster_num)
+        acts = build_masks(states, 3, cluster_num)
+        records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num)
+        
+
 def main():
     os.makedirs(settings.RESULT, exist_ok=True)
 
@@ -686,26 +710,17 @@ def main():
         dataset,
     )
 
-    print("Computing quantiles")
-    
-    #print(states) #list of arrays
-    states = torch.tensor(np.array(states)) #rn its 10,000x1024 so each col is the actis of the neurons for a saple but you want each row to be the activs?
-
-    print("states shape: ", states.shape)
-    acts = build_masks(states, 3, 1)
-
-
     print("Extracting sentence token features")
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
-    print("Mask search")
-
-    records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset)
-
-    print("Mask search")
-    records = search_feats(acts, states, feats, weights, dataset)
-
+    
+    settings.NEURONS = [15, 19, 1023, 203]
+    single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
+    #default(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
+    
+    
     print("Load predictions")
-    base = os.path.splitext(os.path.basename(settings.DATA))[0]
+    mbase = os.path.splitext(os.path.basename(settings.MODEL))[0]
+    dbase = os.path.splitext(os.path.basename(settings.DATA))[0]
     predf = f"data/analysis/preds/{mbase}_{dbase}.csv"
     # Add the feature activations so we can do correlation
     preds = pd.read_csv(predf)
@@ -720,7 +735,6 @@ def main():
         # Features
         toks,
         states,
-        activ_ranges,
         (tok_feats, tok_feats_vocab),
         idxs,
         preds,
@@ -730,6 +744,7 @@ def main():
         settings.RESULT,
     )'''
 
+    
 
 
 if __name__ == "__main__":

@@ -250,9 +250,10 @@ class TextEncoder(nn.Module):
     def forward(self, s, slen):
         semb = self.emb(s)
         spk = pack_padded_sequence(semb, slen.cpu(), enforce_sorted=False)
-        _, (states, _) = self.rnn(spk)
+        packed_output, (states, _) = self.rnn(spk)
+        output, input_sizes = pad_packed_sequence(packed_output, batch_first=True)
 
-        return states[-1]
+        return output[:,-2,:]
 
     def get_states(self, s, slen):
         semb = self.emb(s)
