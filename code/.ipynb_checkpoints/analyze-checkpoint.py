@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #todo: make clusters
@@ -191,9 +192,11 @@ def auc(masks,acts):
     mask_1 = np.where(masks == 1)[0]
 
     #sum where acts[mask0 indices] < acts[mask1 indices]
-    mask_0_len = int(mask_0.shape[0])
+    
     mask_1_len=int(mask_1.shape[0]) 
     total = mask_0_len * mask_1_len
+    if total ==0:
+        return 0
     
     acts_vals_of_mask_0 = [acts[mask0_idx] for mask0_idx in mask_0]
     acts_vals_of_mask_1 = [acts[mask1_idx] for mask1_idx in mask_1]
@@ -205,14 +208,8 @@ def auc(masks,acts):
             if int(ind0_acts) < int(acts[ind_1]):
                 summ += 1;
         
-    print(summ)
-    if total == 0:
-        print(0)
-    else:
-        print("Calc AUC: ", summ/total)
     
-    #len(mask0) * len(mask1)
-    pass
+    return summ/total
     
 def iou(a, b):
     intersection = (a & b).sum()
@@ -261,7 +258,6 @@ def compute_iou(formula, acts, feats, dataset, feat_type="word"):
 
     if settings.METRIC == "iou":
         comp_iou = iou(masks, acts)
-        #comp_auc = auc(masks,acts)
     elif settings.METRIC == "precision":
         comp_iou = precision_score(masks, acts)
     elif settings.METRIC == "recall":
@@ -312,8 +308,7 @@ def compute_best_sentence_iou(args):
     nonzero_iou = [k.val for k, v in formulas.items() if v > 0]
     formulas = dict(Counter(formulas).most_common(settings.BEAM_SIZE))
     best_noncomp = Counter(formulas).most_common(1)[0]
-  
-
+    
     for i in range(settings.MAX_FORMULA_LENGTH - 1):
         new_formulas = {}
         for formula in formulas:
@@ -440,7 +435,8 @@ def search_feats(acts, states, feats, weights, dataset, cluster):
         #return pd.read_csv(rfile).to_dict("records")
 
     # Set global vars
-    print("cluster ",cluster)
+    if cluster is not None:
+        print("cluster ",cluster)
     GLOBALS["acts"] = acts #build in build axt mask
    
     GLOBALS["states"] = states
@@ -581,7 +577,7 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
             )
         )
 
-    SKIP = {"a", "an", "the", "of", ".", ",", "UNK", "PAD"}
+    SKIP = {"a", "an", "the", "of", ".", ",", "UNK", "PAD", '"'}
     if tok_feats_vocab is None:
         for s in SKIP:
             if s in dataset.stoi:
@@ -670,10 +666,10 @@ def default(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
     acts = quantile_features(states)
 
     print("Mask search")
-    records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset)
+    records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=None)
 
     print("Mask search")
-    records = search_feats(acts, states, feats, weights, dataset)
+    records = search_feats(acts, states, feats, weights, dataset, cluster=None)
 
 
 
@@ -684,6 +680,7 @@ def single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
     for cluster_num in range(1,4):
         print("Making masks for: ", cluster_num)
         acts = build_masks(states, 3, cluster_num)
+
         records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num)
         
 
