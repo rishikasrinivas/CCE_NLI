@@ -26,7 +26,7 @@ from vis import report, pred_report
 import data
 import data.snli
 import data.analysis
-from activation_utils import compute_activ_ranges, create_clusters, build_masks
+from activation_utils import compute_activ_ranges, create_clusters, build_act_mask
 
 GLOBALS = {}
 
@@ -677,9 +677,15 @@ def single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
    
     states = torch.tensor(np.array(states)) #rn its 10,000x1024 so each col is the actis of the neurons for a saple but you want each row to be the activs?
     print("Mask search")
+    activations=torch.from_numpy(states.numpy().reshape(states.shape[0]*states.shape[1], 1))
+    activation_ranges = create_clusters(activations, 3)
+    activations= torch.from_numpy(activations.numpy().reshape(10000,1024))
+    print(type(activations))
     for cluster_num in range(1,4):
         print("Making masks for: ", cluster_num)
-        acts = build_masks(states, 3, cluster_num)
+        print("activations ranges", activation_ranges)
+        acts=build_act_mask(activations,activation_ranges, cluster_num)
+    
 
         records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num)
         
@@ -727,7 +733,7 @@ def main():
     print("Visualizing features")
     from vis import sentence_report
 
-    '''sentence_report.make_html(
+    sentence_report.make_html(
         records,
         # Features
         toks,
@@ -739,7 +745,7 @@ def main():
         weights,
         dataset,
         settings.RESULT,
-    )'''
+    )
 
     
 

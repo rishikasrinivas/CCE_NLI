@@ -231,6 +231,7 @@ class DropoutLSTMCell(nn.Module):
         return h_t, c_t
 
 
+
 class TextEncoder(nn.Module):
     def __init__(
         self, vocab_size, embedding_dim=300, hidden_dim=512, bidirectional=False
@@ -250,10 +251,11 @@ class TextEncoder(nn.Module):
     def forward(self, s, slen):
         semb = self.emb(s)
         spk = pack_padded_sequence(semb, slen.cpu(), enforce_sorted=False)
-        packed_output, (states, _) = self.rnn(spk)
-        output, input_sizes = pad_packed_sequence(packed_output, batch_first=True)
+        _, (states, _) = self.rnn(spk)
+        
 
-        return output[:,-2,:]
+        return states[-1]
+        
 
     def get_states(self, s, slen):
         semb = self.emb(s)
