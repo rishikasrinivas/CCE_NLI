@@ -677,11 +677,10 @@ def single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
    
     states = torch.tensor(np.array(states)) #rn its 10,000x1024 so each col is the actis of the neurons for a saple but you want each row to be the activs?
     print("Mask search")
-    activations=torch.from_numpy(states.numpy().reshape(states.shape[0]*states.shape[1], 1))
-    activation_ranges = create_clusters(activations, 3)
-    activations= torch.from_numpy(activations.numpy().reshape(10000,1024))
-    print(type(activations))
-    for cluster_num in range(1,4):
+    activations= torch.from_numpy(states.numpy().reshape(states.shape[0]*states.shape[1], 1)) #flatten it
+    activation_ranges = create_clusters(activations, 5)
+    activations= torch.from_numpy(activations.numpy().reshape(10000,1024)) #reform it
+    for cluster_num in range(1,6):
         print("Making masks for: ", cluster_num)
         print("activations ranges", activation_ranges)
         acts=build_act_mask(activations,activation_ranges, cluster_num)
