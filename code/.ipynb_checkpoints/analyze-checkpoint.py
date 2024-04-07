@@ -577,7 +577,8 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
             )
         )
 
-    SKIP = {"a", "an", "the", "of", ".", ",", "UNK", "PAD", '"'}
+    #SKIP = {"a", "an", "the", "of", ".", ",", "UNK", "PAD", '"'}
+    SKIP = {"UNK", "PAD"}
     if tok_feats_vocab is None:
         for s in SKIP:
             if s in dataset.stoi:
@@ -700,6 +701,7 @@ def main():
         cuda=settings.CUDA,
     )
 
+ 
     # Last model weight
     if settings.MODEL_TYPE == "minimal":
         weights = model.mlp.weight.t().detach().cpu().numpy()
@@ -714,7 +716,7 @@ def main():
 
     print("Extracting sentence token features")
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
-    
+    print(tok_feats, type(tok_feats))
     settings.NEURONS = [15, 19, 1023, 203]
     single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
     #default(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
