@@ -1,3 +1,4 @@
 cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neutral,w_contra
-3,15,(((((NOT oth:overlap:overlap75) AND hyp:tok:sitting) AND (NOT pre:tok:woman)) AND (NOT hyp:tok:down)) AND (NOT pre:tok:is)),(((((NOT oth) AND hyp) AND (NOT pre)) AND (NOT hyp)) AND (NOT pre)),(((((NOT oth:overlap) AND hyp:tok) AND (NOT pre:tok)) AND (NOT hyp:tok)) AND (NOT pre:tok)),0.13537117903930132,9,-0.083393574,-0.05854521,0.086006
-3,19,((((hyp:tok:dryer OR pre:tok:perform) OR pre:tok:camping) AND oth:overlap:overlap25) OR hyp:tok:clock),((((hyp OR pre) OR pre) AND oth) OR hyp),((((hyp:tok OR pre:tok) OR pre:tok) AND oth:overlap) OR hyp:tok),0.1,5,-0.1768775,0.121300235,0.036597908
+3,15,pre:tok:a,pre,pre:tok,0.0,1,-0.083393574,-0.05854521,0.086006
+3,66,pre:tok:a,pre,pre:tok,0.0,1,0.033789285,-0.03808392,-0.018338058
+3,1023,pre:tok:a,pre,pre:tok,0.0,1,-0.054077625,0.034481212,0.0110306665

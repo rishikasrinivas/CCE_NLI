@@ -391,7 +391,6 @@ def extract_features(
     all_multifeats = []
     all_idxs = []
     for src, src_feats, src_multifeats, src_lengths, idx in tqdm(loader):
-        
         #  words = dataset.to_text(src)
         if settings.CUDA:
             src = src.cuda()
@@ -465,7 +464,7 @@ def search_feats(acts, states, feats, weights, dataset, cluster):
         units = settings.NEURONS
     mp_args = [(u,) for u in units]
     
-    print("mp args ", len(mp_args), mp_args)
+
     if settings.PARALLEL < 1:
         pool_cls = util.FakePool
     else:
@@ -673,22 +672,52 @@ def default(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
     records = search_feats(acts, states, feats, weights, dataset, cluster=None)
 
 
-
-def single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
+def load_sents(path):
+    with open(path, 'r') as f:
+        sents = f.readlines()
    
-    states = torch.tensor(np.array(states)) #rn its 10,000x1024 so each col is the actis of the neurons for a saple but you want each row to be the activs?
-    print("Mask search")
-    activations= torch.from_numpy(states.numpy().reshape(states.shape[0]*states.shape[1], 1)) #flatten it
-    activation_ranges = create_clusters(activations, 5)
-    activations= torch.from_numpy(activations.numpy().reshape(10000,1024)) #reform it
-    for cluster_num in range(1,6):
-        print("Making masks for: ", cluster_num)
-        print("activations ranges", activation_ranges)
-        acts=build_act_mask(activations,activation_ranges, cluster_num)
+    return sents
+def single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
+    import csv
+    sents=load_sents("data/analysis/snli_1.0_dev.tok")
+    i=0
     
+    with open("compExpCompare.csv", "w") as fp:
+        wr = csv.writer(fp, dialect='excel')
+        wr.writerow(["sentences", 'cluster','neuron','feature','iou'])
+    for state in states:
+        sentences=[sents[i], sents[i+1]]
+        i += 2
+        state = torch.tensor(np.array(state)).unsqueeze(1) #rn its 10,000x1024 so each col is the actis of the neurons for a saple but you want each row to be the activs?
+        best_exp=[]
+        activations= torch.from_numpy(state.numpy().reshape(state.shape[0]*state.shape[1], 1)) #flatten it
+        activation_ranges = create_clusters(activations, 5)
+        activations= torch.from_numpy(activations.numpy().reshape(1,1024)) #reform it
+        for cluster_num in range(1,6):
+            #print("Making masks for: ", cluster_num)
+            #print("activations range", activation_ranges[cluster_num-1])
+            acts=build_act_mask(activations,activation_ranges, cluster_num)
 
-        records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num)
-        
+            print(acts.shape)
+
+            records = search_feats(acts, state, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num)
+
+            best_iou = 0
+            ind = 0
+            for index,record in enumerate(records):
+                if record['iou'] > best_iou:
+                    best_iou = record['iou'] 
+                    ind = index
+                if len(best_exp) == 0 or best_iou > best_exp['iou'] :
+                    best_exp = records[ind]
+        print(best_exp)
+        if (best_exp['iou']>0):
+            with open("compExpCompare.csv", "a") as fp:
+                wr = csv.writer(fp, dialect='excel')
+                wr.writerow([sentences, best_exp['cluster'],best_exp['neuron'],best_exp['feature'],best_exp['iou']])
+
+                
+            
 
 def main():
     os.makedirs(settings.RESULT, exist_ok=True)
@@ -714,10 +743,26 @@ def main():
         dataset,
     )
 
+    #print(toks[0])#VECS_ITOS)
+    sents=[]
+    
+        
+   
     print("Extracting sentence token features")
+
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
-    print(tok_feats, type(tok_feats))
-    settings.NEURONS = [15, 19, 1023, 203]
+    settings.NEURONS = [15, 66, 1023, 203]
+    np.savetxt('data/tok_feats.csv', tok_feats, fmt="%d", delimiter=",")
+    with open('data/tok_feats_vocab.txt','w') as datas:  
+        datas.write(str(tok_feats_vocab))
+        
+    
+    
+    
+    #write ethese a to a file then in singe_Test read these files to get the tok_feats, tok_feats_vocab,s to pass into the single_neruon emthod
+    
+    
+    
     single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
     #default(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
     

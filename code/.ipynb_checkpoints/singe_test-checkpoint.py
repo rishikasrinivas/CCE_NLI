@@ -3,32 +3,44 @@ from activation_utils import create_clusters, build_act_mask
 import spacy
 import torch
 
-def test_one_sentence():
-    model, dataset = data.snli.load_for_analysis(
-        settings.MODEL,
-        settings.DATA,
-        model_type=settings.MODEL_TYPE,
-        cuda=settings.CUDA,
-    )
-  
-    # Last model weight
-    if settings.MODEL_TYPE == "minimal":
-        weights = model.mlp.weight.t().detach().cpu().numpy()
-    else:
-        weights = model.mlp[-1].weight.t().detach().cpu().numpy()
 
-    print("Extracting features")
-    toks, states, feats, idxs = extract_features(
-        model,
-        dataset,
-    )
+def load_tok_feats():
+    path = "data/tok_feats.csv"
+    arr_loaded = np.loadtxt(path, delimiter=',')
+    return arr_loaded
 
-    print("Extracting sentence token features")
-    tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
+def load_vocab():
+    path = "data/tok_feats_vocab.txt"
+    with open(path, "r") as f:
+        d = f.read()
+    vocab = {'itos': [], 'stoi': []}
+    d= d[10:]
     
-    settings.NEURONS = [15, 19, 1023, 203]
-    single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
-    #default(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
+    i = 0
+  
+    while (d[i] != '}'):
+        quote_num = 0
+        key = ""
+        val = ""
+        while (d[i] != ':'):
+            key += d[i]
+            i+=1
+        while (quote_num != 2):
+            if d[i] == "'" or d[i] == '"':
+                quote_num +=1
+            val += d[i]
+            i+=1
+    
+        print(key,val)
+        i +=2
+        pair = [int(key.strip()), val]
+        vocab['itos'].append(pair[0])
+        if i == 25:
+            break
+    print(vocab['itos'])
+        
+def test_one_sentence(acts,states,weights,tok_feats,tok_feats_vocab, cluster_num):
+    records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, None, cluster=cluster_num)
     
 def main(args):
     nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger", "ner"])
@@ -56,8 +68,12 @@ def main(args):
     print(activ_ranges)
     act_mask=build_act_mask(activ, activ_ranges, 2)
     
+    weights = model.mlp[-1].weight.t().detach().cpu().numpy()
     
-    test_one_sentence(p_,h_, model, args.data)
+    #load_tok_feats()
+    load_vocab()
+    
+    #test_one_sentence(act_mask,activ,weights,tok_feats,tok_feats_vocab, cluster_num=2)
     
     
 if __name__ == "__main__":
