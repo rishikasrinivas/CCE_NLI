@@ -39,11 +39,12 @@ def create_clusters(activations, num_clusters):
     if torch.nonzero(activations).size(0) < num_clusters:
         return  [(0, torch.tensor(float("inf")))]
 
-    activations  = activations.flatten().reshape(-1, 1)
-
+    #activations  = activations.flatten().reshape(-1, 1)
+    print(activations.shape)
+    print("goinh to cluster")
     clusters = scikit_cluster.KMeans(n_clusters= num_clusters, random_state=0).fit(activations)
     cluster_lst = clusters.labels_
-
+    print("fin to cluster")
     activation_ranges = compute_activ_ranges(activations, cluster_lst, num_clusters)
  
     return activation_ranges

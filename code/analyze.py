@@ -680,12 +680,15 @@ def load_sents(path):
 def single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
     import csv
     activations= torch.from_numpy(np.array(states))
+    
     activation_ranges = create_clusters(activations, 5)
-    for cluster_num in range(1,6):
-        file="CompExpCluster" + str(cluster_num) + ".csv"
-        with open(file, "w") as fp:
-            wr = csv.writer(fp, dialect='excel')
-            wr.writerow(["sentences", 'cluster','neuron','feature','iou'])
+    file="CompExpClusters.csv"
+    with open(file, "w") as fp:
+        wr = csv.writer(fp, dialect='excel')
+        wr.writerow(["sentences", 'cluster','neuron','feature','iou'])
+        for cluster_num in range(1,6):
+
+
             acts=build_act_mask(activations,activation_ranges, cluster_num)
 
             records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num)
@@ -697,38 +700,38 @@ def single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
             
 def per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
     import csv
-    sents=load_sents("data/analysis/snli_1.0_dev.tok")
-    i=0
-    sent_num = 0
+    #sents=load_sents("data/analysis/snli_1.0_dev.tok")
+    #i=0
+    #sent_num = 0
     with open("compExpCompare.csv", "w") as fp:
         wr = csv.writer(fp, dialect='excel')
         wr.writerow(["sentences", 'cluster','neuron','feature','iou'])
-    for state in states:
-        sent_num += 1
-        sentences=[sents[i], sents[i+1]]
-        i += 2
-        state = torch.tensor(np.array(state)).unsqueeze(1) 
-        best_exp=[]
-        activations= torch.from_numpy(state.numpy().reshape(state.shape[0]*state.shape[1], 1)) #flatten it
-        activation_ranges = create_clusters(activations, 5)
-        activations= torch.from_numpy(activations.numpy().reshape(1,1024)) #reform it
-        for cluster_num in range(1,6):
-            acts=build_act_mask(activations,activation_ranges, cluster_num)
+        for state in states:
+            sent_num += 1
+            sentences=[sents[i], sents[i+1]]
+            i += 2
+            state = torch.tensor(np.array(state)).unsqueeze(1) 
+            best_exp=[]
+            activations= torch.from_numpy(state.numpy().reshape(state.shape[0]*state.shape[1], 1)) #flatten it
+            activation_ranges = create_clusters(activations, 5)
+            activations= torch.from_numpy(activations.numpy().reshape(1,1024)) #reform it
+            for cluster_num in range(1,6):
+                acts=build_act_mask(activations,activation_ranges, cluster_num)
 
-            records = search_feats(acts, state, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num,sentence_num = sent_num)
-          
-            best_iou = 0
-            ind = 0
-            for index,record in enumerate(records):
-                if record['iou'] > best_iou:
-                    best_iou = record['iou'] 
-                    ind = index
-                if len(best_exp) == 0 or best_iou > best_exp['iou'] :
-                    best_exp = records[ind]
-        if (best_exp['iou']>0):
-            with open("compExpCompare.csv", "a") as fp:
-                wr = csv.writer(fp, dialect='excel')
-                wr.writerow([sentences, best_exp['cluster'],best_exp['neuron'],best_exp['feature'],best_exp['iou']])
+                records = search_feats(acts, state, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num,sentence_num = sent_num)
+
+                best_iou = 0
+                ind = 0
+                for index,record in enumerate(records):
+                    if record['iou'] > best_iou:
+                        best_iou = record['iou'] 
+                        ind = index
+                    if len(best_exp) == 0 or best_iou > best_exp['iou'] :
+                        best_exp = records[ind]
+            if (best_exp['iou']>0):
+                with open("compExpCompare.csv", "a") as fp:
+                    wr = csv.writer(fp, dialect='excel')
+                    wr.writerow([sentences, best_exp['cluster'],best_exp['neuron'],best_exp['feature'],best_exp['iou']])
 
                 
             
@@ -765,12 +768,13 @@ def main():
     print("Extracting sentence token features")
     
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
-    print(tok_feats.shape)
-    np.savetxt('data/tok_feats.csv', tok_feats, fmt="%d", delimiter=",")
+    
+    """np.savetxt('data/tok_feats.csv', tok_feats, fmt="%d", delimiter=",")
     with open('data/tok_feats_vocab.txt','w') as datas:  
-        datas.write(str(tok_feats_vocab))
+        datas.write(str(tok_feats_vocab))"""
         
-    settings.NEURONS = [1,15,66,79,650,1000,1023]
+    settings.NEURONS = [1,6,19,100,1023]
+    print(settings.NEURONS)
     single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
     #default(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
     
