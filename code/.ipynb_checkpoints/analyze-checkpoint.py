@@ -252,7 +252,8 @@ OPS = defaultdict(
 
 
 def compute_iou(formula, acts, feats, dataset, feat_type="word"):
-    masks = get_mask(feats, formula, dataset, feat_type) #10,000x1 saying if the formula is in the sample
+  
+    masks = get_mask(feats, formula, dataset, feat_type) #10,000x1 saying if the formula is in the sample'
     # Cache mask
     formula.mask = masks
 
@@ -298,8 +299,7 @@ def compute_best_sentence_iou(args):
             if negate:
                 new_formula = FM.Not(new_formula)
             #handling if neightbors dont exist --added
-            if np.count_nonzero(formula.mask) != 0:
-                new_formula = op(new_formula)
+            new_formula = op(new_formula)
             new_iou = compute_iou(
                 new_formula, acts, feats, dataset, feat_type="sentence"
             )
@@ -437,12 +437,10 @@ def search_feats(acts, states, feats, weights, dataset, cluster):
     if cluster is not None:
         print("cluster ",cluster)
     GLOBALS["acts"] = acts #build in build axt mask
-   
     GLOBALS["states"] = states
       #feats: 10000 rows 40087 cols
         # each row is a sentence and each col says if concept at col is in sent
     GLOBALS["feats"] = feats[0]
-    
     GLOBALS["dataset"] = feats[1]
     feats_vocab = feats[1]
 
@@ -478,6 +476,7 @@ def search_feats(acts, states, feats, weights, dataset, cluster):
         for res in pool.imap_unordered(ioufunc, mp_args):
             unit = res["unit"]
             best_lab, best_iou = res["best"]
+            
             best_name = best_lab.to_str(namer, sort=True)
             best_cat = best_lab.to_str(cat_namer, sort=True)
             best_cat_fine = best_lab.to_str(cat_namer_fine, sort=True)
@@ -576,8 +575,8 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
             )
         )
 
-    #SKIP = {"a", "an", "the", "of", ".", ",", "UNK", "PAD", '"'}
-    SKIP = {"UNK", "PAD"}
+    SKIP = {"a", "an", "the", "of", ".", ",", "UNK", "PAD", '"'}
+ 
     if tok_feats_vocab is None:
         for s in SKIP:
             if s in dataset.stoi:
@@ -677,31 +676,47 @@ def load_sents(path):
         sents = f.readlines()
    
     return sents
+
 def single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
+    import csv
+    activations= torch.from_numpy(np.array(states))
+    activation_ranges = create_clusters(activations, 5)
+    for cluster_num in range(1,6):
+        file="CompExpCluster" + str(cluster_num) + ".csv"
+        with open(file, "w") as fp:
+            wr = csv.writer(fp, dialect='excel')
+            wr.writerow(["sentences", 'cluster','neuron','feature','iou'])
+            acts=build_act_mask(activations,activation_ranges, cluster_num)
+
+            records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num)
+            for rec in records:
+                if (rec['iou'] > 0):
+                    wr = csv.writer(fp, dialect='excel')
+                    wr.writerow([rec['cluster'],rec['neuron'],rec['feature'],rec['iou'], rec['w_entail'], rec['w_contra'], rec['w_neutral']])
+
+            
+def per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
     import csv
     sents=load_sents("data/analysis/snli_1.0_dev.tok")
     i=0
-    
+    sent_num = 0
     with open("compExpCompare.csv", "w") as fp:
         wr = csv.writer(fp, dialect='excel')
         wr.writerow(["sentences", 'cluster','neuron','feature','iou'])
     for state in states:
+        sent_num += 1
         sentences=[sents[i], sents[i+1]]
         i += 2
-        state = torch.tensor(np.array(state)).unsqueeze(1) #rn its 10,000x1024 so each col is the actis of the neurons for a saple but you want each row to be the activs?
+        state = torch.tensor(np.array(state)).unsqueeze(1) 
         best_exp=[]
         activations= torch.from_numpy(state.numpy().reshape(state.shape[0]*state.shape[1], 1)) #flatten it
         activation_ranges = create_clusters(activations, 5)
         activations= torch.from_numpy(activations.numpy().reshape(1,1024)) #reform it
         for cluster_num in range(1,6):
-            #print("Making masks for: ", cluster_num)
-            #print("activations range", activation_ranges[cluster_num-1])
             acts=build_act_mask(activations,activation_ranges, cluster_num)
 
-            print(acts.shape)
-
-            records = search_feats(acts, state, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num)
-
+            records = search_feats(acts, state, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num,sentence_num = sent_num)
+          
             best_iou = 0
             ind = 0
             for index,record in enumerate(records):
@@ -710,7 +725,6 @@ def single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
                     ind = index
                 if len(best_exp) == 0 or best_iou > best_exp['iou'] :
                     best_exp = records[ind]
-        print(best_exp)
         if (best_exp['iou']>0):
             with open("compExpCompare.csv", "a") as fp:
                 wr = csv.writer(fp, dialect='excel')
@@ -749,20 +763,14 @@ def main():
         
    
     print("Extracting sentence token features")
-
+    
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
-    settings.NEURONS = [15, 66, 1023, 203]
+    print(tok_feats.shape)
     np.savetxt('data/tok_feats.csv', tok_feats, fmt="%d", delimiter=",")
     with open('data/tok_feats_vocab.txt','w') as datas:  
         datas.write(str(tok_feats_vocab))
         
-    
-    
-    
-    #write ethese a to a file then in singe_Test read these files to get the tok_feats, tok_feats_vocab,s to pass into the single_neruon emthod
-    
-    
-    
+    settings.NEURONS = [1,15,66,79,650,1000,1023]
     single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
     #default(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
     

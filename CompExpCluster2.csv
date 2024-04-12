@@ -1,0 +1,4 @@
+sentences,cluster,neuron,feature,iou
+2,15,((((hyp:tok:asleep OR hyp:tok:sleeping) OR hyp:tok:couch) AND (NOT hyp:tag:prp$)) OR hyp:tok:eat),0.11363636363636363,-0.083393574,0.086006,-0.05854521
+2,1000,"(((((NOT oth:overlap:overlap75) AND hyp:tag:in) AND (NOT pre:tag:cc)) AND (NOT pre:tag:,)) OR pre:tok:several)",0.08149984505732878,-0.04671789,0.07593021,0.012701052
+2,1023,(((((NOT oth:overlap:overlap75) AND pre:tag:.) AND (NOT hyp:tok:for)) AND (NOT hyp:tok:outside)) AND (NOT pre:tok:up)),0.1407497631614562,-0.054077625,0.0110306665,0.034481212

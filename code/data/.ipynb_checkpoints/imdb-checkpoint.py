@@ -13,6 +13,8 @@ from torch.nn.utils.rnn import pad_sequence
 from collections import Counter
 import pandas as pd
 
+import spacy
+spacy.load("en_core_web_sm")
 
 import models
 from . import analysis

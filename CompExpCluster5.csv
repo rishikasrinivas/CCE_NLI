@@ -1,0 +1,4 @@
+sentences,cluster,neuron,feature,iou
+5,15,((((hyp:tok:sitting AND pre:tok:walking) OR hyp:tok:bib) AND (NOT oth:overlap:overlap50)) AND hyp:tag:vbg),0.23529411764705882,-0.083393574,0.086006,-0.05854521
+5,1000,((((hyp:tok:grassy OR hyp:tok:hide) OR hyp:tok:moon) OR hyp:tok:boards) OR hyp:tok:free),0.10126582278481013,-0.04671789,0.07593021,0.012701052
+5,1023,((((NOT oth:overlap:overlap50) AND (hyp:tag:prp$ OR hyp:tok:for)) OR hyp:tok:tall) OR hyp:tok:party),0.15561066336019838,-0.054077625,0.0110306665,0.034481212

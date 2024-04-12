@@ -88,10 +88,13 @@ def serialize(model, dataset):
     }
 
 
+import datasets
+dataset = datasets.load_dataset("imdb", split="train", download_mode="force_redownload")
 def main(args):
     os.makedirs(args.exp_dir, exist_ok=True)
 
     # ==== LOAD DATA ====
+    
     train = IMDB("data/imdb/", "train")
     # FIXME: sample a real dev set later (this isn't too bad because we are not
     # trying to optimize for test set perf at all)

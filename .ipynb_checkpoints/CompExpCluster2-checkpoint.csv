@@ -1,0 +1,3 @@
+2,15,((((NOT pre:tok:sitting) AND (hyp:tok:sits OR hyp:tok:sleeping)) OR pre:tok:dusty) OR hyp:tok:popsicle),0.09006211180124224,-0.083393574,0.086006,-0.05854521
+2,1000,"(((((NOT pre:tag:cc) AND hyp:tag:dt) AND (NOT oth:overlap:overlap50)) AND (NOT pre:tag:,)) AND (NOT hyp:tok:to))",0.07625211029825549,-0.04671789,0.07593021,0.012701052
+2,1023,((((NOT oth:overlap:overlap75) AND (hyp:tag:dt OR hyp:tag:nn)) AND (NOT hyp:tok:outside)) AND (NOT hyp:tok:to)),0.1469543840480743,-0.054077625,0.0110306665,0.034481212

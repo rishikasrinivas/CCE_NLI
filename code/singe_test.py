@@ -61,9 +61,8 @@ def main(args):
     hlen = torch.tensor([hlen])
     plen = torch.tensor([plen])
     
-    out = predict(model, p, h, nlp, stoi, args)
-    
-    activ=model.get_final_reprs(p_, plen, h_, hlen)
+    out =model(p_, plen, h_, hlen)
+    return
     activ_ranges=create_clusters(activ,4)
     print(activ_ranges)
     act_mask=build_act_mask(activ, activ_ranges, 2)

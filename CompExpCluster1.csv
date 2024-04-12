@@ -1,0 +1,4 @@
+sentences,cluster,neuron,feature,iou
+1,15,((((NOT pre:tag:vbp) AND (hyp:tok:eating OR hyp:tok:sleep)) OR hyp:tok:we) OR pre:tok:suburban),0.0811965811965812,-0.083393574,0.086006,-0.05854521
+1,1000,(((((NOT pre:tok:and) AND hyp:tag:in) AND (NOT oth:overlap:overlap50)) AND (NOT pre:tag:prp)) AND (NOT pre:tok:sitting)),0.05662020905923345,-0.04671789,0.07593021,0.012701052
+1,1023,((((NOT pre:tok:white) AND (hyp:tok:man OR hyp:tok:on)) AND (NOT pre:tok:young)) OR pre:tag:pos),0.0715452466514211,-0.054077625,0.0110306665,0.034481212
