@@ -1,8 +1,5 @@
 cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neutral,w_contra
-5,1,pre:tok:in,pre,pre:tok,0.0,1,0.0047763498,0.0021374722,0.014035168
-5,15,((((hyp:tok:sitting AND pre:tok:walking) OR hyp:tok:bib) AND (NOT oth:overlap:overlap50)) AND hyp:tag:vbg),((((hyp AND pre) OR hyp) AND (NOT oth)) AND hyp),((((hyp:tok AND pre:tok) OR hyp:tok) AND (NOT oth:overlap)) AND hyp:tag),0.23529411764705882,6,-0.083393574,-0.05854521,0.086006
-5,66,pre:tok:in,pre,pre:tok,0.0,1,0.033789285,-0.03808392,-0.018338058
-5,79,pre:tok:in,pre,pre:tok,0.0,1,-0.042171866,0.029642066,0.0040113684
-5,650,pre:tok:in,pre,pre:tok,0.0,1,-0.0039973115,0.021220779,-0.040899057
-5,1000,((((hyp:tok:grassy OR hyp:tok:hide) OR hyp:tok:moon) OR hyp:tok:boards) OR hyp:tok:free),((((hyp OR hyp) OR hyp) OR hyp) OR hyp),((((hyp:tok OR hyp:tok) OR hyp:tok) OR hyp:tok) OR hyp:tok),0.10126582278481013,5,-0.04671789,0.012701052,0.07593021
-5,1023,((((NOT oth:overlap:overlap50) AND (hyp:tag:prp$ OR hyp:tok:for)) OR hyp:tok:tall) OR hyp:tok:party),((((NOT oth) AND (hyp OR hyp)) OR hyp) OR hyp),((((NOT oth:overlap) AND (hyp:tag OR hyp:tok)) OR hyp:tok) OR hyp:tok),0.15561066336019838,6,-0.054077625,0.034481212,0.0110306665
+1,150,pre:tok:in,pre,pre:tok,0.0,1,-0.19717628,0.03932933,0.078936905
+1,0,pre:tok:in,pre,pre:tok,0.0,1,-0.026803894,-0.017842982,0.02657936
+1,100,pre:tok:in,pre,pre:tok,0.0,1,-0.088273406,-0.0052091433,-0.0047181933
+1,50,pre:tok:in,pre,pre:tok,0.0,1,-0.09473563,0.024855418,-0.04968543

@@ -11,9 +11,7 @@ def build_act_mask(states, activ_ranges, cluster_num):
     #change this to do a binary map within a range
     lower_thresh_in_range=activ_ranges[cluster_num-1][0]
     upper_thresh_in_range = activ_ranges[cluster_num-1][1] #same
-    
-    print("min val in act mask: ", torch.min(states))
-    print("max val in act mask: ", torch.max(states))
+    print("[", lower_thresh_in_range, ", ", upper_thresh_in_range, "]")
     
     act_masks = torch.where((states >= lower_thresh_in_range) & (states <= upper_thresh_in_range) & (states > 0), True, False)
 
@@ -39,7 +37,7 @@ def create_clusters(activations, num_clusters):
     if torch.nonzero(activations).size(0) < num_clusters:
         return  [(0, torch.tensor(float("inf")))]
 
-    #activations  = activations.flatten().reshape(-1, 1)
+    activations  = activations.flatten().reshape(-1, 1)
     print(activations.shape)
     print("goinh to cluster")
     clusters = scikit_cluster.KMeans(n_clusters= num_clusters, random_state=0).fit(activations)
