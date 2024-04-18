@@ -1,5 +1,22 @@
 cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neutral,w_contra
-1,150,pre:tok:in,pre,pre:tok,0.0,1,-0.19717628,0.03932933,0.078936905
-1,0,pre:tok:in,pre,pre:tok,0.0,1,-0.026803894,-0.017842982,0.02657936
-1,100,pre:tok:in,pre,pre:tok,0.0,1,-0.088273406,-0.0052091433,-0.0047181933
-1,50,pre:tok:in,pre,pre:tok,0.0,1,-0.09473563,0.024855418,-0.04968543
+5,0,((((hyp:tok:alone OR hyp:tok:sleeping) OR hyp:tok:cat) OR hyp:tok:nothing) OR hyp:tok:asleep),((((hyp OR hyp) OR hyp) OR hyp) OR hyp),((((hyp:tok OR hyp:tok) OR hyp:tok) OR hyp:tok) OR hyp:tok),0.12804878048780488,5,-0.026803894,-0.017842982,0.02657936
+5,50,pre:tok:in,pre,pre:tok,0.0,1,-0.09473563,0.024855418,-0.04968543
+5,100,pre:tok:in,pre,pre:tok,0.0,1,-0.088273406,-0.0052091433,-0.0047181933
+5,150,pre:tok:in,pre,pre:tok,0.0,1,-0.19717628,0.03932933,0.078936905
+5,200,pre:tok:in,pre,pre:tok,0.0,1,-0.033764776,-0.0050887647,-0.02600243
+5,250,pre:tok:in,pre,pre:tok,0.0,1,-0.011110642,0.0068920623,0.015077724
+5,300,pre:tok:in,pre,pre:tok,0.0,1,-0.022364594,-0.0016705373,-0.024519714
+5,350,pre:tok:in,pre,pre:tok,0.0,1,-0.0012521191,0.02548543,-0.020040466
+5,400,pre:tok:in,pre,pre:tok,0.0,1,0.033684324,-0.044545747,-0.060188603
+5,450,pre:tok:in,pre,pre:tok,0.0,1,0.06277868,-0.13387111,-0.06728411
+5,500,(hyp:tok:boy AND pre:tok:pumpkin),(hyp AND pre),(hyp:tok AND pre:tok),1.0,2,-0.030349722,-0.113477394,0.05035564
+5,550,pre:tok:in,pre,pre:tok,0.0,1,0.1099067,-0.114987254,-0.1524262
+5,600,pre:tok:in,pre,pre:tok,0.0,1,-0.041071188,0.004700885,0.0026348946
+5,650,pre:tok:in,pre,pre:tok,0.0,1,-0.0039973115,0.021220779,-0.040899057
+5,700,pre:tok:in,pre,pre:tok,0.0,1,0.033539146,-0.089527294,-0.0638582
+5,750,pre:tok:in,pre,pre:tok,0.0,1,0.029477775,-0.07790731,-0.07903202
+5,800,pre:tok:in,pre,pre:tok,0.0,1,-0.28860164,0.1577375,-0.12925121
+5,850,((((NOT oth:overlap:overlap50) AND (hyp:tok:driving OR hyp:tok:running)) AND (NOT pre:tok:dog)) OR hyp:tok:moon),((((NOT oth) AND (hyp OR hyp)) AND (NOT pre)) OR hyp),((((NOT oth:overlap) AND (hyp:tok OR hyp:tok)) AND (NOT pre:tok)) OR hyp:tok),0.11583011583011583,7,-0.06317688,-0.027604895,0.027852636
+5,900,pre:tok:in,pre,pre:tok,0.0,1,-0.0056118234,0.0035851437,-0.004306907
+5,950,pre:tok:in,pre,pre:tok,0.0,1,0.018012987,0.02729435,0.032367956
+5,1000,((((hyp:tok:play AND pre:tok:and) OR hyp:tok:grassy) AND (NOT hyp:tag:vbg)) AND (NOT pre:tag:cd)),((((hyp AND pre) OR hyp) AND (NOT hyp)) AND (NOT pre)),((((hyp:tok AND pre:tok) OR hyp:tok) AND (NOT hyp:tag)) AND (NOT pre:tag)),0.1076923076923077,7,-0.04671789,0.012701052,0.07593021
