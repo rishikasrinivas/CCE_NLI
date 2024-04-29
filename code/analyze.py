@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #todo: make clusters
@@ -147,7 +146,6 @@ def get_mask(feats, f, dataset, feat_type):
             print("nigh mk", np.isin(feats["onehot"][:, ci].shape))
             return np.isin(feats["onehot"][:, ci], neighbors)
         else:
-            print("sentence level neighbord: ", f.val.val)
             assert isinstance(f.val, FM.Leaf)
             fval = f.val.val
             fname = dataset["itos"][fval]
@@ -185,32 +183,7 @@ def get_mask(feats, f, dataset, feat_type):
     else:
         raise ValueError("Most be passed formula")
 
-def auc(masks,acts):
-    
-    #mask0 = array with all indexes in mask where mask[i] = 0
-    mask_0 = np.where(masks == 0)[0]
-    # mask1 = arra with all indexes in mask where mask[i] = 1
-    mask_1 = np.where(masks == 1)[0]
 
-    #sum where acts[mask0 indices] < acts[mask1 indices]
-    
-    mask_1_len=int(mask_1.shape[0]) 
-    total = mask_0_len * mask_1_len
-    if total ==0:
-        return 0
-    
-    acts_vals_of_mask_0 = [acts[mask0_idx] for mask0_idx in mask_0]
-    acts_vals_of_mask_1 = [acts[mask1_idx] for mask1_idx in mask_1]
-    
-    summ=0;
-    for ind_0 in range(mask_0_len):
-        ind0_acts = acts[ind_0]
-        for ind_1 in range(mask_1_len): 
-            if int(ind0_acts) < int(acts[ind_1]):
-                summ += 1;
-        
-    
-    return summ/total
     
 def iou(a, b):
     intersection = (a & b).sum()
@@ -258,34 +231,36 @@ def get_concept(formula, dataset):
     """
     inds = re.findall("[0-9]+",str(formula))
     c = ""
-    for i in inds:
-        c += dataset['itos'][int(i)] + " "
-    return c
+    
+    if len(inds) > 3:
+        for i in inds:
+            c += dataset['itos'][int(i)] + " "
+        return c
+    return -1
     
 import csv  
-def write_to_file(unit, file, content1, content2, content3):
+def write_to_file(unit, file, content1,formula, content2, content3):
     if not os.path.isfile(file):
         with open(file, "w") as fp:
             wr = csv.writer(fp, dialect='excel')
-            wr.writerow(["unit", "concept", "inds of samples containing concept", "num samples containing concept"])
+            wr.writerow(["unit", "concept", "inds of samples containing concept", "num samples containing concept", "formula"])
     else:
         with open(file, "a") as fp:
             wr = csv.writer(fp, dialect='excel')
-            wr.writerow([unit, content1, content2, content3])
+            wr.writerow([unit, content1, content2, content3, formula])
             
-def calculate_act_mask_align_index(unit, cluster, concept, acts, masks):
+def calculate_act_mask_align_index(unit, formula, cluster, concept, acts, masks):
     #masks = masks.reshape(-1,1)
-    print("shape of mask: ", masks.shape)
     samples_entailing_formula = np.where(masks == 1) #sample indices where concept in sample
   
-    print("For neuron ", unit, "\nConcept: ", concept, "\nAct mask is: ", acts)
+    #print("For neuron ", unit, "\nConcept: ", concept, "\nAct mask is: ", acts)
     samples_where_neuron_activs = np.where(acts==1)
     sample_nums_commonTo_act_and_mask = np.intersect1d(samples_entailing_formula, samples_where_neuron_activs)
     
 
-    write_to_file(unit, f"Cluster{cluster}SamplesFiringPerConcept.csv", concept, samples_entailing_formula, len(samples_entailing_formula[0]) )
-    write_to_file(unit, f"Cluster{cluster}SamplesCommonToActAndMask.csv", concept, sample_nums_commonTo_act_and_mask, len(sample_nums_commonTo_act_and_mask))
-    write_to_file(unit, f"Cluster{cluster}SamplesWhereNeuronActivates.csv", concept, samples_where_neuron_activs, len(samples_where_neuron_activs[0]) )
+    write_to_file(unit, f"Cluster{cluster}SamplesFiringPerConcept.csv", concept, formula, samples_entailing_formula, len(samples_entailing_formula[0]) )
+    write_to_file(unit, f"Cluster{cluster}SamplesCommonToActAndMask.csv", concept, formula, sample_nums_commonTo_act_and_mask, len(sample_nums_commonTo_act_and_mask))
+    write_to_file(unit, f"Cluster{cluster}SamplesWhereNeuronActivates.csv", concept, formula, samples_where_neuron_activs, len(samples_where_neuron_activs[0]) )
     
 def compute_iou(unit, cluster, formula, acts, feats, dataset, feat_type="word", sentence_num=None):
   
@@ -296,14 +271,18 @@ def compute_iou(unit, cluster, formula, acts, feats, dataset, feat_type="word", 
         return -1
     formula.mask = masks
     
-    print("acts shape", acts.shape)
-
-    if sentence_num is None: #if not running this on 1 sentence at a time
-        calculate_act_mask_align_index(unit,cluster, get_concept(formula,dataset), acts, masks)
+    
+    
+    concept=get_concept(formula,dataset)
+    if (concept != -1):
+        if sentence_num is None: #if not running this on 1 sentence at a time
+            calculate_act_mask_align_index(unit,formula, cluster, concept, acts, masks)
 
     if settings.METRIC == "iou":
         #if running w only 1 sentence iou would be.1 or 0, acts will be 1,1 (this is act for each neuron so 1 sentence and.1 neuon) mask is also 1x1
         comp_iou = iou(masks, acts)
+        if (concept != -1):
+            write_to_file(unit, f"Cluster{cluster}IOUs.csv", concept, formula, comp_iou, "")
     elif settings.METRIC == "precision":
         comp_iou = precision_score(masks, acts)
     elif settings.METRIC == "recall":
@@ -320,7 +299,7 @@ def compute_best_sentence_iou(args):
     
     print("Processsing neuron ", unit)
     acts = GLOBALS["acts"][:,unit]
-    #acts reprseent states in activrange
+    #acts reprseent states in activ range
     #for each neuron identify the samples where acts in col# neuron#==1
     
 
@@ -333,11 +312,10 @@ def compute_best_sentence_iou(args):
     formulas = {}
     for fval in feats_to_search:
         formula = FM.Leaf(fval)
-        print("formula: ", formula)
-        formulas[formula] = compute_iou(unit,cluster,
+        formulas[formula] = compute_iou(unit, cluster,
             formula, acts, feats, dataset, feat_type="sentence"
         )
-
+        
         for op, negate in OPS["lemma"]:
             # FIXME: Don't evaluate on neighbors if they don't exist
             new_formula = formula
@@ -345,7 +323,7 @@ def compute_best_sentence_iou(args):
                 new_formula = FM.Not(new_formula)
             #handling if neightbors dont exist --added
             new_formula = op(new_formula)
-            print("Unit ", unit, " new_formula: ", new_formula)
+            
             new_iou = compute_iou(unit, cluster,
                 new_formula, acts, feats, dataset, feat_type="sentence"
             )
@@ -375,6 +353,7 @@ def compute_best_sentence_iou(args):
                         unit, cluster, new_formula, acts, feats, dataset, feat_type="sentence"
                     )
                     new_formulas[new_formula] = new_iou
+
             
 
         formulas.update(new_formulas)
@@ -441,6 +420,7 @@ def extract_features(
     all_multifeats = []
     all_idxs = []
     for src, src_feats, src_multifeats, src_lengths, idx in tqdm(loader):
+      
         #  words = dataset.to_text(src)
         if settings.CUDA:
             src = src.cuda()
@@ -462,6 +442,7 @@ def extract_features(
 
         # Pack the sequence
         all_srcs.extend(list(np.transpose(src_one_comb.cpu().numpy(), (1, 2, 0))))
+
         all_feats.extend(
             list(np.transpose(pairs(src_feats).cpu().numpy(), (1, 2, 0, 3)))
         )
@@ -472,7 +453,6 @@ def extract_features(
         all_idxs.extend(list(pairs(idx).cpu().numpy()))
 
     all_feats = {"onehot": all_feats, "multi": all_multifeats}
-    #print(all_feats["onehot"])
     return all_srcs, all_states, all_feats, all_idxs
 
 
@@ -570,7 +550,7 @@ def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =No
     pd.DataFrame(records).to_csv(rfile, index=False)
     return records
 
-#explanatiosn hard to intepret makbe better explanations 
+ 
 def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
     """
     Convert token-level feats to sentence feats
@@ -596,8 +576,8 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
     for pair, featpair in zip(toks, feats["onehot"]):
         pair_counts = np.bincount(pair.ravel())
         tokens[: len(pair_counts)] += pair_counts
-
-        enct = np.unique(pair[0])
+        
+        enct = np.unique(pair[0]) #get the unique concepts in premise and hyp
         dect = np.unique(pair[1])
 
         encu = np.setdiff1d(enct, dect)
@@ -608,10 +588,10 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
         #  both_uniques.append(both)
 
         # PoS
-        enctag = np.unique(featpair[0, :, tag_i])
+        enctag = np.unique(featpair[0, :, tag_i]) #vector correspodnignt to tag value
         dectag = np.unique(featpair[1, :, tag_i])
 
-        enctag = enctag[enctag != -1]
+        enctag = enctag[enctag != -1] #remove padding
         dectag = dectag[dectag != -1]
 
         #  enctagu = np.setdiff1d(enctag, dectag)
@@ -650,14 +630,21 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
         for prefix in ["pre", "hyp"]:
             for t in tokens_by_count:
                 if t == 0:
-                    break
+                    continue
                 ts = dataset.itos[t]
                 t_prefixed = f"{prefix}:tok:{ts}"
                 tokens_stoi[t_prefixed] = len(tokens_stoi)
 
             # PoS
+            spec_tok=False
             for pos_i in dataset.cnames2fis["tag"]:
                 pos = dataset.fitos[pos_i].lower()
+                for s in SKIP:
+                    if s in dataset.fitos[t]:
+                        spec_tok = True
+                        break
+                if spec_tok:
+                    continue
                 assert pos.startswith("tag:")
                 pos_prefixed = f"{prefix}:{pos}"
                 tokens_stoi[pos_prefixed] = len(tokens_stoi)
@@ -695,8 +682,15 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
                     token_masks[i, ti] = 1
 
         # PoS
+        spec_tok=False
         for prefix, tags in [("pre", enctagu), ("hyp", dectagu)]:
             for t in tags:
+                for s in SKIP:
+                    if s in dataset.fitos[t]:
+                        spec_tok = True
+                        break
+                if spec_tok:
+                    continue
                 ts = dataset.fitos[t].lower()
                 t_prefixed = f"{prefix}:{ts}"
                 assert t_prefixed in tok_feats_vocab["stoi"]
@@ -746,7 +740,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
     with open(file, "w") as fp:
         wr = csv.writer(fp, dialect='excel')
         wr.writerow(["cluster", 'neuron','feature','iou', 'w_contra','w_neutral'])
-        for cluster_num in range(1,6):
+        for cluster_num in range(2,6):
 
             acts=build_act_mask(activations,activation_ranges, cluster_num)
             assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
@@ -828,7 +822,7 @@ def main():
     with open('data/tok_feats_vocab.txt','w') as datas:  
         datas.write(str(tok_feats_vocab))"""
         
-    settings.NEURONS = [i for i in range(0,1024,50)]
+    settings.NEURONS = [i for i in range(15,1024,50)]
     settings.NEURONS.append(1023)
     print(settings.NEURONS)
     clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
