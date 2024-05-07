@@ -249,7 +249,7 @@ def write_to_file(unit, file, content1,formula, content2, content3):
             wr = csv.writer(fp, dialect='excel')
             wr.writerow([unit, content1, content2, content3, formula])
             
-def calculate_act_mask_align_index(unit, formula, cluster, concept, acts, masks):
+def calculate_act_mask_align_index(unit, formula, cluster, run, concept, acts, masks):
     #masks = masks.reshape(-1,1)
     samples_entailing_formula = np.where(masks == 1) #sample indices where concept in sample
   
@@ -258,11 +258,11 @@ def calculate_act_mask_align_index(unit, formula, cluster, concept, acts, masks)
     sample_nums_commonTo_act_and_mask = np.intersect1d(samples_entailing_formula, samples_where_neuron_activs)
     
 
-    write_to_file(unit, f"Cluster{cluster}SamplesFiringPerConcept.csv", concept, formula, samples_entailing_formula, len(samples_entailing_formula[0]) )
-    write_to_file(unit, f"Cluster{cluster}SamplesCommonToActAndMask.csv", concept, formula, sample_nums_commonTo_act_and_mask, len(sample_nums_commonTo_act_and_mask))
-    write_to_file(unit, f"Cluster{cluster}SamplesWhereNeuronActivates.csv", concept, formula, samples_where_neuron_activs, len(samples_where_neuron_activs[0]) )
+    write_to_file(unit, f"Run{run}Cluster{cluster}SamplesFiringPerConcept.csv", concept, formula, samples_entailing_formula, len(samples_entailing_formula[0]) )
+    write_to_file(unit, f"Run{run}Cluster{cluster}SamplesCommonToActAndMask.csv", concept, formula, sample_nums_commonTo_act_and_mask, len(sample_nums_commonTo_act_and_mask))
+    write_to_file(unit, f"Run{run}Cluster{cluster}SamplesWhereNeuronActivates.csv", concept, formula, samples_where_neuron_activs, len(samples_where_neuron_activs[0]) )
     
-def compute_iou(unit, cluster, formula, acts, feats, dataset, feat_type="word", sentence_num=None):
+def compute_iou(unit, cluster,run, formula, acts, feats, dataset, feat_type="word", sentence_num=None):
   
     masks = get_mask(feats, formula, dataset, feat_type) #10,000x1 saying if the formula is in the sample'
     # Cache mask
@@ -273,16 +273,16 @@ def compute_iou(unit, cluster, formula, acts, feats, dataset, feat_type="word", 
     
     
     
-    #concept=get_concept(formula,dataset)
-    #if (concept != -1):
-        #if sentence_num is None: #if not running this on 1 sentence at a time
-            #calculate_act_mask_align_index(unit,formula, cluster, concept, acts, masks)
+    concept=get_concept(formula,dataset)
+    if (concept != -1):
+        if sentence_num is None: #if not running this on 1 sentence at a time
+            calculate_act_mask_align_index(unit,formula, cluster, run, concept, acts, masks)
 
     if settings.METRIC == "iou":
         #if running w only 1 sentence iou would be.1 or 0, acts will be 1,1 (this is act for each neuron so 1 sentence and.1 neuon) mask is also 1x1
         comp_iou = iou(masks, acts)
-        #if (concept != -1):
-            #write_to_file(unit, f"Cluster{cluster}IOUs.csv", concept, formula, comp_iou, "")
+        if (concept != -1):
+            write_to_file(unit, f"Run{run}Cluster{cluster}IOUs.csv", concept, formula, comp_iou, "")
     elif settings.METRIC == "precision":
         comp_iou = precision_score(masks, acts)
     elif settings.METRIC == "recall":
@@ -295,7 +295,7 @@ def compute_iou(unit, cluster, formula, acts, feats, dataset, feat_type="word", 
 
 #call this for each activ range from search_feats
 def compute_best_sentence_iou(args):
-    (unit,cluster) = args
+    (unit,cluster, run) = args
     
     print("Processsing neuron ", unit)
     acts = GLOBALS["acts"][:,unit]
@@ -312,7 +312,7 @@ def compute_best_sentence_iou(args):
     formulas = {}
     for fval in feats_to_search:
         formula = FM.Leaf(fval)
-        formulas[formula] = compute_iou(unit, cluster,
+        formulas[formula] = compute_iou(unit, cluster, run,
             formula, acts, feats, dataset, feat_type="sentence"
         )
         
@@ -324,7 +324,7 @@ def compute_best_sentence_iou(args):
             #handling if neightbors dont exist --added
             new_formula = op(new_formula)
             
-            new_iou = compute_iou(unit, cluster,
+            new_iou = compute_iou(unit, cluster,run,
                 new_formula, acts, feats, dataset, feat_type="sentence"
             )
             if new_iou != -1:
@@ -356,7 +356,7 @@ def compute_best_sentence_iou(args):
                         new_formula = FM.Not(new_formula)
                     new_formula = op(formula, new_formula)
                     new_iou = compute_iou(
-                        unit, cluster, new_formula, acts, feats, dataset, feat_type="sentence"
+                        unit, cluster, run, new_formula, acts, feats, dataset, feat_type="sentence"
                     )
                     new_formulas[new_formula] = new_iou
 
@@ -462,7 +462,7 @@ def extract_features(
     return all_srcs, all_states, all_feats, all_idxs
 
 
-def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =None):
+def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =None, run=None):
     
 
     rfile = os.path.join(settings.RESULT, "result.csv")
@@ -504,7 +504,7 @@ def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =No
         units = range(acts.shape[1])
     else:
         units = settings.NEURONS
-    mp_args = [(u,cluster) for u in units]
+    mp_args = [(u,cluster, run) for u in units]
     
 
     if settings.PARALLEL < 1:
@@ -735,7 +735,17 @@ def load_sents(path):
         sents = f.readlines()
    
     return sents
+def clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
+    activations= torch.from_numpy(np.array(states))
+    
+    activation_ranges = create_clusters(activations, 4)
+    file="CompExpClusters.csv"
+    for run in range(3):
+        for cluster_num in range(1,5):
 
+            acts=build_act_mask(activations,activation_ranges, cluster_num)
+            assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
+            records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = run)
 #added
 def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
     import csv
@@ -831,7 +841,7 @@ def main():
     settings.NEURONS = [i for i in range(15,1024,50)]
     settings.NEURONS.append(1023)
     print(settings.NEURONS)
-    clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
+    clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
     #per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
     #default(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
     
