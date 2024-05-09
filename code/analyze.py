@@ -270,9 +270,9 @@ def compute_iou(unit, cluster,run, formula, acts, feats, dataset, feat_type="wor
     masks = get_mask(feats, formula, dataset, feat_type) #10,000x1 saying if the formula is in the sample'
     # Cache mask
     
-    """if len(np.where(masks == 1)[0]) == 0: #formula not in any samples
+    if len(np.where(masks == 1)[0]) == 0: #formula not in any samples
  
-        return -1"""
+        return 0
     formula.mask = masks
     
     
@@ -294,8 +294,7 @@ def compute_iou(unit, cluster,run, formula, acts, feats, dataset, feat_type="wor
     else:
         raise NotImplementedError(f"metric: {settings.METRIC}")
     comp_iou = (settings.COMPLEXITY_PENALTY ** (len(formula) - 1)) * comp_iou
-    if len(np.where(masks == 1)[0]) == 0: #formula not in any samples
-        print("mask was all 0's iou is ", comp_iou)
+    
     return comp_iou
 
 #call this for each activ range from search_feats
