@@ -19,6 +19,7 @@ from scipy.spatial.distance import cdist
 from sklearn.metrics import precision_score, recall_score
 
 import formula as FM
+from formula import BinaryNode
 import settings
 import util
 from vis import report, pred_report
@@ -226,6 +227,7 @@ OPS = defaultdict(
     },
 )
 import re
+
 def get_concept(formula, dataset):
     """
         gets the concept associated with the formula (assuming the formula is a single number rn
@@ -233,7 +235,6 @@ def get_concept(formula, dataset):
     """
     inds = re.findall("[0-9]+",str(formula))
     c = ""
-    
     if len(inds) == 5:
         for i in inds:
             c += dataset['itos'][int(i)] + " "
@@ -266,10 +267,14 @@ def calculate_act_mask_align_index(unit, formula, cluster, run, concept, acts, m
         write_to_file(unit, f"Run{run}Cluster{cluster}SamplesWhereNeuronActivates.csv", concept, formula, samples_where_neuron_activs, len(samples_where_neuron_activs[0]) )
     
 def compute_iou(unit, cluster,run, formula, acts, feats, dataset, feat_type="word", sentence_num=None):
-  
+    getmask=0
+    if formula.__str__() == "((((2024 AND (NOT 4000)) AND (NOT 3)) AND (NOT 11)) AND (NOT 26))":
+        getmask=1  
     masks = get_mask(feats, formula, dataset, feat_type) #10,000x1 saying if the formula is in the sample'
     # Cache mask
-    
+    if getmask==1:
+        print("mask: ", mask)
+    getmask=0
     if len(np.where(masks == 1)[0]) == 0: #formula not in any samples
  
         return 0
@@ -345,6 +350,7 @@ def compute_best_sentence_iou(args):
     for i in range(settings.MAX_FORMULA_LENGTH - 1):
         new_formulas = {}
         for formula in formulas:
+            
             # Generic binary ops
             for feat in nonzero_iou:
                 for op, negate in OPS["all"]:
@@ -359,6 +365,7 @@ def compute_best_sentence_iou(args):
                         unit, cluster, run, new_formula, acts, feats, dataset, feat_type="sentence"
                     )
                     new_formulas[new_formula] = new_iou
+                
                 
 
             
@@ -382,7 +389,6 @@ def pad_collate(batch, sort=True):
     # NOTE: part of speeches are padded with 0 - we don't actually care here
     src_feats_pad = pad_sequence(src_feats, padding_value=-1)
     src_multifeats_pad = pad_sequence(src_multifeats, padding_value=-1)
-
     if sort:
         src_len_srt, srt_idx = torch.sort(src_len, descending=True)
         src_pad_srt = src_pad[:, srt_idx]
@@ -438,10 +444,8 @@ def extract_features(
             src_one = src.squeeze(2)
             src_one_comb = pairs(src_one)
             src_lengths_comb = pairs(src_lengths)
-
             s1 = src_one_comb[:, :, 0]
             s1len = src_lengths_comb[:, 0]
-
             s2 = src_one_comb[:, :, 1]
             s2len = src_lengths_comb[:, 1]
 
@@ -449,7 +453,7 @@ def extract_features(
 
         # Pack the sequence
         all_srcs.extend(list(np.transpose(src_one_comb.cpu().numpy(), (1, 2, 0))))
-
+        
         all_feats.extend(
             list(np.transpose(pairs(src_feats).cpu().numpy(), (1, 2, 0, 3)))
         )
@@ -843,7 +847,6 @@ def main():
         
     settings.NEURONS = [i for i in range(15,1024,20)]
     settings.NEURONS.append(1023)
-  
     acts = clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
     #per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
     #default(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
