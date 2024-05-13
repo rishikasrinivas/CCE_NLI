@@ -26,7 +26,7 @@ from vis import report, pred_report
 import data
 import data.snli
 import data.analysis
-from activation_utils import compute_activ_ranges, create_clusters, build_act_mask
+from activation_utils import compute_activ_ranges, create_clusters, build_act_mask, active_neurons
 
 GLOBALS = {}
 
@@ -235,7 +235,7 @@ def get_concept(formula, dataset):
     """
     inds = re.findall("[0-9]+",str(formula))
     c = ""
-    if len(inds) == 5:
+    if len(inds) >= 3:
         for i in inds:
             c += dataset['itos'][int(i)] + " "
         return c
@@ -265,18 +265,14 @@ def calculate_act_mask_align_index(unit, formula, cluster, run, concept, acts, m
     write_to_file(unit, f"Run{run}Cluster{cluster}SamplesCommonToActAndMask.csv", concept, formula, sample_nums_commonTo_act_and_mask, len(sample_nums_commonTo_act_and_mask))
     if not os.path.exists("Run{run}Cluster{cluster}SamplesWhereNeuronActivates.csv"):
         write_to_file(unit, f"Run{run}Cluster{cluster}SamplesWhereNeuronActivates.csv", concept, formula, samples_where_neuron_activs, len(samples_where_neuron_activs[0]) )
-    
+
+
 def compute_iou(unit, cluster,run, formula, acts, feats, dataset, feat_type="word", sentence_num=None):
-    getmask=0
-    if formula.__str__() == "((((2024 AND (NOT 4000)) AND (NOT 3)) AND (NOT 11)) AND (NOT 26))":
-        getmask=1  
     masks = get_mask(feats, formula, dataset, feat_type) #10,000x1 saying if the formula is in the sample'
     # Cache mask
-    if getmask==1:
-        print("mask: ", mask)
-    getmask=0
+
+    
     if len(np.where(masks == 1)[0]) == 0: #formula not in any samples
- 
         return 0
     formula.mask = masks
     
@@ -284,6 +280,7 @@ def compute_iou(unit, cluster,run, formula, acts, feats, dataset, feat_type="wor
     
     concept=get_concept(formula,dataset)
     if (concept != -1):
+        print(concept)
         if sentence_num is None: #if not running this on 1 sentence at a time
             calculate_act_mask_align_index(unit,formula, cluster, run, concept, acts, masks)
 
@@ -740,18 +737,31 @@ def load_sents(path):
         sents = f.readlines()
    
     return sents
+
+
 def clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
     activations= torch.from_numpy(np.array(states))
     
-    activation_ranges = create_clusters(activations, 4)
-    file="CompExpClusters.csv"
     for run in range(3):
-        for cluster_num in range(1,5):
+        with open(f"ActiveNeuronsRun{run}.csv", "w") as fp:
+            wr = csv.writer(fp, dialect='excel')
+            wr.writerow(["cluster", 'active_neurons', 'num_active', 'num_inactive'])
+            
+            activation_ranges = create_clusters(activations, 4)
+            
+            for cluster_num in range(1,5):
 
-            acts=build_act_mask(activations,activation_ranges, cluster_num)
-            assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
-            records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = run)
+                acts=build_act_mask(activations,activation_ranges, cluster_num)
+                d = active_neurons(acts)
+                
+                wr = csv.writer(fp, dialect='excel')
+                wr.writerow(cluster_num,d,len(d), 1-len(d))
+                
+                assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
+                records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = run)
     return states
+
+
 #added
 def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
     import csv
@@ -806,7 +816,6 @@ def per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dat
             
 
 
-    
 
 def main():
     os.makedirs(settings.RESULT, exist_ok=True)
@@ -847,6 +856,7 @@ def main():
         
     settings.NEURONS = [i for i in range(15,1024,20)]
     settings.NEURONS.append(1023)
+    
     acts = clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
     #per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
     #default(tok_feats, tok_feats_vocab,states,feats, weights, dataset)

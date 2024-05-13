@@ -19,6 +19,15 @@ def build_act_mask(states, activ_ranges, cluster_num):
     act_masks=act_masks.reshape(shape)
     return act_masks.numpy() #returns 1024 x1binary map saying which neurons activates (true if neuron a col does else false)
 
+def active_neurons(activations): #activs should be 10,000x1024
+    active_neurons = []
+    activations = activations.transpose()
+    for i,activs in enumerate(activations):
+        if len(np.where(activs==1)[0])  > 0:
+            active_neurons.append(i+1)
+    
+    return active_neurons
+
 def compute_activ_ranges(activations, clusters, num_clusters):
     #all activations will be >0 here
     activation_ranges=[]
