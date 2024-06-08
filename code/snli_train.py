@@ -7,7 +7,9 @@ import os
 import torch
 import torch.optim as optim
 import torch.nn as nn
-
+import spacy
+import en_core_web_sm
+nlp = en_core_web_sm.load()
 from torch.utils.data import DataLoader
 from data.snli import SNLI, pad_collate
 from contextlib import nullcontext

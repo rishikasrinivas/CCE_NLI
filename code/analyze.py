@@ -239,18 +239,18 @@ def get_concept(formula, dataset):
         for i in inds:
             c += dataset['itos'][int(i)] + " "
         return c
-    return -1
+    return []
     
 import csv  
-def write_to_file(unit, file, content1,formula, content2, content3):
+def write_to_file(unit, file, col_names, col_vals):
     if not os.path.isfile(file):
         with open(file, "w") as fp:
             wr = csv.writer(fp, dialect='excel')
-            wr.writerow(["unit", "concept", "inds of samples containing concept", "num samples containing concept", "formula"])
+            wr.writerow(col_names)
     else:
         with open(file, "a") as fp:
             wr = csv.writer(fp, dialect='excel')
-            wr.writerow([unit, content1, content2, content3, formula])
+            wr.writerow(col_vals)
             
 def calculate_act_mask_align_index(unit, formula, cluster, run, concept, acts, masks):
     #masks = masks.reshape(-1,1)
@@ -261,10 +261,11 @@ def calculate_act_mask_align_index(unit, formula, cluster, run, concept, acts, m
     sample_nums_commonTo_act_and_mask = np.intersect1d(samples_entailing_formula, samples_where_neuron_activs)
     
 
-    write_to_file(unit, f"Run{run}Cluster{cluster}SamplesFiringPerConcept.csv", concept, formula, samples_entailing_formula, len(samples_entailing_formula[0]) )
+    write_to_file(unit, f"Run{run}Cluster{cluster}SamplesFiringPerConcept.csv",["concept", "formula", "samples_entailing_formula", "num_samples_entailing_formula"], [concept, formula, samples_entailing_formula, len(samples_entailing_formula[0])] )
+    '''
     write_to_file(unit, f"Run{run}Cluster{cluster}SamplesCommonToActAndMask.csv", concept, formula, sample_nums_commonTo_act_and_mask, len(sample_nums_commonTo_act_and_mask))
     if not os.path.exists("Run{run}Cluster{cluster}SamplesWhereNeuronActivates.csv"):
-        write_to_file(unit, f"Run{run}Cluster{cluster}SamplesWhereNeuronActivates.csv", concept, formula, samples_where_neuron_activs, len(samples_where_neuron_activs[0]) )
+        write_to_file(unit, f"Run{run}Cluster{cluster}SamplesWhereNeuronActivates.csv", concept, formula, samples_where_neuron_activs, len(samples_where_neuron_activs[0]) )'''
 
 
 def compute_iou(unit, cluster,run, formula, acts, feats, dataset, feat_type="word", sentence_num=None):
@@ -279,16 +280,16 @@ def compute_iou(unit, cluster,run, formula, acts, feats, dataset, feat_type="wor
     
     
     concept=get_concept(formula,dataset)
-    if (concept != -1):
-        print(concept)
+  
+    if (len(concept) >= 2):
         if sentence_num is None: #if not running this on 1 sentence at a time
             calculate_act_mask_align_index(unit,formula, cluster, run, concept, acts, masks)
 
     if settings.METRIC == "iou":
         #if running w only 1 sentence iou would be.1 or 0, acts will be 1,1 (this is act for each neuron so 1 sentence and.1 neuon) mask is also 1x1
         comp_iou = iou(masks, acts)
-        if (concept != -1):
-            write_to_file(unit, f"Run{run}Cluster{cluster}IOUs.csv", concept, formula, comp_iou, "")
+       # if (concept != -1):
+           # write_to_file(unit, f"Run{run}Cluster{cluster}IOUs.csv", concept, formula, comp_iou, "")
     elif settings.METRIC == "precision":
         comp_iou = precision_score(masks, acts)
     elif settings.METRIC == "recall":
@@ -526,7 +527,8 @@ def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =No
             best_name = best_lab.to_str(namer, sort=True)
             best_cat = best_lab.to_str(cat_namer, sort=True)
             best_cat_fine = best_lab.to_str(cat_namer_fine, sort=True)
-
+            
+            write_to_file(unit, f"Cluster{cluster}IOUS1024N.csv", ["unit", "best_name", "best_iou"], [unit, best_name, best_iou])
             entail_weight = weights[unit, 0]
             neutral_weight = weights[unit, 1]
             contra_weight = weights[unit, 2]
@@ -742,7 +744,7 @@ def load_sents(path):
 def clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
     activations= torch.from_numpy(np.array(states))
     
-    for run in range(3):
+    for run in range(1):
         with open(f"ActiveNeuronsRun{run}.csv", "w") as fp:
             wr = csv.writer(fp, dialect='excel')
             wr.writerow(["cluster", 'active_neurons', 'num_active', 'num_inactive'])
@@ -755,7 +757,7 @@ def clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dat
                 d = active_neurons(acts)
                 
                 wr = csv.writer(fp, dialect='excel')
-                wr.writerow(cluster_num,d,len(d), 1-len(d))
+                wr.writerow([cluster_num,d,len(d), 1-len(d)])
                 
                 assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
                 records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = run)
@@ -805,7 +807,6 @@ def per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dat
             activations= torch.from_numpy(activations.numpy().reshape(1,1024)) #reform it
             for cluster_num in range(1,6):
                 acts=build_act_mask(activations,activation_ranges, cluster_num)
-
                 records = search_feats(acts, state, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num,sentence_num = sent_num)
                 #rint(records)
                 for rec in records:
@@ -852,10 +853,10 @@ def main():
     
     """np.savetxt('data/tok_feats.csv', tok_feats, fmt="%d", delimiter=",")
     with open('data/tok_feats_vocab.txt','w') as datas:  
-        datas.write(str(tok_feats_vocab))"""
+        datas.write(str(tok_feats_vocab))
         
     settings.NEURONS = [i for i in range(15,1024,20)]
-    settings.NEURONS.append(1023)
+    settings.NEURONS.append(1023)"""
     
     acts = clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
     #per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset)

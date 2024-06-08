@@ -1,11 +1,8 @@
-"""
-Custom models
-"""
-
 import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torch.nn.functional as F
+import torch.nn.utils.prune as prune
 
 
 class SentimentClassifier(nn.Module):
@@ -121,7 +118,10 @@ class BowmanEntailmentClassifier(nn.Module):
       
         mlp_input = self.bn(mlp_input)
         mlp_input = self.dropout(mlp_input)
-
+        
+        prune.ln_structured(self.mlp[:-1][0], name="weight", amount=0.05, dim=1, n=float('-inf'))
+       
+        assert prune.is_pruned(self.mlp[:-1]) == True
         preds = self.mlp(mlp_input)
 
         return preds
@@ -138,8 +138,11 @@ class BowmanEntailmentClassifier(nn.Module):
 
         mlp_input = self.bn(mlp_input)
         mlp_input = self.dropout(mlp_input)
-
-        rep = self.mlp[:-1](mlp_input)
+        prune.ln_structured(self.mlp[:-1][0], name="weight", amount=0.05, dim=1, n=float('-inf'))
+        assert prune.is_pruned(self.mlp[:-1]) == True
+        
+        
+        rep = self.mlp[:-1](mlp_input) #this would need to be updated w the pruning
         return rep
 
     def forward_from_final(self, rep):
