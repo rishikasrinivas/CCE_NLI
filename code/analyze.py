@@ -26,7 +26,8 @@ from vis import report, pred_report
 import data
 import data.snli
 import data.analysis
-from activation_utils import compute_activ_ranges, create_clusters, build_act_mask, active_neurons
+from activation_utils import compute_activ_ranges, create_clusters, build_act_mask, active_neurons, build_masks
+from Masks.DataLoading import load_masks
 
 GLOBALS = {}
 
@@ -745,22 +746,14 @@ def clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dat
     activations= torch.from_numpy(np.array(states))
     
     for run in range(1):
-        with open(f"ActiveNeuronsRun{run}.csv", "w") as fp:
-            wr = csv.writer(fp, dialect='excel')
-            wr.writerow(["cluster", 'active_neurons', 'num_active', 'num_inactive'])
-            
-            activation_ranges = create_clusters(activations, 4)
-            
-            for cluster_num in range(1,5):
+        for cluster_num in range(1,5):
+            if (len(os.listdir(f"code/Masks/Cluster{cluster_num}")) == 10000):
+                acts = load_masks(cluster_num, f"code/Masks/Cluster{cluster_num}").numpy()
+            else:
+                acts=build_masks(states, 4, cluster_num)
 
-                acts=build_act_mask(activations,activation_ranges, cluster_num)
-                d = active_neurons(acts)
-                
-                wr = csv.writer(fp, dialect='excel')
-                wr.writerow([cluster_num,d,len(d), 1-len(d)])
-                
-                assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
-                records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = run)
+            assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
+            records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = run)
     return states
 
 
@@ -775,7 +768,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
         wr = csv.writer(fp, dialect='excel')
         wr.writerow(["cluster", 'neuron','feature','iou', 'w_contra','w_neutral'])
         for cluster_num in range(1,5):
-
+            
             acts=build_act_mask(activations,activation_ranges, cluster_num)
             assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
             records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num)
