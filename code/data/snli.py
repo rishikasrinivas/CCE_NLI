@@ -23,6 +23,7 @@ def load_for_analysis(
     cuda=False,
     **kwargs,
 ):
+    
     ckpt = torch.load(ckpt_path, map_location="cpu")
     enc = models.TextEncoder(len(ckpt["stoi"]), **kwargs)
     if model_type == "minimal":

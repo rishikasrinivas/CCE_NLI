@@ -10,10 +10,4 @@ model, dataset = data.snli.load_for_analysis(
     cuda=settings.CUDA,
 )
 
-for n, p in model.named_parameters():
-    if n == 'mlp.0.weight_orig':
-        orig=p
-    else if n == 'mask':
-        mask=p
-
-new_weights=orig*mask
+print(model)

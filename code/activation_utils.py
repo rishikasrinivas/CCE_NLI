@@ -70,8 +70,8 @@ def build_masks(activations, num_clusters, cluster_num):
         mask=build_act_mask(activ_for_sample.squeeze(),activation_ranges, cluster_num)
         torch.save(mask, f"code/Masks/Cluster{cluster_num}/SentPair{i}sMask.pt")
         act_masks.append(mask)
-    print(torch.stack(act_masks), torch.stack(act_masks).shape )
-    act_tens=torch.save(torch.stack(act_masks), f"code/Masks/Cluster{cluster_num}Not_pruned_masks.pt")
+    print(torch.stack(act_masks).shape )
+    act_tens=torch.save(torch.stack(act_masks), f"code/Masks/Cluster{cluster_num}masks.pt")
     return torch.stack(act_masks).numpy()
         
     
