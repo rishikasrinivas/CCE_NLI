@@ -23,8 +23,9 @@ def load_for_analysis(
     cuda=False,
     **kwargs,
 ):
-    
+    ckpt_path="models/snli/model_best.pth"
     ckpt = torch.load(ckpt_path, map_location="cpu")
+   
     enc = models.TextEncoder(len(ckpt["stoi"]), **kwargs)
     if model_type == "minimal":
         clf = models.EntailmentClassifier

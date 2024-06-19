@@ -835,6 +835,8 @@ def main():
         dataset,
     )
     
+    torch.save(states, "Analysis/Data/5%PrunedActivs.pt")
+    
     
     #print(toks[0])#VECS_ITOS)
     sents=[]
