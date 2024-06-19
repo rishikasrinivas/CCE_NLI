@@ -747,11 +747,11 @@ def clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dat
     
     for run in range(1):
         for cluster_num in range(1,5):
-            if (len(os.listdir(f"code/Masks/Cluster{cluster_num}")) == 10000):
-                acts = load_masks(cluster_num, f"code/Masks/Cluster{cluster_num}").numpy()
-            else:
-                acts=build_masks(states, 4, cluster_num)
-
+            #if (len(os.listdir(f"code/Masks/Cluster{cluster_num}")) == 10000):
+                #acts = load_masks(cluster_num, f"code/Masks/Cluster{cluster_num}").numpy()
+            #else:
+            acts=build_masks(states, 4, cluster_num)
+            
             assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
             records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = run)
     return states

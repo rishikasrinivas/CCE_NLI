@@ -38,6 +38,7 @@ def compute_activ_ranges(activations, clusters, num_clusters):
         min_in_range = activations[inds].min()
         max_in_range = activations[inds].max()
         activation_ranges.append([min_in_range.item(),max_in_range.item()])
+    
     return sorted(activation_ranges, key=lambda x:x[0])
 
 def create_clusters(activations, num_clusters):
@@ -52,13 +53,24 @@ def create_clusters(activations, num_clusters):
     clusters = scikit_cluster.KMeans(n_clusters= num_clusters, random_state=0).fit(activations)
     cluster_lst = clusters.labels_
     activation_ranges = compute_activ_ranges(activations, cluster_lst, num_clusters)
- 
+    
     return activation_ranges
 
-    
+def get_avgs(all_act_rags):
+    data_array = np.array(all_act_rags)
 
+    # Calculate the average along the first axis (across all lists for each index)
+    averages = np.mean(data_array, axis=0)
+
+    # Convert the result back to a list if needed
+    averages_list = averages.tolist()
+    return averages_list
+        
+        
+    return start/lars, end/lars
 def build_masks(activations, num_clusters, cluster_num):
     act_masks=[]
+    all_act_rags=[]
     activations=torch.Tensor(activations)
     for i, activ_for_sample in enumerate(activations):
         #if torch.all(activ_for_sample >= 0):
@@ -66,11 +78,12 @@ def build_masks(activations, num_clusters, cluster_num):
 
         activ_for_sample = activ_for_sample.reshape(-1,1)
         activation_ranges = create_clusters(activ_for_sample,num_clusters)
-
+        all_act_rags.append(activation_ranges)
         mask=build_act_mask(activ_for_sample.squeeze(),activation_ranges, cluster_num)
         torch.save(mask, f"code/Masks/Cluster{cluster_num}/SentPair{i}sMask.pt")
         act_masks.append(mask)
     print(torch.stack(act_masks).shape )
+    print(get_avgs(all_act_rags))
     act_tens=torch.save(torch.stack(act_masks), f"code/Masks/Cluster{cluster_num}masks.pt")
     return torch.stack(act_masks).numpy()
         
