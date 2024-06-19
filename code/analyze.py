@@ -830,12 +830,13 @@ def main():
         weights = model.mlp[-1].weight.t().detach().cpu().numpy()
 
     print("Extracting features")
+    
     toks, states, feats, idxs = extract_features(
         model,
         dataset,
     )
     
-    torch.save(states, "Analysis/Data/5%PrunedActivs.pt")
+   
     
     
     #print(toks[0])#VECS_ITOS)

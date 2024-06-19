@@ -87,6 +87,10 @@ def main(args):
     # ==== BUILD MODEL ====
     model = build_model(len(ckpt["stoi"]), args.model_type)
     model.load_state_dict(ckpt["state_dict"])
+    
+    model.prune()
+    model.check_pruned()
+    
     model.eval()
 
     if args.cuda:
