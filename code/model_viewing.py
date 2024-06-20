@@ -20,6 +20,18 @@ def get_masked_connections(new_weights):
     with open('code/5%masked_connecs.pkl', 'wb') as f:
         pickle.dump(masked_connections, f)
     return masked_connections
+
+def get_weights_and_mask(model):
+    print([(n,p) for n,p in model.named_parameters()])
+    for n, p in model.named_parameters():
+        if n == 'mlp.0.weight_orig':
+            orig=p
+            break
+    for n,p in model.named_buffers():
+        if n == 'mlp.0.weight_mask':
+            mask=p
+            break
+    return orig, mask
 def get_min_max(masked_connections):
     max_l=0
     min_l=60000
@@ -43,33 +55,35 @@ def main():
         model_type=settings.MODEL_TYPE,
         cuda=settings.CUDA,
     )
-    print([(n,p) for n,p in model.named_parameters()])
-    for n, p in model.named_parameters():
-        if n == 'mlp.0.weight_orig':
-            orig=p
-            break
-    for n,p in model.named_buffers():
-        if n == 'mlp.0.weight_mask':
-            mask=p
-            break
-    print(orig,mask)
+    
+    model.prune()
+    
+    orig,mask = get_weights_and_mask(model)
     new_weights=orig*mask
 
     print(new_weights) #1024x2048
-    print(os.listdir("code/"))
     if "5%masked_connecs.pkl" in os.listdir("code/"):
         with open('code/5%masked_connecs.pkl', 'rb') as f:
             masked_connections= pickle.load(f)
     else:
         masked_connections = get_masked_connections(new_weights)
-   
-    #print(masked_connections)
-    #for k,v in masked_connections.items():
-        #print(f"{k}: {masked_connections[k][:9]}") #same neurons from 2048 are cut off [9, 14, 23, 45, 56, 63, 99, 122, 169 ... ]
-                                                #so each output unit has same num of severed coonecs so the activs outputs would change
+    
+    base=[]
+    for k,v in masked_connections.items():
+        if k == 0:
+            base_k = k
+            base = v
+        else:
+            for tv in v:
+                if tv not in base:
+                    print("difference between neuron ", base_k, "and ", k)
+                    print("k doesnt have ", v)
+        #print(f"{k}: {masked_connections[k][:9]}") 
+        '''same neurons from 2048 are cut off [8, 25, 26, 66, 91, 94, 115, 144, 148, 167, 185, 188,... ]
+                                                so each output unit has same num of severed coonecs so the activs outputs would change
                                                     #soits not the num of severed connects affecting 
                                                    #none of the 1024 0'd out 
-                                                #apparently the severed connctions are rasiing the output such that there is more overap between formula masks and activ masks. form masks stay same but acrss prunings activ masks change 
+                                                apparently the severed connctions are rasiing the output such that there is more overap between formula masks and activ masks. form masks stay same but acrss prunings activ masks change 
                         so same formulas as npt pruned do not give the same iou becuse if previously you were clustering in [0,2] and now you're [0,1.4]
                         iou says what concepts have formula a and b or c, and activations say this neuron was active in these samples
                         then iou looks at the overlap over joint 
@@ -85,7 +99,7 @@ def main():
                         possibilties: coincidently not puruned found the right formula, not enough data on those examples (possbilit since some of those exp only had 1 pair matching), the severed connections for those output neurons were already 0 before it was severed?
                         
                         todo: check the magnitude of the severed connections on the neurons where the explanations are exactly the same, were iou = 0, and where iou=rel high and rel low
-                                            #clusters eseem to be smallre'(need to check this again)
+                                            clusters eseem to be smallre'(need to check this again)'''
         
 main()
         
