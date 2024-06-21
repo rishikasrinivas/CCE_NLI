@@ -745,38 +745,18 @@ def load_sents(path):
 def clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
     activations= torch.from_numpy(np.array(states))
     
-    for run in range(1):
-        for cluster_num in range(1,5):
-            #if (len(os.listdir(f"code/Masks/Cluster{cluster_num}")) == 10000):
-                #acts = load_masks(cluster_num, f"code/Masks/Cluster{cluster_num}").numpy()
-            #else:
+    for cluster_num in range(1,5):
+        if f"Cluster{cluster_num}masks.pt" in os.listdir("code/Masks/"):
+            acts = torch.load(f"code/Masks/Cluster{cluster_num}masks.pt").numpy()
+        elif len(os.listdir(f"code/Masks/Cluster{cluster_num}")) == 10000:
+            acts=load_masks(f"code/Masks/Cluster{cluster_num}")
+        else:
             acts=build_masks(states, 4, cluster_num)
-            
-            assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
-            records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = run)
+
+        assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
+        records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = 0)
     return states
 
-
-#added
-def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
-    import csv
-    activations= torch.from_numpy(np.array(states))
-    
-    activation_ranges = create_clusters(activations, 4)
-    file="CompExpClusters.csv"
-    with open(file, "w") as fp:
-        wr = csv.writer(fp, dialect='excel')
-        wr.writerow(["cluster", 'neuron','feature','iou', 'w_contra','w_neutral'])
-        for cluster_num in range(1,5):
-            
-            acts=build_act_mask(activations,activation_ranges, cluster_num)
-            assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
-            records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num)
-            for rec in records:
-                if (rec['iou'] > 0):
-                    wr = csv.writer(fp, dialect='excel')
-                    wr.writerow([rec['cluster'],rec['neuron'],rec['feature'], rec['iou'], rec['w_contra'], rec['w_neutral']])
-            break
 
 #added         
 def per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset):

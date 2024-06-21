@@ -150,8 +150,8 @@ class BowmanEntailmentClassifier(nn.Module):
         mlp_input = self.bn(mlp_input)
         mlp_input = self.dropout(mlp_input)
         
-        self.prune(self.mlp[:-1][0])
-        assert prune.is_pruned(self.mlp[:-1]) == True
+        #self.prune(self.mlp[:-1][0])
+        assert prune.is_pruned(self.mlp[:-1]) == False
         
         
         rep = self.mlp[:-1](mlp_input) #this would need to be updated w the pruning
