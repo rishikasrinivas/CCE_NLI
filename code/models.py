@@ -120,7 +120,6 @@ class BowmanEntailmentClassifier(nn.Module):
         mlp_input = self.dropout(mlp_input)
         
         #prune.ln_structured(self.mlp[:-1][0], name="weight", amount=0.05, dim=1, n=float('-inf'))
-       
         assert prune.is_pruned(self.mlp[:-1]) == False
         preds = self.mlp(mlp_input)
 
@@ -134,6 +133,7 @@ class BowmanEntailmentClassifier(nn.Module):
     def prune(self, layer='default'):
         if layer == 'default':
             layer = self.mlp[:-1][0]
+            
         if not self.check_pruned(layer):
             prune.ln_structured(layer, name="weight", amount=0.05, dim=1, n=float('-inf'))
         
@@ -150,8 +150,8 @@ class BowmanEntailmentClassifier(nn.Module):
         mlp_input = self.bn(mlp_input)
         mlp_input = self.dropout(mlp_input)
         
-        #self.prune(self.mlp[:-1][0])
-        assert prune.is_pruned(self.mlp[:-1]) == False
+        self.prune(self.mlp[:-1][0])
+        assert prune.is_pruned(self.mlp[:-1]) == True
         
         
         rep = self.mlp[:-1](mlp_input) #this would need to be updated w the pruning

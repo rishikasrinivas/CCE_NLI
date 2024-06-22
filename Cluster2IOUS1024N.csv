@@ -968,3 +968,13 @@ unit,best_name,best_iou
 967,pre:tok:in,0.0
 968,pre:tok:in,0.0
 969,pre:tok:in,0.0
+970,((((NOT pre:tok:sitting) AND (hyp:tok:eating OR hyp:tok:sitting)) OR hyp:tok:swimming) OR hyp:tok:sits),0.11974110032362459
+971,pre:tok:in,0.0
+972,(hyp:tok:there AND pre:tok:end),0.2
+973,pre:tok:in,0.0
+974,pre:tok:in,0.0
+975,pre:tok:in,0.0
+976,pre:tok:in,0.0
+977,((((hyp:tok:sleeping OR hyp:tok:swimming) OR hyp:tok:watching) OR hyp:tok:asleep) OR hyp:tok:eating),0.13080684596577016
+978,pre:tok:in,0.0
+979,((((pre:tok:person AND pre:tok:way) OR hyp:tok:low) OR hyp:tok:complete) OR hyp:tok:finishing),0.11764705882352941
