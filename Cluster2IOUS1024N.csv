@@ -1,0 +1,970 @@
+unit,best_name,best_iou
+1,pre:tok:in,0.0
+2,pre:tok:in,0.0
+3,pre:tok:in,0.0
+4,pre:tok:in,0.0
+5,pre:tok:in,0.0
+6,((((NOT oth:overlap:overlap25) AND (hyp:tok:is OR hyp:tok:they)) OR hyp:tok:tall) AND (NOT pre:tok:small)),0.12559241706161137
+7,pre:tok:in,0.0
+8,((((hyp:tok:after OR hyp:tok:for) OR hyp:tok:tall) OR hyp:tok:before) AND (NOT pre:tok:for)),0.15531660692951016
+9,pre:tok:in,0.0
+10,pre:tok:in,0.0
+11,pre:tok:in,0.0
+12,pre:tok:in,0.0
+13,pre:tok:in,0.0
+14,pre:tok:in,0.0
+15,((((hyp:tok:cat OR hyp:tok:sitting) OR hyp:tok:sits) AND (NOT pre:tok:sits)) AND (NOT oth:overlap:overlap75)),0.16666666666666666
+16,((((NOT hyp:tok:black) AND (oth:overlap:overlap25 OR pre:tok:and)) OR hyp:tok:to) AND (NOT hyp:tok:sitting)),0.18268991282689911
+17,((((hyp:tok:low OR pre:tok:form) OR hyp:tok:brushes) AND (NOT oth:overlap:overlap25)) AND (NOT hyp:tok:is)),0.19047619047619047
+18,pre:tok:in,0.0
+19,((((hyp:tok:male OR pre:tok:arts) AND pre:tok:two) OR hyp:tok:microscope) OR hyp:tok:buddhist),0.09278350515463918
+20,pre:tok:in,0.0
+21,pre:tok:in,0.0
+22,((((pre:tok:learning OR pre:tok:yarn) OR pre:tok:routine) OR hyp:tok:microscope) OR hyp:tok:camouflage),0.10714285714285714
+23,pre:tok:in,0.0
+24,pre:tok:in,0.0
+25,pre:tok:in,0.0
+26,pre:tok:in,0.0
+27,pre:tok:in,0.0
+28,((((hyp:tok:crossing OR hyp:tok:human) OR hyp:tok:this) AND (NOT hyp:tok:is)) OR pre:tok:harness),0.10317460317460317
+29,pre:tok:in,0.0
+30,pre:tok:in,0.0
+31,pre:tok:in,0.0
+32,pre:tok:in,0.0
+33,pre:tok:in,0.0
+34,pre:tok:in,0.0
+35,pre:tok:in,0.0
+36,pre:tok:in,0.0
+37,((((pre:tok:n't OR pre:tok:tricks) OR pre:tok:poker) AND (NOT pre:tok:at)) OR pre:tok:crane),0.10638297872340426
+38,((pre:tok:beside AND pre:tok:bicycle) AND hyp:tok:beach),1.0
+39,((NOT pre:tok:to) AND (hyp:tok:nobody AND pre:tok:two)),0.5714285714285714
+40,(hyp:tok:bathroom AND pre:tok:building),1.0
+41,((((NOT pre:tok:in) AND (hyp:tok:championship OR hyp:tok:skate)) OR hyp:tok:aisle) AND (NOT pre:tok:wearing)),0.3076923076923077
+42,pre:tok:in,0.0
+43,pre:tok:in,0.0
+44,pre:tok:in,0.0
+45,((((hyp:tok:football OR hyp:tok:ocean) AND pre:tok:and) OR hyp:tok:juggling) OR pre:tok:dancers),0.10256410256410256
+46,pre:tok:in,0.0
+47,pre:tok:in,0.0
+48,pre:tok:in,0.0
+49,pre:tok:in,0.0
+50,pre:tok:in,0.0
+51,pre:tok:in,0.0
+52,((((hyp:tok:cat AND hyp:tok:with) OR pre:tok:speed) AND hyp:tok:is) OR pre:tok:television),0.19230769230769232
+53,pre:tok:in,0.0
+54,pre:tok:in,0.0
+55,pre:tok:in,0.0
+56,pre:tok:in,0.0
+57,pre:tok:in,0.0
+58,pre:tok:in,0.0
+59,((((hyp:tok:jersey OR hyp:tok:onlookers) AND pre:tok:with) OR hyp:tok:surfboard) AND pre:tok:with),0.5
+60,pre:tok:in,0.0
+61,((NOT pre:tok:in) AND hyp:tok:hate),0.3333333333333333
+62,pre:tok:in,0.0
+63,pre:tok:in,0.0
+64,pre:tok:in,0.0
+65,((((NOT pre:tok:bike) AND (hyp:tok:bicycle OR hyp:tok:bike)) AND (NOT pre:tok:bicycle)) AND (NOT pre:tok:people)),0.17045454545454544
+66,pre:tok:in,0.0
+67,(hyp:tok:tired AND pre:tok:front),1.0
+68,pre:tok:in,0.0
+69,pre:tok:in,0.0
+70,((((hyp:tok:nobody OR hyp:tok:swimming) OR hyp:tok:sleeping) OR hyp:tok:cat) OR hyp:tok:asleep),0.14586070959264127
+71,((((oth:overlap:overlap25 OR pre:tok:in) OR pre:tok:on) AND (NOT oth:overlap:overlap75)) AND (NOT hyp:tok:to)),0.16664363686610473
+72,pre:tok:in,0.0
+73,pre:tok:in,0.0
+74,pre:tok:in,0.0
+75,pre:tok:in,0.0
+76,(hyp:tok:air AND pre:tok:catching),1.0
+77,(((hyp:tok:skirt OR hyp:tok:visiting) AND hyp:tok:with) AND (NOT pre:tok:to)),0.2
+78,pre:tok:in,0.0
+79,pre:tok:in,0.0
+80,pre:tok:in,0.0
+81,pre:tok:in,0.0
+82,pre:tok:in,0.0
+83,((((pre:tok:atv OR pre:tok:flipping) AND oth:overlap:overlap25) AND (NOT hyp:tok:their)) AND (NOT hyp:tok:in)),0.23076923076923078
+84,pre:tok:in,0.0
+85,((hyp:tok:man AND hyp:tok:restaurant) AND oth:overlap:overlap25),1.0
+86,(hyp:tok:east AND hyp:tok:is),1.0
+87,(hyp:tok:to AND pre:tok:rear),0.16666666666666666
+88,pre:tok:in,0.0
+89,((((NOT oth:overlap:overlap50) AND (pre:tok:man OR pre:tok:woman)) OR pre:tok:sitting) AND (NOT hyp:tok:sitting)),0.13047210300429185
+90,pre:tok:in,0.0
+91,(hyp:tok:model AND pre:tok:near),1.0
+92,(hyp:tok:playing AND pre:tok:lime),0.5
+93,pre:tok:in,0.0
+94,pre:tok:in,0.0
+95,pre:tok:in,0.0
+96,pre:tok:in,0.0
+97,pre:tok:in,0.0
+98,((((hyp:tok:running OR hyp:tok:swimming) OR hyp:tok:riding) AND (NOT oth:overlap:overlap50)) OR hyp:tok:fishing),0.11992619926199262
+99,((((oth:overlap:overlap50 AND pre:tok:wearing) OR pre:tok:basket) OR pre:tok:eats) AND (NOT hyp:tok:wearing)),0.0847457627118644
+100,pre:tok:in,0.0
+101,pre:tok:in,0.0
+102,pre:tok:in,0.0
+103,pre:tok:in,0.0
+104,pre:tok:in,0.0
+105,pre:tok:in,0.0
+106,((((NOT pre:tok:and) AND (hyp:tok:not AND oth:overlap:overlap25)) OR hyp:tok:jersey) OR hyp:tok:shoveling),0.16666666666666666
+107,pre:tok:in,0.0
+108,pre:tok:in,0.0
+109,pre:tok:in,0.0
+110,pre:tok:in,0.0
+111,pre:tok:in,0.0
+112,pre:tok:in,0.0
+113,((((pre:tok:covering AND pre:tok:outside) OR hyp:tok:downtown) OR pre:tok:peace) AND pre:tok:and),0.19047619047619047
+114,pre:tok:in,0.0
+115,pre:tok:in,0.0
+116,pre:tok:in,0.0
+117,pre:tok:in,0.0
+118,pre:tok:in,0.0
+119,pre:tok:in,0.0
+120,pre:tok:in,0.0
+121,pre:tok:in,0.0
+122,pre:tok:in,0.0
+123,pre:tok:in,0.0
+124,pre:tok:in,0.0
+125,pre:tok:in,0.0
+126,pre:tok:in,0.0
+127,pre:tok:in,0.0
+128,((((NOT oth:overlap:overlap50) AND (pre:tok:in OR pre:tok:with)) AND (NOT hyp:tok:people)) OR hyp:tok:eating),0.14378098728174177
+129,(((((NOT pre:tok:sitting) AND hyp:tok:sitting) AND (NOT hyp:tok:and)) OR hyp:tok:cafeteria) OR hyp:tok:sofa),0.15302491103202848
+130,pre:tok:in,0.0
+131,pre:tok:in,0.0
+132,(hyp:tok:books AND pre:tok:playing),0.5
+133,((((hyp:tok:bed OR hyp:tok:inside) OR hyp:tok:tv) OR hyp:tok:indoors) OR hyp:tok:bedroom),0.1342925659472422
+134,((((hyp:tok:in OR hyp:tok:wearing) OR hyp:tok:eating) OR hyp:tok:playing) OR pre:tok:their),0.09727164887307237
+135,pre:tok:in,0.0
+136,(hyp:tok:diving AND pre:tok:young),1.0
+137,((((hyp:tok:whose OR pre:tok:tips) OR pre:tok:free) AND oth:overlap:overlap50) OR pre:tok:diver),0.19047619047619047
+138,pre:tok:in,0.0
+139,((((hyp:tok:swimming AND pre:tok:sitting) OR hyp:tok:swims) OR hyp:tok:racers) AND pre:tok:is),0.17391304347826086
+140,(((((NOT pre:tok:red) AND hyp:tok:red) AND pre:tok:is) OR hyp:tok:6) AND (NOT oth:overlap:overlap75)),0.20689655172413793
+141,pre:tok:in,0.0
+142,pre:tok:in,0.0
+143,pre:tok:in,0.0
+144,pre:tok:in,0.0
+145,pre:tok:in,0.0
+146,pre:tok:in,0.0
+147,pre:tok:in,0.0
+148,pre:tok:in,0.0
+149,pre:tok:in,0.0
+150,((hyp:tok:dance AND pre:tok:floor) AND hyp:tok:are),1.0
+151,((((hyp:tok:rainy OR pre:tok:barn) OR pre:tok:chess) AND oth:overlap:overlap25) AND (NOT oth:overlap:overlap50)),0.16666666666666666
+152,pre:tok:in,0.0
+153,pre:tok:in,0.0
+154,pre:tok:in,0.0
+155,pre:tok:in,0.0
+156,(hyp:tok:eat AND pre:tok:near),1.0
+157,((((hyp:tok:for OR hyp:tok:to) AND oth:overlap:overlap25) OR hyp:tok:day) AND (NOT hyp:tok:next)),0.08891108891108891
+158,pre:tok:in,0.0
+159,pre:tok:in,0.0
+160,pre:tok:in,0.0
+161,pre:tok:in,0.0
+162,pre:tok:in,0.0
+163,pre:tok:in,0.0
+164,pre:tok:in,0.0
+165,pre:tok:in,0.0
+166,pre:tok:in,0.0
+167,pre:tok:in,0.0
+168,pre:tok:in,0.0
+169,pre:tok:in,0.0
+170,(hyp:tok:sport AND pre:tok:with),0.5
+171,(hyp:tok:person AND pre:tok:sells),0.2
+172,pre:tok:in,0.0
+173,((((pre:tok:at OR pre:tok:sitting) OR hyp:tok:dog) AND (NOT oth:overlap:overlap50)) OR hyp:tok:running),0.09712586719524281
+174,pre:tok:in,0.0
+175,pre:tok:in,0.0
+176,(hyp:tok:lay AND pre:tok:to),0.3333333333333333
+177,pre:tok:in,0.0
+178,pre:tok:in,0.0
+179,((pre:tok:pose AND pre:tok:while) AND hyp:tok:are),0.25
+180,pre:tok:in,0.0
+181,((((pre:tok:barn OR pre:tok:meet) OR hyp:tok:pub) OR hyp:tok:chain) AND (NOT pre:tok:with)),0.18181818181818182
+182,pre:tok:in,0.0
+183,pre:tok:in,0.0
+184,pre:tok:in,0.0
+185,pre:tok:in,0.0
+186,pre:tok:in,0.0
+187,pre:tok:in,0.0
+188,pre:tok:in,0.0
+189,pre:tok:in,0.0
+190,pre:tok:in,0.0
+191,hyp:tok:snowman,0.3333333333333333
+192,((((hyp:tok:competition AND hyp:tok:surfing) OR pre:tok:pet) AND hyp:tok:in) OR hyp:tok:lead),0.4444444444444444
+193,pre:tok:in,0.0
+194,pre:tok:in,0.0
+195,pre:tok:in,0.0
+196,pre:tok:in,0.0
+197,((((hyp:tok:nobody AND pre:tok:girl) OR pre:tok:pick) OR pre:tok:thinking) OR hyp:tok:spinning),0.16666666666666666
+198,((hyp:tok:couch AND hyp:tok:two) AND pre:tok:on),1.0
+199,pre:tok:in,0.0
+200,pre:tok:in,0.0
+201,pre:tok:in,0.0
+202,pre:tok:in,0.0
+203,((((hyp:tok:sitting OR hyp:tok:sleeping) OR hyp:tok:sits) AND (NOT pre:tok:sitting)) OR hyp:tok:asleep),0.12128418549346016
+204,((((NOT oth:overlap:overlap25) AND (hyp:tok:wearing AND pre:tok:two)) OR pre:tok:n't) AND (NOT pre:tok:with)),0.1951219512195122
+205,pre:tok:in,0.0
+206,pre:tok:in,0.0
+207,pre:tok:in,0.0
+208,pre:tok:in,0.0
+209,((((pre:tok:lost OR pre:tok:moon) OR hyp:tok:letters) OR hyp:tok:pretending) AND (NOT pre:tok:in)),0.13793103448275862
+210,pre:tok:in,0.0
+211,pre:tok:in,0.0
+212,pre:tok:in,0.0
+213,((((NOT oth:overlap:overlap75) AND (hyp:tok:bed OR hyp:tok:swimming)) AND (NOT pre:tok:her)) OR pre:tok:passed),0.15137614678899083
+214,pre:tok:in,0.0
+215,(hyp:tok:chasing AND pre:tok:horned),0.3333333333333333
+216,pre:tok:in,0.0
+217,pre:tok:in,0.0
+218,pre:tok:in,0.0
+219,pre:tok:in,0.0
+220,pre:tok:in,0.0
+221,pre:tok:in,0.0
+222,pre:tok:in,0.0
+223,pre:tok:in,0.0
+224,pre:tok:in,0.0
+225,pre:tok:in,0.0
+226,pre:tok:in,0.0
+227,pre:tok:in,0.0
+228,pre:tok:in,0.0
+229,pre:tok:in,0.0
+230,(hyp:tok:playing AND pre:tok:listens),0.5
+231,((((pre:tok:learning OR pre:tok:routine) OR hyp:tok:microscope) OR hyp:tok:order) OR pre:tok:walls),0.09345794392523364
+232,(((((NOT pre:tok:with) AND hyp:tok:swimming) AND (NOT pre:tok:water)) AND (NOT oth:overlap:overlap75)) AND (NOT hyp:tok:pool)),0.2708333333333333
+233,pre:tok:in,0.0
+234,(((hyp:tok:ring OR pre:tok:stringed) AND pre:tok:is) AND oth:overlap:overlap25),0.25
+235,pre:tok:in,0.0
+236,pre:tok:in,0.0
+237,pre:tok:in,0.0
+238,((((hyp:tok:park OR hyp:tok:swimming) AND hyp:tok:in) OR hyp:tok:chases) AND (NOT oth:overlap:overlap75)),0.102803738317757
+239,((((hyp:tok:human OR hyp:tok:writing) OR pre:tok:females) OR pre:tok:surfer) OR hyp:tok:bowls),0.06535947712418301
+240,pre:tok:in,0.0
+241,(((hyp:tok:clock OR hyp:tok:curly) OR hyp:tok:!) AND pre:tok:and),0.375
+242,pre:tok:in,0.0
+243,pre:tok:in,0.0
+244,(hyp:tok:fixing AND pre:tok:next),0.5
+245,(hyp:tok:video AND pre:tok:made),1.0
+246,pre:tok:in,0.0
+247,(hyp:tok:swimsuit AND pre:tok:woman),0.3333333333333333
+248,(((((NOT pre:tok:woman) AND hyp:tok:woman) AND pre:tok:man) AND (NOT hyp:tok:man)) OR pre:tok:sleeps),0.2204724409448819
+249,pre:tok:in,0.0
+250,pre:tok:in,0.0
+251,(hyp:tok:kids AND pre:tok:among),0.5
+252,pre:tok:in,0.0
+253,((((NOT hyp:tok:man) AND (hyp:tok:woman AND pre:tok:man)) AND (NOT pre:tok:and)) AND (NOT hyp:tok:with)),0.2558139534883721
+254,((((hyp:tok:ledge OR hyp:tok:purple) OR hyp:tok:bearded) OR hyp:tok:alley) AND (NOT pre:tok:and)),0.0782608695652174
+255,pre:tok:in,0.0
+256,pre:tok:in,0.0
+257,(((((NOT pre:tok:front) AND oth:overlap:overlap75) OR hyp:tok:during) AND (NOT hyp:tok:person)) AND (NOT pre:tok:young)),0.10585141354372124
+258,pre:tok:in,0.0
+259,pre:tok:in,0.0
+260,(hyp:tok:in AND pre:tok:shepherd),1.0
+261,((((NOT hyp:tok:man) AND (hyp:tok:woman AND pre:tok:man)) AND (NOT pre:tok:while)) OR pre:tok:fake),0.14285714285714285
+262,((((hyp:tok:alone OR hyp:tok:bus) OR hyp:tok:video) OR pre:tok:stream) OR hyp:tok:moon),0.09022556390977443
+263,pre:tok:in,0.0
+264,pre:tok:in,0.0
+265,((((hyp:tok:outside OR oth:overlap:overlap50) OR hyp:tok:there) OR hyp:tok:outdoors) AND (NOT hyp:tok:to)),0.1650608519269777
+266,pre:tok:in,0.0
+267,((hyp:tok:having AND hyp:tok:women) AND pre:tok:to),0.3333333333333333
+268,pre:tok:in,0.0
+269,pre:tok:in,0.0
+270,((((NOT oth:overlap:overlap50) AND (hyp:tok:man OR pre:tok:in)) OR hyp:tok:sitting) AND (NOT hyp:tok:outside)),0.15785054575986565
+271,pre:tok:in,0.0
+272,pre:tok:in,0.0
+273,pre:tok:in,0.0
+274,pre:tok:in,0.0
+275,(hyp:tok:outside AND hyp:tok:side),1.0
+276,pre:tok:in,0.0
+277,pre:tok:in,0.0
+278,pre:tok:in,0.0
+279,pre:tok:in,0.0
+280,((((NOT hyp:tok:his) AND (oth:overlap:overlap50 OR pre:tok:and)) OR hyp:tok:there) AND (NOT hyp:tok:for)),0.21534653465346534
+281,pre:tok:in,0.0
+282,pre:tok:in,0.0
+283,((((hyp:tok:to OR oth:overlap:overlap75) OR hyp:tok:their) OR hyp:tok:his) AND (NOT pre:tok:blue)),0.11687876758204957
+284,((((NOT pre:tok:people) AND (hyp:tok:outdoors OR hyp:tok:people)) OR hyp:tok:standing) OR hyp:tok:working),0.1032258064516129
+285,((((hyp:tok:hot AND pre:tok:dog) OR hyp:tok:wheelchair) OR hyp:tok:tub) AND (NOT pre:tok:with)),0.17391304347826086
+286,pre:tok:in,0.0
+287,((hyp:tok:field AND pre:tok:area) OR hyp:tok:hooded),0.5
+288,((((hyp:tok:bicycle OR hyp:tok:saw) OR pre:tok:drop) OR hyp:tok:pile) AND (NOT pre:tok:woman)),0.12280701754385964
+289,pre:tok:in,0.0
+290,((((NOT oth:overlap:overlap25) AND (hyp:tok:bath OR hyp:tok:dancing)) AND (NOT hyp:tok:people)) OR hyp:tok:hoops),0.14893617021276595
+291,pre:tok:in,0.0
+292,((((pre:tok:surfing OR pre:tok:tub) OR pre:tok:gymnasium) OR pre:tok:trail) AND (NOT hyp:tok:is)),0.09166666666666666
+293,((((hyp:tok:outside AND pre:tok:duck) OR hyp:tok:swings) AND hyp:tok:outside) AND pre:tok:boy),0.2222222222222222
+294,((((hyp:tok:bicycles OR hyp:tok:brother) AND pre:tok:in) OR hyp:tok:guitars) AND (NOT hyp:tok:in)),0.16666666666666666
+295,pre:tok:in,0.0
+296,(hyp:tok:sitting AND pre:tok:staring),0.5
+297,((((hyp:tok:bicycle AND hyp:tok:skateboarder) OR pre:tok:pumpkin) OR hyp:tok:atv) AND oth:overlap:overlap75),0.19047619047619047
+298,(hyp:tok:black AND hyp:tok:makeup),0.3333333333333333
+299,pre:tok:in,0.0
+300,pre:tok:in,0.0
+301,pre:tok:in,0.0
+302,((((hyp:tok:for OR hyp:tok:to) OR hyp:tok:during) AND (NOT pre:tok:to)) AND (NOT pre:tok:for)),0.13561964146531566
+303,pre:tok:in,0.0
+304,((((hyp:tok:all OR pre:tok:musicians) OR hyp:tok:helmet) OR hyp:tok:cheering) AND (NOT pre:tok:wearing)),0.07514450867052024
+305,pre:tok:in,0.0
+306,pre:tok:in,0.0
+307,((((hyp:tok:amusement AND hyp:tok:their) OR pre:tok:artwork) AND (NOT hyp:tok:on)) AND oth:overlap:overlap25),0.3333333333333333
+308,((((hyp:tok:cross OR pre:tok:studying) OR hyp:tok:draped) OR hyp:tok:pointed) AND (NOT pre:tok:white)),0.15
+309,((((NOT pre:tok:is) AND hyp:tok:uses) OR pre:tok:buying) AND (NOT oth:overlap:overlap25)),0.2857142857142857
+310,pre:tok:in,0.0
+311,pre:tok:in,0.0
+312,(hyp:tok:dance AND pre:tok:boardwalk),0.25
+313,pre:tok:in,0.0
+314,pre:tok:in,0.0
+315,pre:tok:in,0.0
+316,(((((NOT pre:tok:woman) AND hyp:tok:woman) AND pre:tok:man) AND (NOT pre:tok:white)) AND (NOT hyp:tok:are)),0.24489795918367346
+317,pre:tok:in,0.0
+318,pre:tok:in,0.0
+319,pre:tok:in,0.0
+320,((((pre:tok:greyhound OR pre:tok:tricks) OR hyp:tok:where) AND (NOT hyp:tok:man)) OR hyp:tok:bank),0.17073170731707318
+321,pre:tok:in,0.0
+322,pre:tok:in,0.0
+323,pre:tok:in,0.0
+324,pre:tok:in,0.0
+325,pre:tok:in,0.0
+326,pre:tok:in,0.0
+327,pre:tok:in,0.0
+328,((((NOT pre:tok:sitting) AND (hyp:tok:sits OR hyp:tok:sitting)) AND (NOT pre:tok:on)) OR hyp:tok:pets),0.17266187050359713
+329,pre:tok:in,0.0
+330,pre:tok:in,0.0
+331,pre:tok:in,0.0
+332,(hyp:tok:in AND pre:tok:heading),1.0
+333,pre:tok:in,0.0
+334,pre:tok:in,0.0
+335,pre:tok:in,0.0
+336,((((hyp:tok:wrestler OR pre:tok:leather) OR pre:tok:tray) OR pre:tok:print) OR hyp:tok:chocolate),0.09401709401709402
+337,pre:tok:in,0.0
+338,pre:tok:in,0.0
+339,pre:tok:in,0.0
+340,pre:tok:in,0.0
+341,(((hyp:tok:at AND pre:tok:waits) OR pre:tok:sister) AND hyp:tok:sleeping),0.5
+342,pre:tok:in,0.0
+343,pre:tok:in,0.0
+344,pre:tok:in,0.0
+345,pre:tok:in,0.0
+346,(((((NOT pre:tok:-) AND hyp:tok:nobody) AND (NOT pre:tok:dressed)) AND (NOT hyp:tok:anything)) OR hyp:tok:written),0.4888888888888889
+347,pre:tok:in,0.0
+348,pre:tok:in,0.0
+349,pre:tok:in,0.0
+350,pre:tok:in,0.0
+351,pre:tok:in,0.0
+352,pre:tok:in,0.0
+353,pre:tok:in,0.0
+354,pre:tok:in,0.0
+355,pre:tok:in,0.0
+356,pre:tok:in,0.0
+357,pre:tok:in,0.0
+358,pre:tok:in,0.0
+359,(hyp:tok:there AND pre:tok:nutcracker),0.5
+360,pre:tok:in,0.0
+361,pre:tok:in,0.0
+362,((((hyp:tok:outdoors OR hyp:tok:outside) OR hyp:tok:moving) OR hyp:tok:vehicle) OR hyp:tok:something),0.13785310734463277
+363,pre:tok:in,0.0
+364,pre:tok:in,0.0
+365,pre:tok:in,0.0
+366,pre:tok:in,0.0
+367,((((hyp:tok:beside OR pre:tok:swimsuit) OR pre:tok:wetsuit) OR hyp:tok:deck) AND (NOT pre:tok:on)),0.13559322033898305
+368,((((hyp:tok:asleep OR hyp:tok:sleeping) OR hyp:tok:nap) AND (NOT pre:tok:man)) OR hyp:tok:couch),0.12156862745098039
+369,(hyp:tok:and AND pre:tok:convertible),0.2
+370,pre:tok:in,0.0
+371,pre:tok:in,0.0
+372,pre:tok:in,0.0
+373,pre:tok:in,0.0
+374,pre:tok:in,0.0
+375,((((hyp:tok:nobody OR hyp:tok:not) OR hyp:tok:no) OR hyp:tok:n't) OR hyp:tok:covered),0.1393939393939394
+376,(((NOT pre:tok:shirt) AND (hyp:tok:podium OR pre:tok:wheeler)) AND pre:tok:and),0.25
+377,((((hyp:tok:standing AND pre:tok:sitting) OR pre:tok:monster) OR hyp:tok:though) AND (NOT pre:tok:wearing)),0.16666666666666666
+378,(((((NOT oth:overlap:overlap25) AND hyp:tok:white) OR hyp:tok:heels) OR hyp:tok:apron) AND (NOT hyp:tok:wearing)),0.2222222222222222
+379,pre:tok:in,0.0
+380,((((hyp:tok:shirt OR hyp:tok:wearing) AND hyp:tok:man) OR hyp:tok:wears) AND (NOT hyp:tok:on)),0.10714285714285714
+381,pre:tok:in,0.0
+382,((((pre:tok:in OR pre:tok:on) OR hyp:tok:to) AND (NOT hyp:tok:there)) OR hyp:tok:her),0.17495085650098288
+383,pre:tok:in,0.0
+384,pre:tok:in,0.0
+385,((((NOT pre:tok:and) AND (hyp:tok:woman AND pre:tok:man)) AND (NOT pre:tok:while)) AND (NOT hyp:tok:man)),0.23157894736842105
+386,((((hyp:tok:not OR hyp:tok:one) OR hyp:tok:river) OR hyp:tok:empty) OR hyp:tok:chef),0.12325581395348838
+387,(hyp:tok:filled AND pre:tok:dog),0.5
+388,pre:tok:in,0.0
+389,(((((NOT oth:overlap:overlap25) AND hyp:tok:white) AND pre:tok:down) OR hyp:tok:sleeved) OR hyp:tok:courtyard),0.3125
+390,((((hyp:tok:to OR oth:overlap:overlap25) OR hyp:tok:in) AND (NOT hyp:tok:outside)) AND (NOT hyp:tok:there)),0.18553285477636663
+391,(((hyp:tok:draped OR hyp:tok:pedaling) OR hyp:tok:year) AND hyp:tok:man),0.3333333333333333
+392,((((NOT hyp:tok:his) AND (oth:overlap:overlap25 OR pre:tok:to)) OR hyp:tok:people) AND (NOT hyp:tok:for)),0.20582149261967167
+393,pre:tok:in,0.0
+394,pre:tok:in,0.0
+395,(hyp:tok:bin AND pre:tok:in),0.2
+396,pre:tok:in,0.0
+397,pre:tok:in,0.0
+398,pre:tok:in,0.0
+399,((((hyp:tok:are AND hyp:tok:tv) OR hyp:tok:clock) AND oth:overlap:overlap25) AND (NOT pre:tok:from)),0.21428571428571427
+400,((((hyp:tok:are AND hyp:tok:walking) OR pre:tok:kite) AND oth:overlap:overlap50) AND (NOT oth:overlap:overlap75)),0.1206896551724138
+401,pre:tok:in,0.0
+402,pre:tok:in,0.0
+403,(hyp:tok:barefoot AND pre:tok:woman),0.2
+404,((((hyp:tok:religious OR hyp:tok:swimsuit) AND hyp:tok:to) OR pre:tok:hang) AND (NOT pre:tok:on)),0.21428571428571427
+405,pre:tok:in,0.0
+406,pre:tok:in,0.0
+407,pre:tok:in,0.0
+408,pre:tok:in,0.0
+409,pre:tok:in,0.0
+410,((((NOT oth:overlap:overlap50) AND (hyp:tok:in OR hyp:tok:on)) OR hyp:tok:cat) OR hyp:tok:swimming),0.11370967741935484
+411,((((hyp:tok:people AND pre:tok:singing) AND pre:tok:man) OR hyp:tok:casual) AND pre:tok:and),0.4
+412,(((((NOT pre:tok:red) AND hyp:tok:red) AND (NOT pre:tok:woman)) AND (NOT pre:tok:front)) AND (NOT pre:tok:to)),0.3170731707317073
+413,((((hyp:tok:driving OR hyp:tok:playing) OR hyp:tok:running) AND (NOT oth:overlap:overlap50)) OR hyp:tok:alone),0.09761904761904762
+414,pre:tok:in,0.0
+415,pre:tok:in,0.0
+416,((((hyp:tok:asleep OR hyp:tok:sleeping) OR hyp:tok:tv) OR hyp:tok:cat) OR hyp:tok:driving),0.12473572938689217
+417,pre:tok:in,0.0
+418,pre:tok:in,0.0
+419,((hyp:tok:human AND pre:tok:army) AND oth:overlap:overlap25),0.5
+420,(((hyp:tok:football AND pre:tok:girl) OR pre:tok:protection) AND hyp:tok:football),0.2222222222222222
+421,pre:tok:in,0.0
+422,pre:tok:in,0.0
+423,(hyp:tok:softball AND pre:tok:is),0.5
+424,((((pre:tok:indoor AND pre:tok:young) OR hyp:tok:ears) OR hyp:tok:move) AND (NOT pre:tok:people)),0.21052631578947367
+425,pre:tok:in,0.0
+426,pre:tok:in,0.0
+427,pre:tok:in,0.0
+428,pre:tok:in,0.0
+429,(((hyp:tok:beach AND pre:tok:water) AND pre:tok:and) AND (NOT pre:tok:standing)),0.3333333333333333
+430,pre:tok:in,0.0
+431,pre:tok:in,0.0
+432,pre:tok:in,0.0
+433,pre:tok:in,0.0
+434,pre:tok:in,0.0
+435,((((hyp:tok:competitors OR hyp:tok:lumberjack) AND pre:tok:blue) OR hyp:tok:shoot) AND (NOT pre:tok:with)),0.2
+436,((((hyp:tok:women AND pre:tok:men) OR pre:tok:infant) AND oth:overlap:overlap25) OR hyp:tok:scarves),0.1232876712328767
+437,(hyp:tok:to AND pre:tok:traveling),1.0
+438,pre:tok:in,0.0
+439,pre:tok:in,0.0
+440,pre:tok:in,0.0
+441,pre:tok:in,0.0
+442,pre:tok:in,0.0
+443,pre:tok:in,0.0
+444,(hyp:tok:person AND pre:tok:sells),1.0
+445,(hyp:tok:with AND pre:tok:mustache),0.5
+446,pre:tok:in,0.0
+447,pre:tok:in,0.0
+448,((((NOT hyp:tok:dog) AND (hyp:tok:is AND hyp:tok:sleeping)) AND (NOT pre:tok:his)) AND (NOT pre:tok:woman)),0.3695652173913043
+449,pre:tok:in,0.0
+450,(hyp:tok:cyclists AND hyp:tok:on),1.0
+451,pre:tok:in,0.0
+452,pre:tok:in,0.0
+453,pre:tok:in,0.0
+454,((((hyp:tok:man AND pre:tok:girl) OR hyp:tok:produce) OR hyp:tok:we) OR pre:tok:learning),0.11811023622047244
+455,pre:tok:in,0.0
+456,pre:tok:in,0.0
+457,((((hyp:tok:there OR oth:overlap:overlap50) OR hyp:tok:outside) AND (NOT hyp:tok:his)) OR hyp:tok:person),0.18880299836027173
+458,(((((NOT pre:tok:woman) AND hyp:tok:woman) AND pre:tok:man) AND (NOT hyp:tok:are)) OR hyp:tok:scouts),0.3018867924528302
+459,pre:tok:in,0.0
+460,pre:tok:in,0.0
+461,pre:tok:in,0.0
+462,(hyp:tok:are AND pre:tok:acoustic),0.3333333333333333
+463,((((oth:overlap:overlap75 AND pre:tok:near) OR pre:tok:cup) AND (NOT pre:tok:in)) OR pre:tok:skateboarding),0.08181818181818182
+464,pre:tok:in,0.0
+465,pre:tok:in,0.0
+466,(((((NOT pre:tok:dog) AND hyp:tok:dog) OR hyp:tok:dancing) OR hyp:tok:below) AND (NOT pre:tok:and)),0.11834319526627218
+467,pre:tok:in,0.0
+468,pre:tok:in,0.0
+469,pre:tok:in,0.0
+470,((hyp:tok:horses AND hyp:tok:riding) AND pre:tok:are),1.0
+471,pre:tok:in,0.0
+472,pre:tok:in,0.0
+473,((((oth:overlap:overlap25 OR pre:tok:in) OR pre:tok:while) AND (NOT hyp:tok:sleeping)) AND (NOT hyp:tok:sitting)),0.29120241411327763
+474,pre:tok:in,0.0
+475,pre:tok:in,0.0
+476,(hyp:tok:park AND pre:tok:instrument),1.0
+477,pre:tok:in,0.0
+478,((((hyp:tok:harness OR hyp:tok:speed) OR hyp:tok:atv) OR hyp:tok:tiger) AND oth:overlap:overlap25),0.14814814814814814
+479,pre:tok:in,0.0
+480,(((((NOT pre:tok:background) AND hyp:tok:outside) OR hyp:tok:outdoors) AND (NOT hyp:tok:on)) AND (NOT pre:tok:at)),0.2561247216035635
+481,pre:tok:in,0.0
+482,pre:tok:in,0.0
+483,((((hyp:tok:and AND oth:overlap:overlap75) OR hyp:tok:sad) OR hyp:tok:night) OR hyp:tok:world),0.13213213213213212
+484,pre:tok:in,0.0
+485,pre:tok:in,0.0
+486,pre:tok:in,0.0
+487,((((hyp:tok:poor OR pre:tok:tv) OR hyp:tok:leading) OR pre:tok:moon) OR pre:tok:too),0.0967741935483871
+488,pre:tok:in,0.0
+489,pre:tok:in,0.0
+490,pre:tok:in,0.0
+491,((((NOT pre:tok:are) AND (hyp:tok:humans OR hyp:tok:plastic)) AND (NOT hyp:tok:in)) OR pre:tok:pick),0.1891891891891892
+492,pre:tok:in,0.0
+493,pre:tok:in,0.0
+494,pre:tok:in,0.0
+495,((((pre:tok:holding AND pre:tok:snow) OR pre:tok:hiking) AND (NOT oth:overlap:overlap25)) OR hyp:tok:stream),0.17647058823529413
+496,pre:tok:in,0.0
+497,((((hyp:tok:no OR hyp:tok:nobody) OR hyp:tok:nothing) OR hyp:tok:space) OR pre:tok:excited),0.1943127962085308
+498,((NOT pre:tok:sitting) AND (hyp:tok:human AND pre:tok:-)),0.25
+499,((hyp:tok:heading OR hyp:tok:photographing) AND oth:overlap:overlap50),0.2222222222222222
+500,((((hyp:tok:camouflage OR hyp:tok:microscope) OR hyp:tok:tan) OR hyp:tok:sunlight) OR hyp:tok:spin),0.14285714285714285
+501,((((hyp:tok:running OR pre:tok:eating) OR hyp:tok:driving) AND (NOT pre:tok:in)) OR hyp:tok:drives),0.09090909090909091
+502,((((NOT pre:tok:walking) AND (hyp:tok:walking OR pre:tok:concrete)) OR pre:tok:racing) OR pre:tok:biking),0.07389162561576355
+503,pre:tok:in,0.0
+504,pre:tok:in,0.0
+505,pre:tok:in,0.0
+506,((((hyp:tok:elder OR pre:tok:digging) OR hyp:tok:barber) AND (NOT hyp:tok:is)) OR hyp:tok:hugging),0.15384615384615385
+507,pre:tok:in,0.0
+508,pre:tok:in,0.0
+509,pre:tok:in,0.0
+510,((((hyp:tok:ocean AND hyp:tok:swimming) OR pre:tok:gives) OR hyp:tok:surrounding) OR hyp:tok:fake),0.15384615384615385
+511,pre:tok:in,0.0
+512,((((NOT oth:overlap:overlap50) AND (pre:tok:is OR pre:tok:man)) OR hyp:tok:they) OR hyp:tok:eating),0.12080712788259958
+513,pre:tok:in,0.0
+514,(((((NOT pre:tok:man) AND hyp:tok:man) AND pre:tok:woman) OR pre:tok:shade) OR pre:tok:presents),0.208955223880597
+515,((((hyp:tok:backyard OR hyp:tok:club) OR hyp:tok:war) AND (NOT hyp:tok:is)) OR hyp:tok:stroller),0.10526315789473684
+516,(((NOT pre:tok:is) AND (hyp:tok:kites OR hyp:tok:orchestra)) AND (NOT pre:tok:with)),0.25
+517,(hyp:tok:has AND pre:tok:word),0.5
+518,pre:tok:in,0.0
+519,pre:tok:in,0.0
+520,pre:tok:in,0.0
+521,pre:tok:in,0.0
+522,((((hyp:tok:tall AND pre:tok:red) OR hyp:tok:second) AND hyp:tok:tall) AND (NOT pre:tok:man)),0.3
+523,((((NOT oth:overlap:overlap25) AND (hyp:tok:in OR pre:tok:man)) OR hyp:tok:eating) OR hyp:tok:nobody),0.11813725490196078
+524,(((((NOT pre:tok:dog) AND hyp:tok:dog) AND (NOT pre:tok:with)) AND (NOT pre:tok:and)) OR hyp:tok:greyhounds),0.125
+525,(hyp:tok:mirror AND pre:tok:on),0.3333333333333333
+526,pre:tok:in,0.0
+527,((((hyp:tok:nobody OR pre:tok:jumped) OR hyp:tok:buys) AND (NOT pre:tok:woman)) OR hyp:tok:giant),0.140625
+528,(((((NOT pre:tok:black) AND hyp:tok:black) AND (NOT pre:tok:in)) AND (NOT pre:tok:at)) AND (NOT pre:tok:brown)),0.22
+529,(hyp:tok:pub AND pre:tok:in),1.0
+530,pre:tok:in,0.0
+531,pre:tok:in,0.0
+532,pre:tok:in,0.0
+533,((((hyp:tok:is OR pre:tok:in) OR pre:tok:on) AND (NOT oth:overlap:overlap50)) AND (NOT hyp:tok:outside)),0.21200324412003244
+534,((((hyp:tok:couch AND oth:overlap:overlap75) OR hyp:tok:sing) AND oth:overlap:overlap25) OR hyp:tok:pub),0.25
+535,pre:tok:in,0.0
+536,((((NOT hyp:tok:next) AND (hyp:tok:for OR hyp:tok:to)) AND (NOT pre:tok:for)) OR hyp:tok:after),0.15916722632639355
+537,((((hyp:tok:asleep OR hyp:tok:sleeping) OR hyp:tok:couch) OR hyp:tok:nap) OR hyp:tok:sleeps),0.1352549889135255
+538,pre:tok:in,0.0
+539,pre:tok:in,0.0
+540,((((hyp:tok:diner OR pre:tok:gentlemen) OR pre:tok:crying) OR pre:tok:scooter) AND hyp:tok:is),0.15
+541,pre:tok:in,0.0
+542,pre:tok:in,0.0
+543,((((NOT hyp:tok:is) AND hyp:tok:guitar) AND pre:tok:on) AND (NOT pre:tok:looks)),0.2727272727272727
+544,pre:tok:in,0.0
+545,pre:tok:in,0.0
+546,pre:tok:in,0.0
+547,pre:tok:in,0.0
+548,pre:tok:in,0.0
+549,((((NOT pre:tok:at) AND (hyp:tok:at OR hyp:tok:park)) AND (NOT hyp:tok:looking)) OR pre:tok:bearded),0.10419485791610285
+550,pre:tok:in,0.0
+551,pre:tok:in,0.0
+552,pre:tok:in,0.0
+553,((((hyp:tok:field OR hyp:tok:park) OR pre:tok:racers) AND (NOT oth:overlap:overlap75)) AND (NOT pre:tok:field)),0.10231023102310231
+554,pre:tok:in,0.0
+555,pre:tok:in,0.0
+556,pre:tok:in,0.0
+557,((((hyp:tok:outside OR oth:overlap:overlap50) OR hyp:tok:there) OR hyp:tok:outdoors) OR hyp:tok:something),0.19780971937029432
+558,pre:tok:in,0.0
+559,pre:tok:in,0.0
+560,pre:tok:in,0.0
+561,pre:tok:in,0.0
+562,pre:tok:in,0.0
+563,pre:tok:in,0.0
+564,pre:tok:in,0.0
+565,((((hyp:tok:school OR pre:tok:tire) OR hyp:tok:video) AND (NOT hyp:tok:to)) AND (NOT pre:tok:two)),0.1125
+566,(((((NOT pre:tok:black) AND hyp:tok:black) AND (NOT hyp:tok:is)) AND (NOT pre:tok:and)) OR hyp:tok:bathrobe),0.30303030303030304
+567,pre:tok:in,0.0
+568,pre:tok:in,0.0
+569,pre:tok:in,0.0
+570,pre:tok:in,0.0
+571,pre:tok:in,0.0
+572,((((hyp:tok:cheerleading OR pre:tok:conducting) OR pre:tok:thinking) OR pre:tok:sleeps) AND (NOT hyp:tok:man)),0.16666666666666666
+573,pre:tok:in,0.0
+574,(hyp:tok:in AND pre:tok:napping),1.0
+575,((((NOT pre:tok:green) AND (hyp:tok:green OR pre:tok:spray)) OR pre:tok:boardwalk) OR pre:tok:flowered),0.08843537414965986
+576,pre:tok:in,0.0
+577,((((hyp:tok:red OR hyp:tok:while) OR hyp:tok:cream) OR hyp:tok:asian) OR hyp:tok:purple),0.07936507936507936
+578,((((hyp:tok:and AND oth:overlap:overlap75) OR hyp:tok:sad) OR pre:tok:live) OR hyp:tok:five),0.11286089238845144
+579,(((hyp:tok:surfing AND pre:tok:girl) OR pre:tok:clock) AND hyp:tok:surfing),0.3333333333333333
+580,pre:tok:in,0.0
+581,pre:tok:in,0.0
+582,pre:tok:in,0.0
+583,pre:tok:in,0.0
+584,(((((NOT oth:overlap:overlap50) AND hyp:tok:sleeping) OR hyp:tok:asleep) OR hyp:tok:sleeps) AND (NOT hyp:tok:his)),0.27918781725888325
+585,pre:tok:in,0.0
+586,pre:tok:in,0.0
+587,pre:tok:in,0.0
+588,((((hyp:tok:running AND pre:tok:at) OR hyp:tok:camouflage) OR hyp:tok:buddhist) OR hyp:tok:pictured),0.1111111111111111
+589,pre:tok:in,0.0
+590,((pre:tok:bags AND pre:tok:large) AND hyp:tok:home),0.5
+591,pre:tok:in,0.0
+592,pre:tok:in,0.0
+593,((((NOT pre:tok:running) AND (hyp:tok:field OR hyp:tok:running)) OR hyp:tok:country) AND (NOT pre:tok:field)),0.07836990595611286
+594,pre:tok:in,0.0
+595,pre:tok:in,0.0
+596,pre:tok:in,0.0
+597,pre:tok:in,0.0
+598,(hyp:tok:asleep AND pre:tok:street),1.0
+599,pre:tok:in,0.0
+600,pre:tok:in,0.0
+601,(hyp:tok:walking AND pre:tok:sunny),1.0
+602,(hyp:tok:sleeping AND pre:tok:hill),1.0
+603,pre:tok:in,0.0
+604,((((NOT pre:tok:running) AND (hyp:tok:running OR hyp:tok:runs)) OR pre:tok:pumpkin) AND (NOT pre:tok:runs)),0.13438735177865613
+605,(hyp:tok:lighting AND pre:tok:shirt),0.2
+606,((((oth:overlap:overlap75 OR pre:tok:and) AND oth:overlap:overlap25) AND (NOT hyp:tok:to)) OR hyp:tok:shirt),0.16118012422360248
+607,pre:tok:in,0.0
+608,pre:tok:in,0.0
+609,((hyp:tok:home AND pre:tok:laundromat) OR pre:tok:too),0.3333333333333333
+610,pre:tok:in,0.0
+611,pre:tok:in,0.0
+612,pre:tok:in,0.0
+613,pre:tok:in,0.0
+614,((((hyp:tok:great OR hyp:tok:waitress) AND hyp:tok:at) OR hyp:tok:science) AND (NOT pre:tok:in)),0.21428571428571427
+615,((((pre:tok:biking OR pre:tok:riding) OR pre:tok:throw) OR hyp:tok:moon) OR pre:tok:bathing),0.07532467532467532
+616,pre:tok:in,0.0
+617,pre:tok:in,0.0
+618,((((pre:tok:knife OR pre:tok:moon) OR pre:tok:countryside) AND pre:tok:on) OR pre:tok:washes),0.13333333333333333
+619,((((NOT oth:overlap:overlap50) AND (hyp:tok:in OR hyp:tok:on)) OR hyp:tok:nobody) OR hyp:tok:sleeping),0.12495208892295899
+620,((((NOT oth:overlap:overlap50) AND (hyp:tok:woman OR pre:tok:and)) OR hyp:tok:sleeping) OR hyp:tok:down),0.11579539066891512
+621,pre:tok:in,0.0
+622,pre:tok:in,0.0
+623,((((hyp:tok:in OR hyp:tok:nobody) OR hyp:tok:sleeping) AND (NOT oth:overlap:overlap50)) OR hyp:tok:driving),0.11796536796536797
+624,pre:tok:in,0.0
+625,pre:tok:in,0.0
+626,pre:tok:in,0.0
+627,pre:tok:in,0.0
+628,pre:tok:in,0.0
+629,pre:tok:in,0.0
+630,pre:tok:in,0.0
+631,(hyp:tok:tennis AND pre:tok:riding),1.0
+632,pre:tok:in,0.0
+633,pre:tok:in,0.0
+634,pre:tok:in,0.0
+635,pre:tok:in,0.0
+636,((((hyp:tok:outside AND pre:tok:street) OR pre:tok:bushes) OR pre:tok:job) AND hyp:tok:outside),0.2
+637,pre:tok:in,0.0
+638,pre:tok:in,0.0
+639,pre:tok:in,0.0
+640,((((NOT pre:tok:in) AND (hyp:tok:chat OR hyp:tok:favorite)) AND (NOT pre:tok:and)) AND (NOT pre:tok:is)),0.19047619047619047
+641,pre:tok:in,0.0
+642,pre:tok:in,0.0
+643,((((hyp:tok:humans AND pre:tok:in) OR hyp:tok:wheeled) AND (NOT pre:tok:and)) OR pre:tok:turns),0.35294117647058826
+644,pre:tok:in,0.0
+645,pre:tok:in,0.0
+646,pre:tok:in,0.0
+647,(hyp:tok:human AND pre:tok:dish),0.3333333333333333
+648,pre:tok:in,0.0
+649,pre:tok:in,0.0
+650,pre:tok:in,0.0
+651,pre:tok:in,0.0
+652,pre:tok:in,0.0
+653,pre:tok:in,0.0
+654,pre:tok:in,0.0
+655,pre:tok:in,0.0
+656,((((hyp:tok:kisses OR pre:tok:pick) OR pre:tok:soda) AND hyp:tok:with) OR pre:tok:pick),0.2
+657,pre:tok:in,0.0
+658,(hyp:tok:home AND pre:tok:singer),0.25
+659,pre:tok:in,0.0
+660,pre:tok:in,0.0
+661,pre:tok:in,0.0
+662,((((hyp:tok:alone OR hyp:tok:swimming) OR hyp:tok:empty) OR hyp:tok:nothing) AND (NOT oth:overlap:overlap50)),0.13099041533546327
+663,pre:tok:in,0.0
+664,pre:tok:in,0.0
+665,pre:tok:in,0.0
+666,pre:tok:in,0.0
+667,pre:tok:in,0.0
+668,pre:tok:in,0.0
+669,(hyp:tok:visiting AND pre:tok:men),0.5
+670,pre:tok:in,0.0
+671,pre:tok:in,0.0
+672,((((hyp:tok:video OR pre:tok:ocean) OR hyp:tok:gymnasium) OR pre:tok:bushes) OR hyp:tok:grocery),0.09523809523809523
+673,pre:tok:in,0.0
+674,(hyp:tok:adult AND pre:tok:-),1.0
+675,(((hyp:tok:desks AND pre:tok:to) OR hyp:tok:softball) AND (NOT pre:tok:and)),0.25
+676,((((hyp:tok:standing AND pre:tok:ground) OR hyp:tok:bathrobe) OR pre:tok:kite) OR hyp:tok:waterfall),0.14
+677,pre:tok:in,0.0
+678,pre:tok:in,0.0
+679,(hyp:tok:playing AND pre:tok:listens),0.5
+680,pre:tok:in,0.0
+681,pre:tok:in,0.0
+682,pre:tok:in,0.0
+683,pre:tok:in,0.0
+684,pre:tok:in,0.0
+685,((((hyp:tok:playing OR hyp:tok:running) OR hyp:tok:eating) AND (NOT oth:overlap:overlap50)) OR hyp:tok:dress),0.08967674661105318
+686,pre:tok:in,0.0
+687,pre:tok:in,0.0
+688,pre:tok:in,0.0
+689,((((hyp:tok:sitting OR hyp:tok:sleeping) OR hyp:tok:eating) OR hyp:tok:sleeps) AND (NOT pre:tok:sitting)),0.1554524361948956
+690,pre:tok:in,0.0
+691,((((hyp:tok:grassy OR hyp:tok:purple) OR pre:tok:go) OR hyp:tok:swing) OR hyp:tok:juggling),0.09146341463414634
+692,pre:tok:in,0.0
+693,pre:tok:in,0.0
+694,pre:tok:in,0.0
+695,pre:tok:in,0.0
+696,pre:tok:in,0.0
+697,pre:tok:in,0.0
+698,pre:tok:in,0.0
+699,((((NOT pre:tok:two) AND (hyp:tok:nobody OR hyp:tok:sleeping)) OR hyp:tok:nap) AND (NOT hyp:tok:his)),0.26605504587155965
+700,(hyp:tok:game AND pre:tok:after),1.0
+701,pre:tok:in,0.0
+702,pre:tok:in,0.0
+703,((((hyp:tok:nobody OR hyp:tok:yellow) AND pre:tok:in) OR hyp:tok:dirty) AND hyp:tok:is),0.08943089430894309
+704,pre:tok:in,0.0
+705,((((pre:tok:married OR pre:tok:turns) OR hyp:tok:displaying) AND (NOT pre:tok:and)) OR pre:tok:sister),0.1724137931034483
+706,pre:tok:in,0.0
+707,pre:tok:in,0.0
+708,pre:tok:in,0.0
+709,pre:tok:in,0.0
+710,(hyp:tok:pictures AND pre:tok:concrete),0.5
+711,pre:tok:in,0.0
+712,pre:tok:in,0.0
+713,pre:tok:in,0.0
+714,pre:tok:in,0.0
+715,((((hyp:tok:dirty OR hyp:tok:tall) AND pre:tok:man) AND (NOT hyp:tok:person)) AND (NOT pre:tok:people)),0.3684210526315789
+716,(hyp:tok:picnic AND pre:tok:white),0.5
+717,pre:tok:in,0.0
+718,pre:tok:in,0.0
+719,(hyp:tok:here AND hyp:tok:image),0.5
+720,pre:tok:in,0.0
+721,pre:tok:in,0.0
+722,pre:tok:in,0.0
+723,pre:tok:in,0.0
+724,pre:tok:in,0.0
+725,((((hyp:tok:cafe OR hyp:tok:eating) OR hyp:tok:still) AND (NOT pre:tok:on)) AND (NOT pre:tok:while)),0.1111111111111111
+726,pre:tok:in,0.0
+727,pre:tok:in,0.0
+728,pre:tok:in,0.0
+729,((((hyp:tok:2 AND pre:tok:on) OR hyp:tok:6) OR hyp:tok:year) OR hyp:tok:ring),0.14705882352941177
+730,pre:tok:in,0.0
+731,pre:tok:in,0.0
+732,(hyp:tok:playing AND pre:tok:guitars),1.0
+733,((((hyp:tok:jacket AND pre:tok:brown) OR hyp:tok:spinning) OR hyp:tok:trail) AND oth:overlap:overlap50),0.19148936170212766
+734,pre:tok:in,0.0
+735,pre:tok:in,0.0
+736,pre:tok:in,0.0
+737,pre:tok:in,0.0
+738,((((NOT hyp:tok:sitting) AND (oth:overlap:overlap25 OR pre:tok:in)) OR hyp:tok:person) AND (NOT hyp:tok:sleeping)),0.28349605928714267
+739,pre:tok:in,0.0
+740,pre:tok:in,0.0
+741,((((NOT pre:tok:woman) AND (hyp:tok:standing AND pre:tok:sitting)) OR hyp:tok:everyone) AND (NOT pre:tok:red)),0.17307692307692307
+742,((((hyp:tok:her AND pre:tok:boy) OR hyp:tok:teeth) OR pre:tok:steel) AND (NOT pre:tok:to)),0.12307692307692308
+743,((((hyp:tok:beach OR hyp:tok:ocean) OR hyp:tok:duck) OR pre:tok:listens) OR hyp:tok:summer),0.1
+744,((((NOT oth:overlap:overlap25) AND (pre:tok:and OR pre:tok:with)) OR hyp:tok:sleeping) OR hyp:tok:was),0.16732923744127215
+745,pre:tok:in,0.0
+746,pre:tok:in,0.0
+747,pre:tok:in,0.0
+748,pre:tok:in,0.0
+749,pre:tok:in,0.0
+750,(hyp:tok:trick AND pre:tok:advertising),0.3333333333333333
+751,pre:tok:in,0.0
+752,((((hyp:tok:ball AND hyp:tok:dog) OR pre:tok:shown) AND (NOT pre:tok:are)) OR pre:tok:pet),0.16
+753,pre:tok:in,0.0
+754,pre:tok:in,0.0
+755,pre:tok:in,0.0
+756,pre:tok:in,0.0
+757,pre:tok:in,0.0
+758,pre:tok:in,0.0
+759,pre:tok:in,0.0
+760,pre:tok:in,0.0
+761,pre:tok:in,0.0
+762,pre:tok:in,0.0
+763,(hyp:tok:at AND pre:tok:stringed),0.5
+764,pre:tok:in,0.0
+765,((((NOT hyp:tok:his) AND (hyp:tok:outside OR oth:overlap:overlap25)) OR hyp:tok:people) AND (NOT hyp:tok:for)),0.20386796568271048
+766,pre:tok:in,0.0
+767,pre:tok:in,0.0
+768,pre:tok:in,0.0
+769,pre:tok:in,0.0
+770,pre:tok:in,0.0
+771,(hyp:tok:running AND pre:tok:shade),0.2
+772,pre:tok:in,0.0
+773,((((hyp:tok:indoors OR hyp:tok:inside) OR hyp:tok:sofa) AND (NOT pre:tok:to)) AND (NOT hyp:tok:woman)),0.1625615763546798
+774,pre:tok:in,0.0
+775,((((hyp:tok:exercising OR hyp:tok:music) OR hyp:tok:touching) OR pre:tok:wineglass) OR hyp:tok:above),0.08376963350785341
+776,((NOT pre:tok:and) AND pre:tok:crib),0.25
+777,pre:tok:in,0.0
+778,pre:tok:in,0.0
+779,pre:tok:in,0.0
+780,pre:tok:in,0.0
+781,pre:tok:in,0.0
+782,((((oth:overlap:overlap25 OR pre:tok:in) OR pre:tok:on) AND (NOT oth:overlap:overlap75)) AND (NOT hyp:tok:outside)),0.23593300183198115
+783,pre:tok:in,0.0
+784,pre:tok:in,0.0
+785,pre:tok:in,0.0
+786,pre:tok:in,0.0
+787,((((NOT oth:overlap:overlap50) AND (hyp:tok:in OR pre:tok:and)) OR hyp:tok:sleeping) OR hyp:tok:eating),0.13136375626483776
+788,pre:tok:in,0.0
+789,pre:tok:in,0.0
+790,pre:tok:in,0.0
+791,pre:tok:in,0.0
+792,(hyp:tok:kitchen AND pre:tok:asian),1.0
+793,((((hyp:tok:his OR pre:tok:men) OR hyp:tok:friends) AND (NOT hyp:tok:in)) OR hyp:tok:boys),0.06551475881929446
+794,pre:tok:in,0.0
+795,pre:tok:in,0.0
+796,((((hyp:tok:swimming OR hyp:tok:white) OR hyp:tok:not) OR hyp:tok:yellow) OR hyp:tok:wrestling),0.1005586592178771
+797,pre:tok:in,0.0
+798,((((hyp:tok:for OR hyp:tok:to) OR hyp:tok:friends) OR hyp:tok:tall) OR hyp:tok:her),0.177698975571316
+799,pre:tok:in,0.0
+800,pre:tok:in,0.0
+801,pre:tok:in,0.0
+802,pre:tok:in,0.0
+803,pre:tok:in,0.0
+804,pre:tok:in,0.0
+805,((((hyp:tok:outdoors AND pre:tok:rescue) OR pre:tok:converse) AND (NOT pre:tok:two)) OR pre:tok:nutcracker),0.17647058823529413
+806,pre:tok:in,0.0
+807,pre:tok:in,0.0
+808,pre:tok:in,0.0
+809,pre:tok:in,0.0
+810,pre:tok:in,0.0
+811,pre:tok:in,0.0
+812,pre:tok:in,0.0
+813,(((((NOT pre:tok:woman) AND hyp:tok:woman) AND pre:tok:man) AND (NOT hyp:tok:man)) OR hyp:tok:kites),0.18548387096774194
+814,pre:tok:in,0.0
+815,pre:tok:in,0.0
+816,pre:tok:in,0.0
+817,pre:tok:in,0.0
+818,pre:tok:in,0.0
+819,pre:tok:in,0.0
+820,pre:tok:in,0.0
+821,((((hyp:tok:there OR oth:overlap:overlap50) OR hyp:tok:outside) OR hyp:tok:wearing) OR hyp:tok:outdoors),0.21111354189455261
+822,pre:tok:in,0.0
+823,pre:tok:in,0.0
+824,pre:tok:in,0.0
+825,pre:tok:in,0.0
+826,pre:tok:in,0.0
+827,pre:tok:in,0.0
+828,pre:tok:in,0.0
+829,pre:tok:in,0.0
+830,pre:tok:in,0.0
+831,pre:tok:in,0.0
+832,pre:tok:in,0.0
+833,((((hyp:tok:for OR hyp:tok:to) OR hyp:tok:his) OR hyp:tok:at) OR hyp:tok:while),0.18567559434246164
+834,pre:tok:in,0.0
+835,pre:tok:in,0.0
+836,pre:tok:in,0.0
+837,pre:tok:in,0.0
+838,pre:tok:in,0.0
+839,pre:tok:in,0.0
+840,pre:tok:in,0.0
+841,pre:tok:in,0.0
+842,((((pre:tok:leather AND pre:tok:reading) OR pre:tok:artwork) AND (NOT hyp:tok:in)) OR pre:tok:napping),0.45454545454545453
+843,pre:tok:in,0.0
+844,pre:tok:in,0.0
+845,pre:tok:in,0.0
+846,pre:tok:in,0.0
+847,(hyp:tok:down AND pre:tok:marathon),1.0
+848,pre:tok:in,0.0
+849,pre:tok:in,0.0
+850,((((hyp:tok:man OR hyp:tok:on) OR pre:tok:people) AND (NOT oth:overlap:overlap50)) OR hyp:tok:driving),0.12745681953543775
+851,pre:tok:in,0.0
+852,pre:tok:in,0.0
+853,pre:tok:in,0.0
+854,((((hyp:tok:home OR hyp:tok:ocean) AND hyp:tok:at) OR hyp:tok:desk) AND (NOT pre:tok:is)),0.14457831325301204
+855,pre:tok:in,0.0
+856,pre:tok:in,0.0
+857,pre:tok:in,0.0
+858,(((((NOT pre:tok:man) AND hyp:tok:man) AND (NOT pre:tok:his)) OR hyp:tok:everyone) AND (NOT pre:tok:person)),0.14454277286135694
+859,(((((NOT oth:overlap:overlap50) AND hyp:tok:sitting) OR hyp:tok:blue) AND (NOT pre:tok:blue)) AND (NOT pre:tok:on)),0.1717557251908397
+860,pre:tok:in,0.0
+861,(hyp:tok:crowd AND pre:tok:ballet),0.25
+862,pre:tok:in,0.0
+863,pre:tok:in,0.0
+864,((((NOT oth:overlap:overlap50) AND (hyp:tok:for OR hyp:tok:to)) OR hyp:tok:tall) OR hyp:tok:friends),0.13178855901520636
+865,(hyp:tok:bike AND hyp:tok:park),0.3333333333333333
+866,pre:tok:in,0.0
+867,pre:tok:in,0.0
+868,pre:tok:in,0.0
+869,pre:tok:in,0.0
+870,(((((NOT pre:tok:woman) AND hyp:tok:woman) OR hyp:tok:mother) OR hyp:tok:high) AND (NOT pre:tok:lady)),0.10176125244618395
+871,pre:tok:in,0.0
+872,pre:tok:in,0.0
+873,((hyp:tok:girl AND pre:tok:tunnel) AND pre:tok:is),1.0
+874,((((hyp:tok:someone AND pre:tok:shirt) OR pre:tok:signs) AND hyp:tok:there) OR pre:tok:got),0.14285714285714285
+875,(hyp:tok:reading AND pre:tok:lemons),1.0
+876,pre:tok:in,0.0
+877,pre:tok:in,0.0
+878,pre:tok:in,0.0
+879,pre:tok:in,0.0
+880,pre:tok:in,0.0
+881,pre:tok:in,0.0
+882,((((pre:tok:hospital OR pre:tok:picnic) AND hyp:tok:outside) OR pre:tok:diner) AND hyp:tok:outside),0.25
+883,pre:tok:in,0.0
+884,pre:tok:in,0.0
+885,((((hyp:tok:direction OR hyp:tok:inflatable) OR hyp:tok:shaved) AND (NOT hyp:tok:is)) AND (NOT pre:tok:and)),0.2
+886,((hyp:tok:and AND hyp:tok:naked) AND pre:tok:in),0.4
+887,pre:tok:in,0.0
+888,pre:tok:in,0.0
+889,pre:tok:in,0.0
+890,pre:tok:in,0.0
+891,pre:tok:in,0.0
+892,(hyp:tok:people AND hyp:tok:sled),0.5
+893,pre:tok:in,0.0
+894,pre:tok:in,0.0
+895,pre:tok:in,0.0
+896,pre:tok:in,0.0
+897,pre:tok:in,0.0
+898,pre:tok:in,0.0
+899,pre:tok:in,0.0
+900,pre:tok:in,0.0
+901,pre:tok:in,0.0
+902,pre:tok:in,0.0
+903,pre:tok:in,0.0
+904,pre:tok:in,0.0
+905,((((hyp:tok:there OR oth:overlap:overlap75) OR hyp:tok:wearing) AND (NOT hyp:tok:outside)) OR pre:tok:aged),0.16273156556483837
+906,pre:tok:in,0.0
+907,(hyp:tok:low AND pre:tok:is),0.3333333333333333
+908,((((hyp:tok:outdoors OR hyp:tok:puddle) AND pre:tok:in) AND hyp:tok:is) AND (NOT pre:tok:woman)),0.2
+909,pre:tok:in,0.0
+910,pre:tok:in,0.0
+911,pre:tok:in,0.0
+912,pre:tok:in,0.0
+913,((((hyp:tok:blonde AND pre:tok:brown) OR hyp:tok:skirts) OR hyp:tok:pocket) OR hyp:tok:stroller),0.2727272727272727
+914,pre:tok:in,0.0
+915,pre:tok:in,0.0
+916,pre:tok:in,0.0
+917,((((hyp:tok:brothers OR hyp:tok:speaks) OR hyp:tok:opponent) OR hyp:tok:hula) OR hyp:tok:heels),0.1111111111111111
+918,pre:tok:in,0.0
+919,(hyp:tok:beer AND pre:tok:women),1.0
+920,pre:tok:in,0.0
+921,pre:tok:in,0.0
+922,((((hyp:tok:his AND pre:tok:classroom) OR hyp:tok:landing) OR hyp:tok:stream) OR pre:tok:humans),0.18518518518518517
+923,pre:tok:in,0.0
+924,((((hyp:tok:standing AND pre:tok:sitting) OR pre:tok:cold) AND (NOT pre:tok:and)) AND (NOT pre:tok:to)),0.1527777777777778
+925,(hyp:tok:nothing AND pre:tok:woman),1.0
+926,(hyp:tok:people AND pre:tok:live),1.0
+927,pre:tok:in,0.0
+928,pre:tok:in,0.0
+929,pre:tok:in,0.0
+930,pre:tok:in,0.0
+931,pre:tok:in,0.0
+932,((((NOT pre:tok:playing) AND (hyp:tok:playing OR hyp:tok:running)) OR hyp:tok:plays) AND (NOT oth:overlap:overlap50)),0.10013908205841446
+933,pre:tok:in,0.0
+934,((((hyp:tok:bed AND hyp:tok:sleeping) OR pre:tok:television) OR hyp:tok:boards) AND (NOT pre:tok:man)),0.2
+935,pre:tok:in,0.0
+936,((((hyp:tok:basketball AND pre:tok:air) OR hyp:tok:lane) OR hyp:tok:left) AND (NOT hyp:tok:in)),0.125
+937,pre:tok:in,0.0
+938,pre:tok:in,0.0
+939,((((NOT hyp:tok:boy) AND (hyp:tok:amusement OR hyp:tok:pool)) AND (NOT pre:tok:water)) AND (NOT hyp:tok:on)),0.15436241610738255
+940,pre:tok:in,0.0
+941,((((hyp:tok:inside OR hyp:tok:not) OR hyp:tok:than) OR hyp:tok:least) OR hyp:tok:this),0.12435233160621761
+942,pre:tok:in,0.0
+943,pre:tok:in,0.0
+944,pre:tok:in,0.0
+945,pre:tok:in,0.0
+946,pre:tok:in,0.0
+947,pre:tok:in,0.0
+948,pre:tok:in,0.0
+949,(hyp:tok:dock AND pre:tok:river),0.5
+950,pre:tok:in,0.0
+951,pre:tok:in,0.0
+952,pre:tok:in,0.0
+953,pre:tok:in,0.0
+954,pre:tok:in,0.0
+955,pre:tok:in,0.0
+956,pre:tok:in,0.0
+957,((((hyp:tok:sitting AND pre:tok:walks) OR hyp:tok:milk) OR hyp:tok:maroon) OR pre:tok:best),0.16326530612244897
+958,pre:tok:in,0.0
+959,((((hyp:tok:balcony OR hyp:tok:ears) AND hyp:tok:small) OR hyp:tok:move) AND (NOT pre:tok:people)),0.23076923076923078
+960,pre:tok:in,0.0
+961,pre:tok:in,0.0
+962,pre:tok:in,0.0
+963,((((hyp:tok:indoors OR hyp:tok:inside) OR hyp:tok:bedroom) OR pre:tok:hose) OR hyp:tok:pub),0.1166077738515901
+964,pre:tok:in,0.0
+965,pre:tok:in,0.0
+966,pre:tok:in,0.0
+967,pre:tok:in,0.0
+968,pre:tok:in,0.0
+969,pre:tok:in,0.0
