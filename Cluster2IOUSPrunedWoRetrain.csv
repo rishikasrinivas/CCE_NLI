@@ -980,3 +980,45 @@ unit,best_name,best_iou
 979,((((pre:tok:person AND pre:tok:way) OR hyp:tok:low) OR hyp:tok:complete) OR hyp:tok:finishing),0.11764705882352941
 980,((((hyp:tok:indoors OR hyp:tok:inside) OR hyp:tok:tv) OR hyp:tok:bed) OR hyp:tok:nap),0.1329923273657289
 981,pre:tok:in,0.0
+982,((((hyp:tok:outside OR oth:overlap:overlap50) OR hyp:tok:there) OR hyp:tok:outdoors) OR hyp:tok:wearing),0.16450806634855714
+983,(((((NOT pre:tok:in) AND hyp:tok:blue) OR hyp:tok:jeans) AND (NOT pre:tok:and)) OR pre:tok:spray),0.10112359550561797
+984,pre:tok:in,0.0
+985,pre:tok:in,0.0
+986,((((hyp:tok:you OR pre:tok:repair) AND hyp:tok:at) OR hyp:tok:finished) OR hyp:tok:neighborhood),0.15625
+987,pre:tok:in,0.0
+988,pre:tok:in,0.0
+989,pre:tok:in,0.0
+990,((((NOT oth:overlap:overlap50) AND (pre:tok:in OR pre:tok:on)) AND (NOT hyp:tok:outside)) AND (NOT hyp:tok:outdoors)),0.20132398753894082
+991,pre:tok:in,0.0
+992,pre:tok:in,0.0
+993,pre:tok:in,0.0
+994,pre:tok:in,0.0
+995,pre:tok:in,0.0
+996,pre:tok:in,0.0
+997,pre:tok:in,0.0
+998,((((hyp:tok:formal OR hyp:tok:pets) OR pre:tok:fresh) OR hyp:tok:bin) AND pre:tok:with),0.26666666666666666
+999,pre:tok:in,0.0
+1000,((((hyp:tok:in OR hyp:tok:playing) OR hyp:tok:running) AND (NOT oth:overlap:overlap75)) OR hyp:tok:white),0.09457806767223807
+1001,pre:tok:in,0.0
+1002,pre:tok:in,0.0
+1003,pre:tok:in,0.0
+1004,pre:tok:in,0.0
+1005,pre:tok:in,0.0
+1006,pre:tok:in,0.0
+1007,((((NOT pre:tok:beach) AND (hyp:tok:beach OR hyp:tok:swimming)) OR hyp:tok:naked) OR pre:tok:television),0.14754098360655737
+1008,pre:tok:in,0.0
+1009,pre:tok:in,0.0
+1010,pre:tok:in,0.0
+1011,pre:tok:in,0.0
+1012,pre:tok:in,0.0
+1013,pre:tok:in,0.0
+1014,pre:tok:in,0.0
+1015,pre:tok:in,0.0
+1016,pre:tok:in,0.0
+1017,pre:tok:in,0.0
+1018,pre:tok:in,0.0
+1019,pre:tok:in,0.0
+1020,((((oth:overlap:overlap25 OR pre:tok:in) OR hyp:tok:is) OR pre:tok:while) AND (NOT hyp:tok:sleeping)),0.25555071832825427
+1021,((((hyp:tok:for OR hyp:tok:to) OR hyp:tok:his) OR hyp:tok:their) OR hyp:tok:tall),0.18572927597061908
+1022,pre:tok:in,0.0
+1023,((((oth:overlap:overlap25 OR pre:tok:in) OR pre:tok:on) AND (NOT oth:overlap:overlap75)) AND (NOT hyp:tok:outside)),0.24833962755567132
