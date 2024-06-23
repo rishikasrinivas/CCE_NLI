@@ -6,8 +6,10 @@ count=0
 def build_act_mask(states, activ_ranges, cluster_num):
     shape=states.shape
     states=states.flatten()
+    
     if cluster_num > len(activ_ranges):
-        return torch.zeros(1024,1)
+        print("SMALLER SAMPLES ",torch.zeros(1024))
+        return torch.zeros(1024)
     #change this to do a binary map within a range
     lower_thresh_in_range=activ_ranges[cluster_num-1][0]
     upper_thresh_in_range = activ_ranges[cluster_num-1][1] #same
@@ -16,7 +18,7 @@ def build_act_mask(states, activ_ranges, cluster_num):
 
     #print("act_masks_per_range: ", act_masks)
     act_masks=act_masks.reshape(shape)
-    print(act_masks)
+    print(act_masks.shape)
     return act_masks #returns 1024 x1binary map saying which neurons activates (true if neuron a col does else false)
 
 
@@ -74,25 +76,25 @@ def get_avgs(all_act_rags):
         
         
     return start/lars, end/lars
-def build_masks(activations, activation_ranges, cluster_num):
+def build_masks(activations, activation_ranges, num_clusters):
     print(activation_ranges)
-    act_masks=[]
+    
     activations=torch.Tensor(activations)
-    for i, activ_for_sample in enumerate(activations):
-        #if torch.all(activ_for_sample >= 0):
-            #activ_for_sample=activ_for_sample[activ_for_sample>0]
-        activ_for_sample.reshape(-1,1)
-       
-        mask=build_act_mask(activ_for_sample.squeeze(),activation_ranges[i], cluster_num)
-        torch.save(mask, f"code/MasksPrunedBeforeRetrain/Cluster{cluster_num}/SentPair{i}sMask.pt")
-        act_masks.append(mask)
-        if i%100 == 0:
-            print("Made masks for ", i, " samples")
-   
-    print(torch.stack(act_masks).shape )
-    print("Clusters: ", len(get_avgs(activation_ranges)))
-    masks = torch.stack(act_masks)
-    act_tens=torch.save(masks, f"code/MasksPrunedBeforeRetrain/Cluster{cluster_num}masks.pt")
-    return masks.numpy()
+    for cluster_num in range(num_clusters):
+        act_masks=[]
+        for i, activ_for_sample in enumerate(activations):
+            #if torch.all(activ_for_sample >= 0):
+                #activ_for_sample=activ_for_sample[activ_for_sample>0]
+            activ_for_sample.reshape(-1,1)
+
+            mask=build_act_mask(activ_for_sample.squeeze(),activation_ranges[i], cluster_num)
+            torch.save(mask, f"code/MasksOrig/Cluster{cluster_num}/SentPair{i}sMask.pt")
+            act_masks.append(mask)
+            if i%100 == 0:
+                print("Made masks for ", i, " samples")
+
+        print(torch.stack(act_masks).shape )
+        masks = torch.stack(act_masks)
+        act_tens=torch.save(masks, f"code/MasksOrig/Cluster{cluster_num}masks.pt")
         
     

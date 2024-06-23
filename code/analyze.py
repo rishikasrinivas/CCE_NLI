@@ -747,14 +747,17 @@ def clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dat
     
     #1st  time run this, after that dont 
     activation_ranges = create_clusters(activations,4)
+    
+    acts=build_masks(states, activation_ranges, cluster_num)
     for cluster_num in range(1,5):
-        #if f"Cluster{cluster_num}masks.pt" in os.listdir("CCE_NLI/code/MasksPrunedBeforeRetrain/"):
-           # acts = torch.load(f"code/Masks/Cluster{cluster_num}masks.pt").numpy()
+        if f"Cluster{cluster_num}masks.pt" in os.listdir("CCE_NLI/code/MasksOrig/"):
+            acts = torch.load(f"code/MasksOrig/Cluster{cluster_num}masks.pt").numpy()
         #elif len(os.listdir(f"code/Masks/Cluster{cluster_num}")) == 10000:
             #acts=load_masks(f"code/Masks/Cluster{cluster_num}")
-        #else:
-        acts=build_masks(states, activation_ranges, cluster_num)
-
+        else:
+            raise Exception("cant find")
+            return
+        
         assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
         records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = 0)
     return states
