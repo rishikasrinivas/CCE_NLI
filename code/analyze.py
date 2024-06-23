@@ -27,7 +27,7 @@ import data
 import data.snli
 import data.analysis
 from activation_utils import compute_activ_ranges, create_clusters, build_act_mask, active_neurons, build_masks
-from Masks.DataLoading import load_masks
+from data.DataLoading import load_masks
 
 GLOBALS = {}
 
@@ -745,13 +745,15 @@ def load_sents(path):
 def clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
     activations= torch.from_numpy(np.array(states))
     
+    #1st  time run this, after that dont 
+    activation_ranges = create_clusters(activations,4)
     for cluster_num in range(1,5):
-        if f"Cluster{cluster_num}masks.pt" in os.listdir("code/Masks/"):
-            acts = torch.load(f"code/Masks/Cluster{cluster_num}masks.pt").numpy()
-        elif len(os.listdir(f"code/Masks/Cluster{cluster_num}")) == 10000:
-            acts=load_masks(f"code/Masks/Cluster{cluster_num}")
-        else:
-            acts=build_masks(states, 4, cluster_num)
+        #if f"Cluster{cluster_num}masks.pt" in os.listdir("CCE_NLI/code/MasksPrunedBeforeRetrain/"):
+           # acts = torch.load(f"code/Masks/Cluster{cluster_num}masks.pt").numpy()
+        #elif len(os.listdir(f"code/Masks/Cluster{cluster_num}")) == 10000:
+            #acts=load_masks(f"code/Masks/Cluster{cluster_num}")
+        #else:
+        acts=build_masks(states, activation_ranges, cluster_num)
 
         assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
         records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = 0)

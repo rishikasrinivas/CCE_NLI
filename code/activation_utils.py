@@ -7,7 +7,7 @@ def build_act_mask(states, activ_ranges, cluster_num):
     shape=states.shape
     states=states.flatten()
     if cluster_num > len(activ_ranges):
-        cluster_num = len(activ_ranges)
+        return torch.zeros(1024,1)
     #change this to do a binary map within a range
     lower_thresh_in_range=activ_ranges[cluster_num-1][0]
     upper_thresh_in_range = activ_ranges[cluster_num-1][1] #same
@@ -16,6 +16,7 @@ def build_act_mask(states, activ_ranges, cluster_num):
 
     #print("act_masks_per_range: ", act_masks)
     act_masks=act_masks.reshape(shape)
+    print(act_masks)
     return act_masks #returns 1024 x1binary map saying which neurons activates (true if neuron a col does else false)
 
 
@@ -44,16 +45,21 @@ def compute_activ_ranges(activations, clusters, num_clusters):
 def create_clusters(activations, num_clusters):
     if activations.requires_grad:
         activations=activations.detach()
-    nonzero_activs_num= torch.nonzero(activations).size(0)
-    activations  = activations.flatten().reshape(-1, 1)
+    activation_ranges=[]
     
-    if nonzero_activs_num < num_clusters:
-        num_clusters = nonzero_activs_num
-        
-    clusters = scikit_cluster.KMeans(n_clusters= num_clusters, random_state=0).fit(activations)
-    cluster_lst = clusters.labels_
-    activation_ranges = compute_activ_ranges(activations, cluster_lst, num_clusters)
-    
+    for i,acts in enumerate(activations):
+        nonzero_activs_num= torch.nonzero(acts).size(0)
+        acts  = acts.flatten().reshape(-1, 1)
+
+        if nonzero_activs_num < num_clusters:
+            num_clusters = nonzero_activs_num
+
+        clusters = scikit_cluster.KMeans(n_clusters= num_clusters, random_state=0).fit(acts)
+        cluster_lst = clusters.labels_
+        activation_range = compute_activ_ranges(acts, cluster_lst, num_clusters)
+        activation_ranges.append(activation_range)
+ 
+       
     return activation_ranges
 
 def get_avgs(all_act_rags):
@@ -68,23 +74,25 @@ def get_avgs(all_act_rags):
         
         
     return start/lars, end/lars
-def build_masks(activations, num_clusters, cluster_num):
+def build_masks(activations, activation_ranges, cluster_num):
+    print(activation_ranges)
     act_masks=[]
-    #all_act_rags=[]
     activations=torch.Tensor(activations)
     for i, activ_for_sample in enumerate(activations):
         #if torch.all(activ_for_sample >= 0):
             #activ_for_sample=activ_for_sample[activ_for_sample>0]
-
-        activ_for_sample = activ_for_sample.reshape(-1,1)
-        activation_ranges = create_clusters(activ_for_sample,num_clusters)
-        #all_act_rags.append(activation_ranges)
-        mask=build_act_mask(activ_for_sample.squeeze(),activation_ranges, cluster_num)
-        torch.save(mask, f"code/Masks/Cluster{cluster_num}/SentPair{i}sMask.pt")
+        activ_for_sample.reshape(-1,1)
+       
+        mask=build_act_mask(activ_for_sample.squeeze(),activation_ranges[i], cluster_num)
+        torch.save(mask, f"code/MasksPrunedBeforeRetrain/Cluster{cluster_num}/SentPair{i}sMask.pt")
         act_masks.append(mask)
+        if i%100 == 0:
+            print("Made masks for ", i, " samples")
+   
     print(torch.stack(act_masks).shape )
-    #print(get_avgs(all_act_rags))
-    act_tens=torch.save(torch.stack(act_masks), f"code/Masks/Cluster{cluster_num}masks.pt")
-    return torch.stack(act_masks).numpy()
+    print("Clusters: ", len(get_avgs(activation_ranges)))
+    masks = torch.stack(act_masks)
+    act_tens=torch.save(masks, f"code/MasksPrunedBeforeRetrain/Cluster{cluster_num}masks.pt")
+    return masks.numpy()
         
     
