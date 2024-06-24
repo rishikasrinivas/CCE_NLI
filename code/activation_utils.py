@@ -9,7 +9,7 @@ def build_act_mask(states, activ_ranges, cluster_num):
     
     if cluster_num > len(activ_ranges):
         print("SMALLER SAMPLES ",torch.zeros(1024))
-        return torch.zeros(1024)
+        return torch.zeros(1024,dtype=torch.bool)
     #change this to do a binary map within a range
     lower_thresh_in_range=activ_ranges[cluster_num-1][0]
     upper_thresh_in_range = activ_ranges[cluster_num-1][1] #same
@@ -80,7 +80,7 @@ def build_masks(activations, activation_ranges, num_clusters):
     print(activation_ranges)
     
     activations=torch.Tensor(activations)
-    for cluster_num in range(num_clusters):
+    for cluster_num in range(1,num_clusters+1):
         act_masks=[]
         for i, activ_for_sample in enumerate(activations):
             #if torch.all(activ_for_sample >= 0):
@@ -88,13 +88,13 @@ def build_masks(activations, activation_ranges, num_clusters):
             activ_for_sample.reshape(-1,1)
 
             mask=build_act_mask(activ_for_sample.squeeze(),activation_ranges[i], cluster_num)
-            torch.save(mask, f"code/MasksOrig/Cluster{cluster_num}/SentPair{i}sMask.pt")
+            torch.save(mask, f"code/MasksPrunedBeforeRetrain/Cluster{cluster_num}/SentPair{i}sMask.pt")
             act_masks.append(mask)
             if i%100 == 0:
                 print("Made masks for ", i, " samples")
 
         print(torch.stack(act_masks).shape )
         masks = torch.stack(act_masks)
-        act_tens=torch.save(masks, f"code/MasksOrig/Cluster{cluster_num}masks.pt")
+        act_tens=torch.save(masks, f"code/MasksPrunedBeforeRetrain/Cluster{cluster_num}masks.pt")
         
     

@@ -263,10 +263,9 @@ def calculate_act_mask_align_index(unit, formula, cluster, run, concept, acts, m
     
 
     write_to_file(unit, f"Run{run}Cluster{cluster}SamplesFiringPerConcept.csv",["concept", "formula", "samples_entailing_formula", "num_samples_entailing_formula"], [concept, formula, samples_entailing_formula, len(samples_entailing_formula[0])] )
-    '''
-    write_to_file(unit, f"Run{run}Cluster{cluster}SamplesCommonToActAndMask.csv", concept, formula, sample_nums_commonTo_act_and_mask, len(sample_nums_commonTo_act_and_mask))
-    if not os.path.exists("Run{run}Cluster{cluster}SamplesWhereNeuronActivates.csv"):
-        write_to_file(unit, f"Run{run}Cluster{cluster}SamplesWhereNeuronActivates.csv", concept, formula, samples_where_neuron_activs, len(samples_where_neuron_activs[0]) )'''
+                 
+    
+   
 
 
 def compute_iou(unit, cluster,run, formula, acts, feats, dataset, feat_type="word", sentence_num=None):
@@ -274,17 +273,16 @@ def compute_iou(unit, cluster,run, formula, acts, feats, dataset, feat_type="wor
     # Cache mask
 
     
-    if len(np.where(masks == 1)[0]) == 0: #formula not in any samples
-        return 0
+    
     formula.mask = masks
     
     
     
-    concept=get_concept(formula,dataset)
+    #concept=get_concept(formula,dataset)
   
-    if (len(concept) >= 2):
+    '''if (len(concept) >= 2):
         if sentence_num is None: #if not running this on 1 sentence at a time
-            calculate_act_mask_align_index(unit,formula, cluster, run, concept, acts, masks)
+            calculate_act_mask_align_index(unit,formula, cluster, run, concept, acts, masks)'''
 
     if settings.METRIC == "iou":
         #if running w only 1 sentence iou would be.1 or 0, acts will be 1,1 (this is act for each neuron so 1 sentence and.1 neuon) mask is also 1x1
@@ -529,13 +527,14 @@ def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =No
             best_cat = best_lab.to_str(cat_namer, sort=True)
             best_cat_fine = best_lab.to_str(cat_namer_fine, sort=True)
             
-            write_to_file(unit, f"Cluster{cluster}IOUS1024N.csv", ["unit", "best_name", "best_iou"], [unit, best_name, best_iou])
             entail_weight = weights[unit, 0]
             neutral_weight = weights[unit, 1]
             contra_weight = weights[unit, 2]
 
             if best_iou > 0:
                 tqdm.write(f"{unit:02d}\t{best_name}\t{best_iou:.3f}")
+                write_to_file(unit, f"Cluster{cluster}IOUS1024N.csv", ["unit", "best_name", "best_iou"], [unit, best_name, best_iou])
+            
             r = {
                 "cluster": cluster,
                 "neuron": unit,
@@ -748,10 +747,14 @@ def clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dat
     #1st  time run this, after that dont 
     activation_ranges = create_clusters(activations,4)
     
-    acts=build_masks(states, activation_ranges, cluster_num)
-    for cluster_num in range(1,5):
-        if f"Cluster{cluster_num}masks.pt" in os.listdir("CCE_NLI/code/MasksOrig/"):
-            acts = torch.load(f"code/MasksOrig/Cluster{cluster_num}masks.pt").numpy()
+    acts=build_masks(states, activation_ranges, 4)
+    for cluster_num in range(1,5): 
+        if f"Cluster{cluster_num}masks.pt" in os.listdir("code/MasksPrunedBeforeRetrain/"):
+            acts = torch.load(f"code/MasksPrunedBeforeRetrain/Cluster{cluster_num}masks.pt").numpy()
+            #if acts.dtype == torch.float32:
+            print("converting")
+            acts =torch.tensor(acts).bool().numpy()
+                
         #elif len(os.listdir(f"code/Masks/Cluster{cluster_num}")) == 10000:
             #acts=load_masks(f"code/Masks/Cluster{cluster_num}")
         else:

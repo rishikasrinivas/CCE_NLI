@@ -103,10 +103,11 @@ class BowmanEntailmentClassifier(nn.Module):
             nn.Dropout(0.1),  # Mimic classifier MLP keep rate of 94%
             nn.Linear(1024, 3),
         )
-        #self.mlp[:-1][0] = prune.ln_structured(self.mlp[:-1][0], name="weight", amount=0.05, dim=1, n=float('-inf'))
+        self.mlp[:-1][0] = prune.ln_structured(self.mlp[:-1][0], name="weight", amount=0.05, dim=1, n=float('-inf'))
         self.output_dim = 3
 
     def forward(self, s1, s1len, s2, s2len):
+        
         s1enc = self.encoder(s1, s1len)
         s2enc = self.encoder(s2, s2len)
 
@@ -115,7 +116,7 @@ class BowmanEntailmentClassifier(nn.Module):
         prods = s1enc * s2enc
 
         mlp_input = torch.cat([s1enc, s2enc, diffs, prods], 1) #1x2048
-      
+    
         mlp_input = self.bn(mlp_input)
         mlp_input = self.dropout(mlp_input)
         
@@ -148,7 +149,8 @@ class BowmanEntailmentClassifier(nn.Module):
         mlp_input = self.bn(mlp_input)
         mlp_input = self.dropout(mlp_input)
         
-        
+        #self.prune()
+        #assert self.check_pruned() == True
         rep = self.mlp[:-1](mlp_input) #this would need to be updated w the pruning
         return rep
 
