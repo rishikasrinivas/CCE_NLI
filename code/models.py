@@ -103,11 +103,11 @@ class BowmanEntailmentClassifier(nn.Module):
             nn.Dropout(0.1),  # Mimic classifier MLP keep rate of 94%
             nn.Linear(1024, 3),
         )
-        self.mlp[:-1][0] = prune.ln_structured(self.mlp[:-1][0], name="weight", amount=0.05, dim=1, n=float('-inf'))
+        #self.mlp[:-1][0] = prune.ln_structured(self.mlp[:-1][0], name="weight", amount=0.05, dim=1, n=float('-inf'))
         self.output_dim = 3
 
     def forward(self, s1, s1len, s2, s2len):
-        
+        assert prune.is_pruned(self.mlp[:-1][0]) == False
         s1enc = self.encoder(s1, s1len)
         s2enc = self.encoder(s2, s2len)
 
