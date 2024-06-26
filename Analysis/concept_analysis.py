@@ -9,11 +9,11 @@ def concept_similarity(pruned_exps, not_pruned_exps):
     pruned_concps = re.findall(r'\b(?:pre:tok:|hyp:tok:|oth:)\S*', pruned_exps)
     not_pruned_concps = re.findall(r'\b(?:pre:tok:|hyp:tok:|oth:)\S*', not_pruned_exps)
     for i,_ in enumerate(pruned_concps):
-    while pruned_concps[i][-1] == ')':
-        pruned_concps[i] = pruned_concps[i][:-1]
+        while pruned_concps[i][-1] == ')':
+            pruned_concps[i] = pruned_concps[i][:-1]
     for i,_ in enumerate(not_pruned_concps):
-    while not_pruned_concps[i][-1] == ')':
-        not_pruned_concps[i] = not_pruned_concps[i][:-1]
+        while not_pruned_concps[i][-1] == ')':
+            not_pruned_concps[i] = not_pruned_concps[i][:-1]
 
     intersection = 0
     for pruned_conc in pruned_concps:
@@ -40,20 +40,20 @@ def count_ANDOR(df):
     d={}
     for i, form in enumerate(df['best_name']):
 
-    ands=form.count("AND")
-    ors=form.count("OR")
-    nots=form.count("NOT")
+        ands=form.count("AND")
+        ors=form.count("OR")
+        nots=form.count("NOT")
 
-    pattern = re.findall(r'\b(?:pre:tok:|hyp:tok:|oth:)\S*', form)
-    if ands == 0:
-        and_ratio=0
-    else:
-        and_ratio= (ands)/(ands+ors)
-    if ors == 0:
-        or_ratio = 0
-    else:
-        or_ratio = (ors)/(ands+ors)
-    d[df['unit'].iloc[i]]={"Ands ": and_ratio, "Ors": or_ratio}
+        pattern = re.findall(r'\b(?:pre:tok:|hyp:tok:|oth:)\S*', form)
+        if ands == 0:
+            and_ratio=0
+        else:
+            and_ratio= (ands)/(ands+ors)
+        if ors == 0:
+            or_ratio = 0
+        else:
+            or_ratio = (ors)/(ands+ors)
+        d[df['unit'].iloc[i]]={"Ands ": and_ratio, "Ors": or_ratio}
 
     return d
 
