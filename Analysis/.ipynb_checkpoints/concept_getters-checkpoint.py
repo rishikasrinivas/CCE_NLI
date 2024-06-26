@@ -2,25 +2,25 @@ import pandas as pd
 import re
 
 #gets individual concepts like hyp:tok:dog, pre:tok:cat
-def get_indiv_concepts(df, with_neurons=False):
-    if not with_neurons:
-        concepts= set()
-        expls = [form for form in df.best_name]
-        expls = " ".join(expls)
-        concps = re.findall(r'\b(?:pre:tok:|hyp:tok:|oth:)\S*', expls)
-        for i,_ in enumerate(concps):
+def get_indiv_concepts(df):
+    concepts= set()
+    expls = [form for form in df.best_name]
+    expls = " ".join(expls)
+    concps = re.findall(r'\b(?:pre:tok:|hyp:tok:|oth:)\S*', expls)
+    for i,_ in enumerate(concps):
+        while concps[i][-1] == ')':
+            concps[i] = concps[i][:-1]
+        concepts.add(concps[i])
+    return concepts
+                
+def get_indiv_concepts_per_unit(df) -> dict:
+    concepts = {}
+    for unit,expl in zip(df.unit, df.best_name):
+        concps = re.findall(r'\b(?:pre:tok:|hyp:tok:|oth:)\S*', expl)
+        for i in range(len(concps)):
             while concps[i][-1] == ')':
                 concps[i] = concps[i][:-1]
-            concepts.add(concps[i])
-                
-    else:
-        concepts = {}
-        for unit,expl in zip(df.unit, df.best_name):
-            concps = re.findall(r'\b(?:pre:tok:|hyp:tok:|oth:)\S*', expl)
-            for i in range(len(concps)):
-                while concps[i][-1] == ')':
-                    concps[i] = concps[i][:-1]
-            concepts[unit] = concps
+        concepts[unit] = concps
     return concepts
 
 #gets all the compositions: ((dog and cat ) or tree) and fish --> (dog and cat), ((dog and cat ) or tree), fish, ((dog and cat ) or tree) and fish 

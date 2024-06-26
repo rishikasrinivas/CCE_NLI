@@ -749,8 +749,8 @@ def clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dat
     
     acts=build_masks(states, activation_ranges, 4)
     for cluster_num in range(1,5): 
-        if f"Cluster{cluster_num}masks.pt" in os.listdir("code/MasksOrig/"):
-            acts = torch.load(f"code/MasksOrig/Cluster{cluster_num}masks.pt").numpy()
+        if f"Cluster{cluster_num}masks.pt" in os.listdir("code/MasksPrunedBeforeRetrain/"):
+            acts = torch.load(f"code/MasksPrunedBeforeRetrain/Cluster{cluster_num}masks.pt").numpy()
             #if acts.dtype == torch.float32:
             print("converting")
             acts =torch.tensor(acts).bool().numpy()
