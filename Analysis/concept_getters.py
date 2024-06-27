@@ -23,6 +23,12 @@ def get_indiv_concepts_per_unit(df) -> dict:
         concepts[unit] = concps
     return concepts
 
+def get_indiv_concepts_per_cluster(dfs : list) -> dict:
+    cps={}
+    for i,clus in enumerate(dfs):
+        cps[f"Cluster{i+1}"] = get_indiv_concepts(clus)
+    return cps
+
 #gets all the compositions: ((dog and cat ) or tree) and fish --> (dog and cat), ((dog and cat ) or tree), fish, ((dog and cat ) or tree) and fish 
 def get_grouped_concepts(formula) -> list:
     stack = []
@@ -34,6 +40,7 @@ def get_grouped_concepts(formula) -> list:
             start = stack.pop()
             results.append(formula[start:i+1])
     return results
+
 
 #get the compositions for each unit
 def get_grouped_concepts_per_unit(df) -> dict:
@@ -50,6 +57,13 @@ def get_all_grouped_cps(df) -> set:
         for i in v:
             c.add(i)
     return c
+
+def get_grouped_concepts_per_cluster(dfs : list) -> dict:
+    cps={}
+    for i,clus in enumerate(dfs):
+        cps[f"Cluster{i+1}"] = get_all_grouped_cps(clus)
+    return cps
+
 
 # returns all the concepts that are in the non-pruned, but not in the pruned and vise versa
 def get_lost_concepts(non_pruned : set, pruned : set) -> set:

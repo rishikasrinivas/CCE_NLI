@@ -23,6 +23,12 @@ def get_indiv_concepts_per_unit(df) -> dict:
         concepts[unit] = concps
     return concepts
 
+def get_indiv_concepts_per_cluster(dfs : list) -> dict:
+    cps={}
+    for i,clus in enumerate(dfs):
+        cps[f"Cluster{i+1}"] = get_indiv_concepts(clus)
+    return cps
+
 #gets all the compositions: ((dog and cat ) or tree) and fish --> (dog and cat), ((dog and cat ) or tree), fish, ((dog and cat ) or tree) and fish 
 def get_grouped_concepts(formula) -> list:
     stack = []
@@ -34,6 +40,7 @@ def get_grouped_concepts(formula) -> list:
             start = stack.pop()
             results.append(formula[start:i+1])
     return results
+
 
 #get the compositions for each unit
 def get_grouped_concepts_per_unit(df) -> dict:
@@ -50,6 +57,13 @@ def get_all_grouped_cps(df) -> set:
         for i in v:
             c.add(i)
     return c
+
+def get_grouped_concepts_per_cluster(dfs : list) -> dict:
+    cps={}
+    for i,clus in enumerate(dfs):
+        cps[f"Cluster{i+1}"] = get_all_grouped_cps(clus)
+    return cps
+
 
 # returns all the concepts that are in the non-pruned, but not in the pruned and vise versa
 def get_lost_concepts(non_pruned : set, pruned : set) -> set:
@@ -90,16 +104,6 @@ def get_avg_iou(ious):
 def get_common_neurons(pruned, not_pruned):
     return set(pruned['unit'].unique()).intersection(set(not_pruned['unit'].unique()))
 
-def get_common_concepts(dfs1, dfs2, dfs3):
-    common = {}
-    i=0
-    for df1, df2, df3 in zip(dfs1, dfs2, dfs3):
-        i+=1
-        df1 = concept_ret(df1)
-        df2 = concept_ret(df2)
-        df3 = concept_ret(df3)
-        
-        common[f"Cluster{i}"] = (df1.intersection(df2)).intersection(df3)
-    return common
+
         
         

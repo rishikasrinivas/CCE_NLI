@@ -1,6 +1,6 @@
 from cleaning import prep, store_best_exp
 from concept_analysis import concept_similarity, Union, calculate_similarity_across_explanations, count_ANDOR, sum_andor
-from concept_getters import get_indiv_concepts, get_grouped_concepts, get_grouped_concepts_per_unit, get_all_grouped_cps, get_lost_concepts, get_preserved_concepts, find_neurons_explaining, get_common_concepts_explained_neurons, get_avg_iou, get_common_neurons, get_new_concepts
+from concept_getters import get_indiv_concepts, get_grouped_concepts, get_grouped_concepts_per_unit, get_all_grouped_cps, get_lost_concepts, get_preserved_concepts, find_neurons_explaining, get_common_concepts_explained_neurons, get_avg_iou, get_common_neurons, get_new_concepts, get_indiv_concepts_per_cluster, get_grouped_concepts_per_cluster
 import csv
 import pandas as pd
 
@@ -67,67 +67,66 @@ def record_cluster_level_sim(pruned, noprune, grouped_cps):
     return d
 
 
-def record_lost_concepts(nonpruned_dfs: list, pruned_dfs : list, concept_retrieve_func, fname=None) -> dict:
+def record_lost_concepts(nonpruned_dict: dict, pruned_dict : dict, fname=None) -> dict:
     lost_cps = {}
     i = 0
-    for p,np in zip(pruned_dfs, nonpruned_dfs):
+    
+    for p,np in zip(pruned_dict.values(), nonpruned_dict.values()):
         i += 1
-        pruned_cps = concept_retrieve_func (p)
-        
-        nopruned_cps = concept_retrieve_func (np)
-        lost_from_orig = get_lost_concepts(nopruned_cps, pruned_cps)
+        lost_from_orig = get_lost_concepts(np, p)
         lost_cps[f'Cluster{i}'] = lost_from_orig
     if fname != None:
         save_to_csv(lost_cps, fname)
     return lost_cps
 
-def record_relearned_concepts(orig_dfs, retrained_pruned_dfs, noretrain_prune_dfs, concept_retrieve_func, fname=None):
-    concepts_lost_after_pruning_wo_rt = record_lost_concepts(orig_dfs,noretrain_prune_dfs, concept_retrieve_func)
-    relearned_per_clus ={}
+
+def record_relearned_concepts(orig_dict, retrained_pruned_dict, noretrain_prune_dict, fname=None):
+    concepts_lost_after_pruning_wo_rt = record_lost_concepts(orig_dict,noretrain_prune_dict)
+    relearned_per_clus = {}
     #find concepts lost after pruning in retrrained
-    for i,retrained_df in enumerate(retrained_pruned_dfs):
-        cps_in_retrained = concept_retrieve_func(retrained_df)
+    for cluster in retrained_pruned_dict.keys():
+        cps_in_retrained = retrained_pruned_dict[cluster]
         #retrained cps set and lost cps set find the union
-        lost_cps =concepts_lost_after_pruning_wo_rt[f'Cluster{i+1}']
+        lost_cps =concepts_lost_after_pruning_wo_rt[cluster]
         relearned_concepts = cps_in_retrained.intersection(lost_cps)
-        relearned_per_clus[f'Cluster{i+1}'] = relearned_concepts
+        relearned_per_clus[cluster] = relearned_concepts
     if fname != None:
         save_to_csv(relearned_per_clus, fname)
     return relearned_per_clus
 
-def record_lost_completely(orig_dfs, retrained_pruned_dfs, noretrain_prune_dfs, concept_retrieve_func,fname = None):
-    concepts_lost_after_pruning_wo_rt = record_lost_concepts(orig_dfs,noretrain_prune_dfs, concept_retrieve_func)
+def record_lost_completely(orig_dict, retrained_pruned_dict, noretrain_prune_dict,fname = None):
+    concepts_lost_after_pruning_wo_rt = record_lost_concepts(orig_dict,noretrain_prune_dict)
     completely_lost = {}
-    for i,retrained_df in enumerate(retrained_pruned_dfs):
-        cps_in_retrained = concept_retrieve_func(retrained_df)
-        lost_cps =concepts_lost_after_pruning_wo_rt[f'Cluster{i+1}']
+    for cluster in retrained_pruned_dict.keys():
+        cps_in_retrained = retrained_pruned_dict[cluster]
+        lost_cps =concepts_lost_after_pruning_wo_rt[cluster]
         lost_completely = lost_cps.difference(cps_in_retrained)
         
-        completely_lost[f'Cluster{i+1}'] = lost_completely
+        completely_lost[cluster] = lost_completely
     if fname != None:
         save_to_csv(completely_lost, fname)
     return completely_lost
         
-def record_new_concepts(orig_dfs, pruned_dfs, concept_retrieve_func, fname=None):
+def record_new_concepts(orig_dict, pruned_dict, fname=None):
     new_cps={}
     i=0
-    for p,np in zip(pruned_dfs,orig_dfs ):
+    for p_keys,np_keys in zip(pruned_dict.keys(), orig_dict.keys()):
         i+=1
-        p = concept_retrieve_func(p)
-        np=concept_retrieve_func(np)
+        p = pruned_dict[p_keys]
+        np= orig_dict[np_keys]
         new_cps[f'Cluster{i}']=get_new_concepts(np, p)
     if fname != None:
         save_to_csv(new_cps,fname)
     return new_cps
     
 # find %of concepts lost from initislly learned when 1st pruned  = num concepts lost/union(pruned no rt, orig)
-def percent_concepts_lost(lost, pruned_dfs, nonpruned_dfs, concept_retrieve_func):
+def percent_concepts_lost(lost, pruned_dict, orig_dict):
     i=0
     percent_lost_per_clus = {}
-    for p,np in zip(pruned_dfs, nonpruned_dfs):
+    for p,np in zip(pruned_dict.keys(), orig_dict.keys()):
         i += 1
-        pruned_cps = concept_retrieve_func (p)
-        nopruned_cps = concept_retrieve_func (np)
+        pruned_cps = pruned_dict[p]
+        nopruned_cps = orig_dict[np] 
         
         all_cps_in_cluster = pruned_cps.union(nopruned_cps)
         percent_lost =len(lost[f"Cluster{i}"]) / len(all_cps_in_cluster)
@@ -156,24 +155,21 @@ def percent_of_new_cps(new_cps, pruned_cps):
     
     return percent_of_new_concps
 
-def record_retained_concepts(pdfs, npdfs, concept_retrieve_func):
+def record_retained_concepts(pdicts, npdicts):
     retained = {}
     i = 0
-    for p, np in zip(pdfs, npdfs):
+    for p, np in zip(pdicts.keys(), npdicts.keys()):
         i += 1
-        p = concept_retrieve_func(p)
-        np = concept_retrieve_func(np)
+        p = pdicts[p]
+        np = npdicts[np]
         retained[f'Cluster{i}'] = p.intersection(np)
     return retained
 
-def record_common_concepts(dfs1, dfs2, dfs3, concept_ret, fname=None):
+def record_common_concepts(dict1, dict2, dict3, fname=None):
     common = {}
     i=0
-    for df1, df2, df3 in zip(dfs1, dfs2, dfs3):
+    for df1, df2, df3 in zip(dict1.values(), dict2.values(), dict3.values()):
         i+=1
-        df1 = concept_ret(df1)
-        df2 = concept_ret(df2)
-        df3 = concept_ret(df3)
         
         common[f"Cluster{i}"] = (df1.intersection(df2)).intersection(df3)
         
@@ -182,7 +178,7 @@ def record_common_concepts(dfs1, dfs2, dfs3, concept_ret, fname=None):
     return common
 
 def main():
-    concept_retrieve_func=get_all_grouped_cps #get_indiv_concepts#
+    concept_retrieve_funcs = [(get_indiv_concepts_per_cluster,get_indiv_concepts) , (get_grouped_concepts_per_cluster,get_all_grouped_cps)]
     clus_1_5 = prep("Analysis/Explanations/Cluster1IOUS5%.csv")
     clus_2_5 = prep("Analysis/Explanations/Cluster2IOUS5%.csv")
     clus_3_5 = prep("Analysis/Explanations/Cluster3IOUS5%.csv")
@@ -202,43 +198,53 @@ def main():
     pruned_clusters = [clus_1_5,clus_2_5,clus_3_5,clus_4_5]
     nopruned_clusters = [clus_1_np,clus_2_np,clus_3_np,clus_4_np]
     pwor_clusters = [clus_1_pwr,clus_2_pwr,clus_3_pwr,clus_4_pwr ] #pruned w/o retraining
+    
+    for i,retrieval in enumerate(concept_retrieve_funcs):
+        if i == 0:
+            print("LOGGING for individual concepts")
+        else:
+            print("\n\nLOGGING for compositions")
+        all_pruned_concepts=retrieval[0](pruned_clusters)
+        all_nopruned_concepts=retrieval[0](nopruned_clusters)
+        all_pwor_concepts=retrieval[0](pwor_clusters)
+
     #record_avg_ious(pruned_clusters,nopruned_clusters)
     
     #record_similarity(pruned_clusters,nopruned_clusters)
     
-    iou_indiv_cps = record_cluster_level_sim(pruned_clusters, nopruned_clusters, grouped_cps=False)
-    iou_grouped_cps = record_cluster_level_sim(pruned_clusters, nopruned_clusters, grouped_cps=True)
-    print(f"IOU for individual concepts: {iou_indiv_cps}\nIOU of groups of concepts: {iou_grouped_cps}")
-    
-    
-    concepts_lost_after_pruning_beforeRT = record_lost_concepts(nopruned_clusters, pwor_clusters, concept_retrieve_func)
-    concepts_retained_after_pruning_beforeRT = record_retained_concepts(pwor_clusters, nopruned_clusters, concept_retrieve_func)
-    
-    concepts_preserved_throughout = record_common_concepts(pruned_clusters, nopruned_clusters, pwor_clusters, concept_retrieve_func)
-    
-    for i,v in enumerate(concepts_preserved_throughout.values()):
-        print(f"Cluster{i+1}: % of preserved from original explanations: {len(v)/len(concept_retrieve_func(nopruned_clusters[i]))}")
-                                                                  
-    relearned = record_relearned_concepts(nopruned_clusters, pruned_clusters, pwor_clusters, concept_retrieve_func)
+        iou_indiv_cps = record_cluster_level_sim(pruned_clusters, nopruned_clusters, grouped_cps=False)
+        iou_grouped_cps = record_cluster_level_sim(pruned_clusters, nopruned_clusters, grouped_cps=True)
+        print(f"IOU for individual concepts: {iou_indiv_cps}\nIOU of groups of concepts: {iou_grouped_cps}")
 
     
-    lost_completely = record_lost_completely(nopruned_clusters, pruned_clusters, pwor_clusters, concept_retrieve_func)
-    
-    percent_relearned_from_training = percent_overlap(relearned, concepts_lost_after_pruning_beforeRT)
-    print("percent relearned from training: ", percent_relearned_from_training)
-    
-    percent_lost_cmplt = percent_overlap(lost_completely, concepts_lost_after_pruning_beforeRT)
-    print("percent not relearned from training: ", percent_lost_cmplt)
-    
-    
-    new_concepts_in_retrained = record_new_concepts(nopruned_clusters, pruned_clusters,concept_retrieve_func)
-    
-    new_concepts_wo_retraining = record_new_concepts(nopruned_clusters, pwor_clusters,concept_retrieve_func)
-    
-    
-    
-    
-    
+        concepts_lost_after_pruning_beforeRT = record_lost_concepts(all_nopruned_concepts, all_pwor_concepts)
+        concepts_retained_after_pruning_beforeRT = record_retained_concepts(all_pwor_concepts, all_nopruned_concepts)
+
+        concepts_preserved_throughout = record_common_concepts(all_pruned_concepts, all_nopruned_concepts, all_pwor_concepts)
+
+        for i,v in enumerate(concepts_preserved_throughout.values()):
+            print(f"Cluster{i+1}: % of preserved from original explanations: {len(v)/len(retrieval[1](nopruned_clusters[i]))}")
+
+        relearned = record_relearned_concepts(all_nopruned_concepts, all_pruned_concepts, all_pwor_concepts)
+
+
+        lost_completely = record_lost_completely(all_nopruned_concepts, all_pruned_concepts, all_pwor_concepts)
+
+        percent_relearned_from_training = percent_overlap(relearned, concepts_lost_after_pruning_beforeRT)
+        print("percent relearned from training: ", percent_relearned_from_training)
+
+        percent_lost_cmplt = percent_overlap(lost_completely, concepts_lost_after_pruning_beforeRT)
+        print("percent not relearned from training: ", percent_lost_cmplt)
+
+
+        new_concepts_in_retrained = record_new_concepts(all_nopruned_concepts, all_pruned_concepts,)
+
+        new_concepts_wo_retraining = record_new_concepts(all_nopruned_concepts, all_pwor_concepts)
+
+
+
+
+
     
 main()
 
