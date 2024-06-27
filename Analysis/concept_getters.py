@@ -2,7 +2,7 @@ import pandas as pd
 import re
 
 #gets individual concepts like hyp:tok:dog, pre:tok:cat
-def get_indiv_concepts(df):
+def get_indiv_concepts(df) -> set:
     concepts= set()
     expls = [form for form in df.best_name]
     expls = " ".join(expls)
@@ -43,8 +43,9 @@ def get_grouped_concepts_per_unit(df) -> dict:
     return res
 
 #gets all the compositions across all the units
-def get_all_grouped_cps(grouped_cps_per_unit : dict) -> set:
+def get_all_grouped_cps(df) -> set:
     c=set()
+    grouped_cps_per_unit = get_grouped_concepts_per_unit(df)
     for k,v in grouped_cps_per_unit.items():
         for i in v:
             c.add(i)
@@ -55,7 +56,7 @@ def get_lost_concepts(non_pruned : set, pruned_not_retrained : set) -> set:
     concepts_innotP_butnotin_prunedNR = non_pruned.difference(pruned_not_retrained) 
     concepts_inprunedNR_butnotin_notP = pruned_not_retrained.difference(non_pruned) 
     
-    return concepts_innotP_butnotin_prunedNR, concepts_inprunedNR_butnotin_notP
+    return concepts_innotP_butnotin_prunedNR #concepts_inprunedNR_butnotin_notP
 
 # returns the concepts common to the non-pruned and pruned explanations
 def get_preserved_concepts(non_pruned :set, pruned_not_retrained:set):
