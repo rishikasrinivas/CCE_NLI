@@ -89,3 +89,7 @@ def get_avg_iou(ious):
 
 def get_common_neurons(pruned, not_pruned):
     return set(pruned['unit'].unique()).intersection(set(not_pruned['unit'].unique()))
+
+
+        
+        

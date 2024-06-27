@@ -89,3 +89,17 @@ def get_avg_iou(ious):
 
 def get_common_neurons(pruned, not_pruned):
     return set(pruned['unit'].unique()).intersection(set(not_pruned['unit'].unique()))
+
+def get_common_concepts(dfs1, dfs2, dfs3):
+    common = {}
+    i=0
+    for df1, df2, df3 in zip(dfs1, dfs2, dfs3):
+        i+=1
+        df1 = concept_ret(df1)
+        df2 = concept_ret(df2)
+        df3 = concept_ret(df3)
+        
+        common[f"Cluster{i}"] = (df1.intersection(df2)).intersection(df3)
+    return common
+        
+        
