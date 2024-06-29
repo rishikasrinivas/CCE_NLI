@@ -1,6 +1,6 @@
 from cleaning import prep, store_best_exp
 from concept_analysis import concept_similarity, Union, calculate_similarity_across_explanations, count_ANDOR, sum_andor
-from concept_getters import get_indiv_concepts, get_grouped_concepts, get_all_grouped_cps, get_lost_concepts, get_avg_iou, get_common_neurons, get_new_concepts, get_indiv_concepts_per_cluster, get_grouped_concepts_per_cluster
+from concept_getters import get_indiv_concepts, get_grouped_concepts, get_all_grouped_cps, get_lost_concepts, get_avg_iou, get_common_neurons, get_new_concepts, get_indiv_concepts_per_cluster, get_grouped_concepts_per_cluster, get_preserved_concepts
 from record import record_cluster_level_sim, record_lost_concepts, record_new_concepts, record_retained_concepts, record_common_concepts, record_across_concepts
 from stats import percent_overlap
 
@@ -98,9 +98,13 @@ def main():
         concepts_common_to_all_clusters_inPrunedBeforeRT = record_common_concepts(all_pwor_concepts, task='across_clusters', fname=fname)
         print("concepts_common_to_all_clusters_inPrunedBeforeRT: ", len(concepts_common_to_all_clusters_inPrunedBeforeRT["Concepts common to all clusters"]))
         
-
-
-
+     
+   
+        all_nopruned_concepts = set(list(all_nopruned_concepts.values())[0])
+        all_pruned_concepts = set(list(all_pruned_concepts.values())[0])
+        common_overall_bween_pnp = get_preserved_concepts(all_nopruned_concepts, all_pruned_concepts)
+        print("% of concepts common to no prune and pruned without considering clusters: ", len(common_overall_bween_pnp) / len(all_pruned_concepts.union(all_nopruned_concepts)) )
+        #similarity across all clusters
     
 main()
 
@@ -116,5 +120,5 @@ main()
 
 
     
-    next steps: pune 1% and see results
+    #next steps: pune 1% and see results
         
