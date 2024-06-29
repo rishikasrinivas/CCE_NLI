@@ -36,10 +36,10 @@ def calculate_similarity_across_explanations(pruned, not_pruned):
     sim_df=sim_df.reset_index().drop(columns=['index'])
     return sim_df
 
-def count_ANDOR(df):
+def count_ANDOR(set_):
     d={}
-    for i, form in enumerate(df['best_name']):
-
+    for form in set_:
+        print(form)
         ands=form.count("AND")
         ors=form.count("OR")
         nots=form.count("NOT")
@@ -53,7 +53,7 @@ def count_ANDOR(df):
             or_ratio = 0
         else:
             or_ratio = (ors)/(ands+ors)
-        d[df['unit'].iloc[i]]={"Ands ": and_ratio, "Ors": or_ratio}
+        d[form] = [and_ratio,or_ratio ]
 
     return d
 

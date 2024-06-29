@@ -130,14 +130,28 @@ def record_retained_concepts(pdicts, npdicts):
         retained[f'Cluster{i}'] = p.intersection(np)
     return retained
 
-def record_common_concepts(dict1, dict2, dict3, fname=None):
-    common = {}
-    i=0
-    for df1, df2, df3 in zip(dict1.values(), dict2.values(), dict3.values()):
-        i+=1
-        common[f"Cluster{i}"] = (df1.intersection(df2)).intersection(df3)
-        
+def record_common_concepts(*dicts, task, fname=None):
+    if task == 'across_clusters':
+        i = 0
+        for k,v in dicts[0].items():
+            i += 1
+            if i == 1:
+                common = v
+            else:
+                common = common.intersection(v)
+        common = {"Concepts common to all clusters": common}
+    elif task == 'across_prune_runs': #accros pruning
+        i = 0
+        common = {}
+        for d1, d2, d3 in zip(dicts[0].values(), dicts[1].values(), dicts[2].values()):
+            i+=1
+            common[f"Cluster{i}"] = (d1.intersection(d2)).intersection(d3)
+    else:
+        raise TypeError("Invalid task argument")
+        return
+    
     if fname != None:
         save_to_csv(common,fname)
     return common
+
 
