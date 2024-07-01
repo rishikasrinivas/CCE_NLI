@@ -16,78 +16,11 @@ from contextlib import nullcontext
 from tqdm import tqdm
 import numpy as np
 from collections import defaultdict
-
+from analyze import initiate_exp_run
+from snli_train import run, build_model, serialize 
 
 import models
 import util
-
-
-def run(split, epoch, model, optimizer, criterion, dataloaders, args):
-    training = split == "train"
-    if training:
-        ctx = nullcontext
-        model.train()
-    else:
-        ctx = torch.no_grad
-        model.eval()
-
-    ranger = tqdm(dataloaders[split], desc=f"{split} epoch {epoch}")
-
-    loss_meter = util.AverageMeter()
-    acc_meter = util.AverageMeter()
-    for (s1, s1len, s2, s2len, targets) in ranger:
-
-        if args.cuda:
-            s1 = s1.cuda()
-            s1len = s1len.cuda()
-            s2 = s2.cuda()
-            s2len = s2len.cuda()
-            targets = targets.cuda()
-
-        batch_size = targets.shape[0]
-
-        with ctx():
-            logits = model(s1, s1len, s2, s2len)
-            loss = criterion(logits, targets)
-
-        if training:
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-        preds = logits.argmax(1)
-        acc = (preds == targets).float().mean()
-
-        loss_meter.update(loss.item(), batch_size)
-        acc_meter.update(acc.item(), batch_size)
-
-        ranger.set_description(
-            f"{split} epoch {epoch} loss {loss_meter.avg:.3f} acc {acc_meter.avg:.3f}"
-        )
-
-    return {"loss": loss_meter.avg, "acc": acc_meter.avg}
-
-
-def build_model(vocab_size, model_type, embedding_dim=300, hidden_dim=512):
-    """
-    Build a bowman-style SNLI model
-    """
-    enc = models.TextEncoder(
-        vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim
-    )
-    if model_type == "minimal":
-        model = models.EntailmentClassifier(enc)
-    else:
-        model = models.BowmanEntailmentClassifier(enc)
-    return model
-
-
-def serialize(model, dataset):
-    return {
-        "state_dict": model.state_dict(),
-        "stoi": dataset.stoi,
-        "itos": dataset.itos,
-    }
 
 
 def main(args):
@@ -123,12 +56,10 @@ def main(args):
     }
 
     # ==== BUILD MODEL ====
-    model = build_model(
-        len(train.stoi),
-        args.model_type,
-        embedding_dim=args.embedding_dim,
-        hidden_dim=args.hidden_dim,
-    )
+    ckpt = torch.load(ckpt_path, map_location="cpu")
+    clf = models.BowmanEntailmentClassifier
+    model = clf(enc)
+    model.load_state_dict(ckpt["state_dict"])
 
     if args.cuda:
         model = model.cuda()
@@ -142,16 +73,34 @@ def main(args):
     metrics["best_val_loss"] = np.inf
 
     # Save model with 0 training
-    util.save_checkpoint(serialize(model, train), False, args.exp_dir, filename="0.pth")
-
+    model_c = model
     # ==== TRAIN ====
-    for epoch in range(args.epochs):
+    for prune_iter in range(args.prune_iters):
+        
+        initiate_exp_run(save_dir = f"code/Masks{0.005*(prune_iter)*100}%Pruned/")
+        
+        #prune .5% model.mlp[:-1][0] = prune.ln_structured(model.mlp[:-1][0], name="weight", amount=0.005, dim=1, n=float('-inf'))
+        model.prune(amount=0.005)
+        #rerun train copy_weigths 
+        model.copy_weights_linear(model_c, model)
+        
+        train_metrics = run(
+            "train", prune_iter, model, optimizer, criterion, dataloaders, args
+        )
+
+        val_metrics = run(
+            "val", prune_iter, model, optimizer, criterion, dataloaders, args
+        )
+    
+    for epoch in range(args.main_epochs):
         train_metrics = run(
             "train", epoch, model, optimizer, criterion, dataloaders, args
         )
-        
-        val_metrics = run("val", epoch, model, optimizer, criterion, dataloaders, args)
+        val_metrics = run(
+            "val", epoch, model, optimizer, criterion, dataloaders, args
+        )
 
+    
         for name, val in train_metrics.items():
             metrics[f"train_{name}"].append(val)
 
@@ -169,7 +118,7 @@ def main(args):
         util.save_checkpoint(serialize(model, train), is_best, args.exp_dir)
         if epoch % args.save_every == 0:
             util.save_checkpoint(
-                serialize(model, train), False, args.exp_dir, filename=f"{epoch}.pth"
+                serialize(model, train), False, args.exp_dir, filename=f"LotTick{epoch}.pth"
             )
 
 
@@ -183,7 +132,10 @@ def parse_args():
     parser.add_argument("--exp_dir", default="models/snli/")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal"])
     parser.add_argument("--save_every", default=1, type=int)
-    parser.add_argument("--epochs", default=50, type=int)
+    
+    parser.add_argument("--prune_epochs", default=10, type=int)
+    parser.add_argument("--main_epochs", default=50, type=int)
+    parser.add_argument("--prune_iters", default=5, type=int)
     parser.add_argument("--embedding_dim", default=300, type=int)
     parser.add_argument("--hidden_dim", default=512, type=int)
     parser.add_argument("--debug", action="store_true")

@@ -464,9 +464,9 @@ def extract_features(
     return all_srcs, all_states, all_feats, all_idxs
 
 
-def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =None, run=None):
-    
-
+def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =None, run=None, save_dir=None):
+    if save_dir is None:
+        return "Invalid save_dir"
     rfile = os.path.join(settings.RESULT, "result.csv")
     #if os.path.exists(rfile):
         #print(f"Loading cached {rfile}")
@@ -533,7 +533,7 @@ def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =No
 
             if best_iou > 0:
                 tqdm.write(f"{unit:02d}\t{best_name}\t{best_iou:.3f}")
-                write_to_file(unit, f"Cluster{cluster}IOUS1024N.csv", ["unit", "best_name", "best_iou"], [unit, best_name, best_iou])
+                write_to_file(unit, f"{save_dir}/Cluster{cluster}IOUS1024N.csv", ["unit", "best_name", "best_iou"], [unit, best_name, best_iou])
             
             r = {
                 "cluster": cluster,
@@ -741,16 +741,16 @@ def load_sents(path):
     return sents
 
 
-def clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
+def clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_dir):
     activations= torch.from_numpy(np.array(states))
     
     #1st  time run this, after that dont 
     activation_ranges = create_clusters(activations,4)
     
-    acts=build_masks(states, activation_ranges, 4)
+    acts=build_masks(states, activation_ranges, 4, save_dir)
     for cluster_num in range(1,5): 
-        if f"Cluster{cluster_num}masks.pt" in os.listdir("code/MasksPrunedBeforeRetrain/"):
-            acts = torch.load(f"code/MasksPrunedBeforeRetrain/Cluster{cluster_num}masks.pt").numpy()
+        if f"Cluster{cluster_num}masks.pt" in os.listdir(save_dir):
+            acts = torch.load(f"{save_dir}/Cluster{cluster_num}masks.pt").numpy()
             #if acts.dtype == torch.float32:
             print("converting")
             acts =torch.tensor(acts).bool().numpy()
@@ -762,7 +762,7 @@ def clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dat
             return
         
         assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
-        records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = 0)
+        records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = 0, save_dir=save_dir)
     return states
 
 
@@ -797,12 +797,7 @@ def per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dat
     return states
             
 
-
-
-def main():
-    os.makedirs(settings.RESULT, exist_ok=True)
-
-    print("Loading model/vocab")
+def initiate_exp_run(save_dir):
     model, dataset = data.snli.load_for_analysis(
         settings.MODEL,
         settings.DATA,
@@ -825,28 +820,18 @@ def main():
     )
     
    
-    
-    
-    #print(toks[0])#VECS_ITOS)
-    sents=[]
-    
-        
-   
     print("Extracting sentence token features")
     
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
     
-    """np.savetxt('data/tok_feats.csv', tok_feats, fmt="%d", delimiter=",")
-    with open('data/tok_feats_vocab.txt','w') as datas:  
-        datas.write(str(tok_feats_vocab))
-        
-    settings.NEURONS = [i for i in range(15,1024,20)]
-    settings.NEURONS.append(1023)"""
     
-    acts = clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
-    #per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
-    #default(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
-    
+    acts = clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_dir)
+    return acts
+
+def main():
+    os.makedirs(settings.RESULT, exist_ok=True)
+
+    initiate_exp_run()
     
     print("Load predictions")
     mbase = os.path.splitext(os.path.basename(settings.MODEL))[0]

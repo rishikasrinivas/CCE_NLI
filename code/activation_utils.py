@@ -76,7 +76,7 @@ def get_avgs(all_act_rags):
         
         
     return start/lars, end/lars
-def build_masks(activations, activation_ranges, num_clusters):
+def build_masks(activations, activation_ranges, num_clusters, save_dir):
     print(activation_ranges)
     
     activations=torch.Tensor(activations)
@@ -88,13 +88,13 @@ def build_masks(activations, activation_ranges, num_clusters):
             activ_for_sample.reshape(-1,1)
 
             mask=build_act_mask(activ_for_sample.squeeze(),activation_ranges[i], cluster_num)
-            torch.save(mask, f"code/MasksPrunedBeforeRetrain/Cluster{cluster_num}/SentPair{i}sMask.pt")
+            torch.save(mask, f"{save_dir}/Cluster{cluster_num}/SentPair{i}sMask.pt")
             act_masks.append(mask)
             if i%100 == 0:
                 print("Made masks for ", i, " samples")
 
         print(torch.stack(act_masks).shape )
         masks = torch.stack(act_masks)
-        act_tens=torch.save(masks, f"code/MasksPrunedBeforeRetrain/Cluster{cluster_num}masks.pt")
+        act_tens=torch.save(masks, f"{save_dir}/Cluster{cluster_num}masks.pt")
         
     
