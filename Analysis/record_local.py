@@ -2,34 +2,7 @@ from concept_analysis import concept_similarity, Union, calculate_similarity_acr
 from concept_getters import get_lost_concepts, get_avg_iou, get_indiv_concepts, get_all_grouped_cps, get_new_concepts
 import csv
 import pandas as pd
-
-
-def save_to_csv(dictionary, fname):
-    ml=0
-    for k,v in dictionary.items():
-        if len(v)>ml:
-            ml=len(v)
-    for k,v in dictionary.items():
-        dictionary[k]=list(dictionary[k])
-        while len(dictionary[k])!=ml:
-            dictionary[k].append('')
-    pd.DataFrame(dictionary).to_csv(fname)
-    
-def intersection(lst1, lst2):
-    intersect=0
-    for i,j in zip(lst1,lst2):
-        if i==j:
-            intersect += 1
-    return intersect
-
-def union(lst1,lst2):
-    union=0
-    for i,j in zip(lst1,lst2):
-        if i==1 or j==1:
-            union += 1
-    return union
-
- 
+import utils
     
 def record_avg_ious(pruned: list, noprune: list):
     pruned_avg_ious=[]
@@ -76,16 +49,19 @@ def record_cluster_level_sim(pruned, noprune, grouped_cps):
     return d
 
 
-def record_lost_concepts(nonpruned_dict: dict, pruned_dict : dict, fname=None) -> dict:
+def record_lost_concepts(nonpruned_dict: dict, pruned_dict : dict, fname=None, as_percent = False) -> dict:
     lost_cps = {}
     i = 0
     
     for p,np in zip(pruned_dict.values(), nonpruned_dict.values()):
         i += 1
         lost_from_orig = get_lost_concepts(np, p)
-        lost_cps[f'Cluster{i}'] = lost_from_orig
+        if as_percent:
+            lost_cps[f'Cluster{i}'] = len(lost_from_orig) / len(np)
+        else:
+            lost_cps[f'Cluster{i}'] = lost_from_orig 
     if fname != None:
-        save_to_csv(lost_cps, fname)
+        utils.save_to_csv(lost_cps, fname)
     return lost_cps
 
 
@@ -103,7 +79,7 @@ def record_across_concepts(orig_dict, retrained_pruned_dict, noretrain_prune_dic
             task_concepts = lost_cps.difference(cps_in_retrained)
         recordings[cluster] = task_concepts
     if fname != None:
-        save_to_csv(recordings, fname)
+        utils.save_to_csv(recordings, fname)
     return recordings
 
         
@@ -116,7 +92,7 @@ def record_new_concepts(orig_dict, pruned_dict, fname=None):
         np= orig_dict[np_keys]
         new_cps[f'Cluster{i}']=get_new_concepts(np, p)
     if fname != None:
-        save_to_csv(new_cps,fname)
+        utils.save_to_csv(new_cps,fname)
     return new_cps
     
 
@@ -130,28 +106,17 @@ def record_retained_concepts(pdicts, npdicts):
         retained[f'Cluster{i}'] = p.intersection(np)
     return retained
 
-def record_common_concepts(*dicts, task, fname=None):
-    if task == 'across_clusters':
-        i = 0
-        for k,v in dicts[0].items():
-            i += 1
-            if i == 1:
-                common = v
-            else:
-                common = common.intersection(v)
-        common = {"Concepts common to all clusters": common}
-    elif task == 'across_prune_runs': #accros pruning
-        i = 0
-        common = {}
-        for d1, d2, d3 in zip(dicts[0].values(), dicts[1].values(), dicts[2].values()):
-            i+=1
-            common[f"Cluster{i}"] = (d1.intersection(d2)).intersection(d3)
-    else:
-        raise TypeError("Invalid task argument")
-        return
-    
+#only func that handles glob and loc
+def record_common_concepts(concepts : list, fname=None):
+    common = {}
+    cluster = 0
+    for pruned, original in zip(concepts[0], concepts[1]):
+        cluster += 1
+        common[f'Cluster{cluster}'] = concept_analysis.calculate_similarity_across_explanations(pruned, not_pruned)
     if fname != None:
-        save_to_csv(common,fname)
+        utils.save_to_csv(common,fname)
     return common
+
+
 
 

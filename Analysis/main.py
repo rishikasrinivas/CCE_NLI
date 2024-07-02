@@ -4,15 +4,7 @@ from concept_getters import get_indiv_concepts, get_grouped_concepts, get_all_gr
 from record import record_cluster_level_sim, record_lost_concepts, record_new_concepts, record_retained_concepts, record_common_concepts, record_across_concepts
 from stats import percent_overlap
 
-def filter_invalid_compositions(all_pruned_concepts,all_nopruned_concepts,all_pwor_concepts):
-    for df1, df2, df3 in zip(all_pruned_concepts.values(),all_nopruned_concepts.values(),all_pwor_concepts.values()):
-        df1 = count_ANDOR(df1)
-        df2 = count_ANDOR(df2)
-        df3 = count_ANDOR(df3)
-        
-        for ands,ors in df1.values():
-            if ands==0 and ors==0:
-                pass
+
         
 def main():
     concept_retrieve_funcs = [(get_indiv_concepts_per_cluster,get_indiv_concepts) , (get_grouped_concepts_per_cluster,get_all_grouped_cps)]

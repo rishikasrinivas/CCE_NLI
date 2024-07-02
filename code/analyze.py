@@ -741,28 +741,28 @@ def load_sents(path):
     return sents
 
 
-def clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_dir):
+def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved):
     activations= torch.from_numpy(np.array(states))
+    #1st  time run this, after that dont
     
-    #1st  time run this, after that dont 
-    activation_ranges = create_clusters(activations,4)
-    
-    acts=build_masks(states, activation_ranges, 4, save_dir)
+    if not masks_saved:
+        print("creating masks storing in ",save_masks_dir )
+        activation_ranges = create_clusters(activations,4)
+        acts=build_masks(states, activation_ranges, 4, save_masks_dir)
     for cluster_num in range(1,5): 
-        if f"Cluster{cluster_num}masks.pt" in os.listdir(save_dir):
-            acts = torch.load(f"{save_dir}/Cluster{cluster_num}masks.pt").numpy()
-            #if acts.dtype == torch.float32:
-            print("converting")
-            acts =torch.tensor(acts).bool().numpy()
-                
-        #elif len(os.listdir(f"code/Masks/Cluster{cluster_num}")) == 10000:
-            #acts=load_masks(f"code/Masks/Cluster{cluster_num}")
-        else:
-            raise Exception("cant find")
-            return
-        
+        if masks_saved:
+            if f"Cluster{cluster_num}masks.pt" in os.listdir(save_masks_dir):
+                acts = torch.load(f"{save_masks_dir}/Cluster{cluster_num}masks.pt").numpy()
+                #if acts.dtype == torch.float32:
+                print("converting")
+                acts =torch.tensor(acts).bool().numpy()
+
+            else:
+                raise Exception("cant find")
+                return
+
         assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
-        records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = 0, save_dir=save_dir)
+        records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = 0, save_dir=save_exp_dir)
     return states
 
 
@@ -789,7 +789,7 @@ def per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dat
             for cluster_num in range(1,6):
                 acts=build_act_mask(activations,activation_ranges, cluster_num)
                 records = search_feats(acts, state, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num,sentence_num = sent_num)
-                #rint(records)
+               
                 for rec in records:
                     if rec['iou'] > 0.0:
                         print(rec['cluster'],rec['neuron'],rec['feature'],rec['iou'])
@@ -797,9 +797,9 @@ def per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dat
     return states
             
 
-def initiate_exp_run(save_dir):
+def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path):
     model, dataset = data.snli.load_for_analysis(
-        settings.MODEL,
+        path,
         settings.DATA,
         model_type=settings.MODEL_TYPE,
         cuda=settings.CUDA,
@@ -823,9 +823,8 @@ def initiate_exp_run(save_dir):
     print("Extracting sentence token features")
     
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
-    
-    
-    acts = clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_dir)
+   
+    acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved)
     return acts
 
 def main():

@@ -2,6 +2,8 @@
 import numpy as np
 import torch
 import sklearn.cluster as scikit_cluster
+import os
+
 count=0
 def build_act_mask(states, activ_ranges, cluster_num):
     shape=states.shape
@@ -77,16 +79,18 @@ def get_avgs(all_act_rags):
         
     return start/lars, end/lars
 def build_masks(activations, activation_ranges, num_clusters, save_dir):
-    print(activation_ranges)
-    
+    print(activation_ranges[0])
     activations=torch.Tensor(activations)
+    
+            
+  
     for cluster_num in range(1,num_clusters+1):
         act_masks=[]
+        os.mkdir(f"{save_dir}/Cluster{cluster_num}/")
         for i, activ_for_sample in enumerate(activations):
             #if torch.all(activ_for_sample >= 0):
                 #activ_for_sample=activ_for_sample[activ_for_sample>0]
             activ_for_sample.reshape(-1,1)
-
             mask=build_act_mask(activ_for_sample.squeeze(),activation_ranges[i], cluster_num)
             torch.save(mask, f"{save_dir}/Cluster{cluster_num}/SentPair{i}sMask.pt")
             act_masks.append(mask)
