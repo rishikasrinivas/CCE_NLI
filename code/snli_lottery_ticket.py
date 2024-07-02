@@ -74,15 +74,15 @@ def main(args):
 
     # Save model with 0 training
     model_c = model
+    mask = np.ones((1,1024))
     # ==== TRAIN ====
     for prune_iter in range(args.prune_iters):
         
         initiate_exp_run(save_dir = f"code/Masks{0.005*(prune_iter)*100}%Pruned/")
         
         #prune .5% model.mlp[:-1][0] = prune.ln_structured(model.mlp[:-1][0], name="weight", amount=0.005, dim=1, n=float('-inf'))
-        model.prune(amount=0.005)
-        #rerun train copy_weigths 
-        model.copy_weights_linear(model_c, model)
+        _, final_states, _, _= extract_features(model, dataset)
+        mask = model.prune_masks(percent={model.mlp[:-1][0]: 0.005}, masks= {model.mlp[:-1][0]: mask}, final_weights={model.mlp[:-1][0]: final_states} )
         
         train_metrics = run(
             "train", prune_iter, model, optimizer, criterion, dataloaders, args
