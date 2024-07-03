@@ -107,7 +107,7 @@ def main(args):
         path_to_ckpt= "models/snli/prune_metrics/0.5%/model_best.pth"
     else:
         path_to_ckpt=settings.MODEL
-    ckpt = torch.load(ckpt_path, map_location="cpu")
+    ckpt = torch.load(path_to_ckpt, map_location="cpu")
     clf = models.BowmanEntailmentClassifier
     enc = models.TextEncoder(len(ckpt["stoi"]))
     model = clf(enc)
