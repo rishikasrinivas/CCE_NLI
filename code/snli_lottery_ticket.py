@@ -18,10 +18,56 @@ import numpy as np
 from collections import defaultdict
 from analyze import initiate_exp_run
 from snli_train import run, build_model, serialize 
-
+import settings
 import models
 import util
 
+import importlib.util
+import sys
+# Define the path to the module you want to import
+analysis_path = os.path.abspath("Analysis/pipelines.py")
+
+# Load the module dynamically
+spec = importlib.util.spec_from_file_location("pipelines", analysis_path)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+sys.path.append("Analysis/")
+import pipelines as pipelines
+def finetune_pruned_model(model,optimizer,criterion, dataloaders, train, val, finetune_epochs, prune_metrics_dir, metrics):
+    for epoch in range(finetune_epochs):
+        train_metrics = run(
+            "train", epoch, model, optimizer, criterion, dataloaders, args
+        )
+
+        val_metrics = run(
+            "val", epoch, model, optimizer, criterion, dataloaders, args
+        )
+
+        for name, val in train_metrics.items():
+            metrics[f"train_{name}"].append(val)
+
+        for name, val in val_metrics.items():
+            metrics[f"val_{name}"].append(val)
+
+        is_best = val_metrics["acc"] > metrics["best_val_acc"]
+
+        if is_best:
+            metrics["best_val_epoch"] = epoch
+            metrics["best_val_acc"] = val_metrics["acc"]
+            metrics["best_val_loss"] = val_metrics["loss"]
+
+
+        util.save_metrics(metrics, prune_metrics_dir)
+        util.save_checkpoint(serialize(model, train), is_best, prune_metrics_dir)
+        if epoch % args.save_every == 0:
+
+            util.save_checkpoint(
+                serialize(model, train), False, prune_metrics_dir, filename=f"LotTick{epoch}.pth"
+            )
+    path_to_ckpt=f"{prune_metrics_dir}/model_best.pth"
+    return path_to_ckpt, metrics
+        
 
 def main(args):
     os.makedirs(args.exp_dir, exist_ok=True)
@@ -56,8 +102,14 @@ def main(args):
     }
 
     # ==== BUILD MODEL ====
+    resume_from_ckpt = False
+    if resume_from_ckpt:
+        path_to_ckpt= "models/snli/prune_metrics/0.5%/model_best.pth"
+    else:
+        path_to_ckpt=settings.MODEL
     ckpt = torch.load(ckpt_path, map_location="cpu")
     clf = models.BowmanEntailmentClassifier
+    enc = models.TextEncoder(len(ckpt["stoi"]))
     model = clf(enc)
     model.load_state_dict(ckpt["state_dict"])
 
@@ -73,53 +125,137 @@ def main(args):
     metrics["best_val_loss"] = np.inf
 
     # Save model with 0 training
-    model_c = model
-    mask = np.ones((1,1024))
+    
+    masks_saved=False
+    
+    initial_expls = {'original': 
+                     ["Analysis/Explanations/Cluster1IOUSOrig.csv",
+                      "Analysis/Explanations/Cluster2IOUSOrig.csv",
+                      "Analysis/Explanations/Cluster3IOUSOrig.csv",
+                     "Analysis/Explanations/Cluster4IOUSOrig.csv"
+                     ]
+                    }
     # ==== TRAIN ====
-    for prune_iter in range(args.prune_iters):
+    for prune_iter in range(1,args.prune_iters+1):
+        #identifier to track pruning amount'
         
-        initiate_exp_run(save_dir = f"code/Masks{0.005*(prune_iter)*100}%Pruned/")
+        identifier = 0.005*prune_iter*100
         
-        #prune .5% model.mlp[:-1][0] = prune.ln_structured(model.mlp[:-1][0], name="weight", amount=0.005, dim=1, n=float('-inf'))
-        _, final_states, _, _= extract_features(model, dataset)
-        mask = model.prune_masks(percent={model.mlp[:-1][0]: 0.005}, masks= {model.mlp[:-1][0]: mask}, final_weights={model.mlp[:-1][0]: final_states} )
+        #masks and explanation storing paths before finetuning
+        masks_before_finetuning_flder = f"code/Masks{identifier}%Pruned/BeforeFT"
+        if not os.path.exists(masks_before_finetuning_flder):
+            os.mkdir(f"code/Masks{identifier}%Pruned")
+            os.mkdir(masks_before_finetuning_flder)
+
+
+        expls_before_finetuning_flder = f"Analysis/Expls{identifier}%Pruned/BeforeFT"
+        if not os.path.exists(expls_before_finetuning_flder):
+            os.mkdir(f"Analysis/Expls{identifier}%Pruned")
+            os.mkdir(expls_before_finetuning_flder) 
+
+
+        model.prune(amount=0.005) #0.5% prune
+
+        #run after pruning before finetuning
+      
+        initiate_exp_run(
+            save_exp_dir = expls_before_finetuning_flder, 
+            save_masks_dir= masks_before_finetuning_flder, 
+            masks_saved=masks_saved, 
+            path = path_to_ckpt,
+            model_ = model
+        )
+
+        assert model.check_pruned()
+        #ANALYSIS: % of lost concepts
+        prunedBeforeRT_expls = {'prunedBefore': [
+            f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster1IOUS1024N.csv",
+            f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster2IOUS1024N.csv",
+            f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster3IOUS1024N.csv",
+            f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster4IOUS1024N.csv",
+        ]}
+
+
+        percent_concepts_lost_to_pruning_local = pipelines.pipe_percent_lost(
+            [initial_expls,prunedBeforeRT_expls],
+            task = 'local',
+            fname = f"Analysis/Expls{identifier}%Pruned/LostTo{identifier}%PruningBeforeFinetune.csv"
+
+        )
+
+        percent_concepts_lost_to_pruning_globally = pipelines.pipe_percent_lost(
+            [initial_expls,prunedBeforeRT_expls],
+            task = 'global'
+        )
+
+        #location to store metrics
+        prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{identifier}%")
+        if not os.path.exists(prune_metrics_dir):
+            os.mkdir(prune_metrics_dir)
+
+        #finetuning
+        path_to_ckpt, metrics = finetune_pruned_model(model,optimizer,criterion,dataloaders, train,val, args.finetune_epochs, prune_metrics_dir, metrics)
+
+
+        #masks and explanation storing paths after finetuning
+        exp_after_finetuning_flder = f"Analysis/Expls{identifier}%Pruned/AfterFT"
+        if not os.path.exists(exp_after_finetuning_flder):
+            os.mkdir(exp_after_finetuning_flder) 
+
+        masks_after_finetuning_flder = f"code/Masks{identifier}%Pruned/AfterFT"
+        if not os.path.exists(masks_after_finetuning_flder):
+            os.mkdir(masks_after_finetuning_flder)
+        #run after pruning and finetuning
+        initiate_exp_run(
+            save_exp_dir = exp_after_finetuning_flder, 
+            save_masks_dir= masks_after_finetuning_flder, 
+            masks_saved=masks_saved, 
+            path=path_to_ckpt,
+            model_=model,
+
+        ) 
+        prunedBeforeRT_expls = {'prunedBefore': [
+                f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster1IOUS1024N.csv",
+                f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster2IOUS1024N.csv",
+                f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster3IOUS1024N.csv",
+                f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster4IOUS1024N.csv",
+            ]}
         
-        train_metrics = run(
-            "train", prune_iter, model, optimizer, criterion, dataloaders, args
+        #ANALYSIS measure local consistency and global consistency
+        prunedAfterRT_expls = {'prunedAfter': [
+            f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster1IOUS1024N.csv",
+            f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster2IOUS1024N.csv",
+            f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster3IOUS1024N.csv",
+            f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster4IOUS1024N.csv",
+        ]}
+        
+        percent_of_cps_preserved_globally = pipelines.pipe_explanation_similiarity(
+            [initial_expls,prunedAfterRT_expls], 
+            task='global', 
+            get_concepts_func = 'indiv',
         )
-
-        val_metrics = run(
-            "val", prune_iter, model, optimizer, criterion, dataloaders, args
+        
+        percent_of_cps_preserved_locally = pipelines.pipe_explanation_similiarity(
+            [initial_expls,prunedAfterRT_expls],
+            task='local', 
+            get_concepts_func = 'indiv',
+            fname = f"Analysis/Expls{identifier}%Pruned/LocallyPreserved{identifier}%Pruned.csv"
         )
-    
-    for epoch in range(args.main_epochs):
-        train_metrics = run(
-            "train", epoch, model, optimizer, criterion, dataloaders, args
+        
+        percent_relearned_through_finetuning = pipelines.pipe_relearned_concepts(
+            [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
+            task='global', 
+            get_concepts_func = 'indiv'
         )
-        val_metrics = run(
-            "val", epoch, model, optimizer, criterion, dataloaders, args
+        
+        percent_relearned_through_finetuning = pipelines.pipe_relearned_concepts(
+            [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
+            task='local', 
+            get_concepts_func = 'indiv',
+            fname = f"Analysis/Expls{identifier}%Pruned/LocallyRelearned{identifier}%Pruned.csv"
         )
-
-    
-        for name, val in train_metrics.items():
-            metrics[f"train_{name}"].append(val)
-
-        for name, val in val_metrics.items():
-            metrics[f"val_{name}"].append(val)
-
-        is_best = val_metrics["acc"] > metrics["best_val_acc"]
-
-        if is_best:
-            metrics["best_val_epoch"] = epoch
-            metrics["best_val_acc"] = val_metrics["acc"]
-            metrics["best_val_loss"] = val_metrics["loss"]
-
-        util.save_metrics(metrics, args.exp_dir)
-        util.save_checkpoint(serialize(model, train), is_best, args.exp_dir)
-        if epoch % args.save_every == 0:
-            util.save_checkpoint(
-                serialize(model, train), False, args.exp_dir, filename=f"LotTick{epoch}.pth"
-            )
+        
+        
 
 
 def parse_args():
@@ -130,11 +266,12 @@ def parse_args():
     )
 
     parser.add_argument("--exp_dir", default="models/snli/")
+    parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal"])
     parser.add_argument("--save_every", default=1, type=int)
     
     parser.add_argument("--prune_epochs", default=10, type=int)
-    parser.add_argument("--main_epochs", default=50, type=int)
+    parser.add_argument("--finetune_epochs", default=20, type=int)
     parser.add_argument("--prune_iters", default=5, type=int)
     parser.add_argument("--embedding_dim", default=300, type=int)
     parser.add_argument("--hidden_dim", default=512, type=int)

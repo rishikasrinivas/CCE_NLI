@@ -101,7 +101,9 @@ def get_avg_iou(ious):
     ious=ious.tolist()
     return sum(ious)/len(ious)
 
+
 def get_common_neurons(pruned, not_pruned):
+    print("p", pruned)
     return set(pruned['unit'].unique()).intersection(set(not_pruned['unit'].unique()))
 
 

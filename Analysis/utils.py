@@ -6,9 +6,11 @@ def save_to_csv(dictionary, fname):
         if len(v)>ml:
             ml=len(v)
     for k,v in dictionary.items():
+            
         dictionary[k]=list(dictionary[k])
         while len(dictionary[k])!=ml:
             dictionary[k].append('')
+    
     pd.DataFrame(dictionary).to_csv(fname)
     
 def intersection(lst1, lst2):

@@ -1,4 +1,4 @@
-from concept_analysis import concept_similarity, Union, calculate_similarity_across_explanations, count_ANDOR, sum_andor
+import concept_analysis 
 from concept_getters import get_lost_concepts, get_avg_iou, get_indiv_concepts, get_all_grouped_cps, get_new_concepts
 import csv
 import pandas as pd
@@ -61,6 +61,7 @@ def record_lost_concepts(nonpruned_dict: dict, pruned_dict : dict, fname=None, a
         else:
             lost_cps[f'Cluster{i}'] = lost_from_orig 
     if fname != None:
+        print(fname)
         utils.save_to_csv(lost_cps, fname)
     return lost_cps
 
@@ -112,9 +113,9 @@ def record_common_concepts(concepts : list, fname=None):
     cluster = 0
     for pruned, original in zip(concepts[0], concepts[1]):
         cluster += 1
-        common[f'Cluster{cluster}'] = concept_analysis.calculate_similarity_across_explanations(pruned, not_pruned)
+        common[f'Cluster{cluster}'] = concept_analysis.calculate_similarity_across_explanations(pruned, original).to_dict()
     if fname != None:
-        utils.save_to_csv(common,fname)
+        combined_df = pd.DataFrame({key: df for key, df in common.items()}).to_csv(fname)
     return common
 
 
