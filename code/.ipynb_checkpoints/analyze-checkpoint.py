@@ -27,7 +27,7 @@ import data
 import data.snli
 import data.analysis
 from activation_utils import compute_activ_ranges, create_clusters, build_act_mask, active_neurons, build_masks
-from Masks.DataLoading import load_masks
+from data.DataLoading import load_masks
 
 GLOBALS = {}
 
@@ -263,10 +263,9 @@ def calculate_act_mask_align_index(unit, formula, cluster, run, concept, acts, m
     
 
     write_to_file(unit, f"Run{run}Cluster{cluster}SamplesFiringPerConcept.csv",["concept", "formula", "samples_entailing_formula", "num_samples_entailing_formula"], [concept, formula, samples_entailing_formula, len(samples_entailing_formula[0])] )
-    '''
-    write_to_file(unit, f"Run{run}Cluster{cluster}SamplesCommonToActAndMask.csv", concept, formula, sample_nums_commonTo_act_and_mask, len(sample_nums_commonTo_act_and_mask))
-    if not os.path.exists("Run{run}Cluster{cluster}SamplesWhereNeuronActivates.csv"):
-        write_to_file(unit, f"Run{run}Cluster{cluster}SamplesWhereNeuronActivates.csv", concept, formula, samples_where_neuron_activs, len(samples_where_neuron_activs[0]) )'''
+                 
+    
+   
 
 
 def compute_iou(unit, cluster,run, formula, acts, feats, dataset, feat_type="word", sentence_num=None):
@@ -274,17 +273,16 @@ def compute_iou(unit, cluster,run, formula, acts, feats, dataset, feat_type="wor
     # Cache mask
 
     
-    if len(np.where(masks == 1)[0]) == 0: #formula not in any samples
-        return 0
+    
     formula.mask = masks
     
     
     
-    concept=get_concept(formula,dataset)
+    #concept=get_concept(formula,dataset)
   
-    if (len(concept) >= 2):
+    '''if (len(concept) >= 2):
         if sentence_num is None: #if not running this on 1 sentence at a time
-            calculate_act_mask_align_index(unit,formula, cluster, run, concept, acts, masks)
+            calculate_act_mask_align_index(unit,formula, cluster, run, concept, acts, masks)'''
 
     if settings.METRIC == "iou":
         #if running w only 1 sentence iou would be.1 or 0, acts will be 1,1 (this is act for each neuron so 1 sentence and.1 neuon) mask is also 1x1
@@ -418,6 +416,8 @@ def pairs(x):
 def extract_features(
     model,
     dataset,
+    adjust_final_weights,
+    amount
 ):
     loader = DataLoader(
         dataset,
@@ -448,7 +448,7 @@ def extract_features(
             s2 = src_one_comb[:, :, 1]
             s2len = src_lengths_comb[:, 1]
 
-            final_reprs = model.get_final_reprs(s1, s1len, s2, s2len)
+            final_reprs = model.get_final_reprs(s1, s1len, s2, s2len, adjust_final_weights, amount)
 
         # Pack the sequence
         all_srcs.extend(list(np.transpose(src_one_comb.cpu().numpy(), (1, 2, 0))))
@@ -466,9 +466,9 @@ def extract_features(
     return all_srcs, all_states, all_feats, all_idxs
 
 
-def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =None, run=None):
-    
-
+def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =None, run=None, save_dir=None):
+    if save_dir is None:
+        return "Invalid save_dir"
     rfile = os.path.join(settings.RESULT, "result.csv")
     #if os.path.exists(rfile):
         #print(f"Loading cached {rfile}")
@@ -529,13 +529,14 @@ def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =No
             best_cat = best_lab.to_str(cat_namer, sort=True)
             best_cat_fine = best_lab.to_str(cat_namer_fine, sort=True)
             
-            write_to_file(unit, f"Cluster{cluster}IOUS1024N.csv", ["unit", "best_name", "best_iou"], [unit, best_name, best_iou])
             entail_weight = weights[unit, 0]
             neutral_weight = weights[unit, 1]
             contra_weight = weights[unit, 2]
 
             if best_iou > 0:
                 tqdm.write(f"{unit:02d}\t{best_name}\t{best_iou:.3f}")
+                write_to_file(unit, f"{save_dir}/Cluster{cluster}IOUS1024N.csv", ["unit", "best_name", "best_iou"], [unit, best_name, best_iou])
+            
             r = {
                 "cluster": cluster,
                 "neuron": unit,
@@ -742,41 +743,30 @@ def load_sents(path):
     return sents
 
 
-def clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
+def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved):
     activations= torch.from_numpy(np.array(states))
+    #1st  time run this, after that dont
     
-    for run in range(1):
-        for cluster_num in range(1,5):
-            #if (len(os.listdir(f"code/Masks/Cluster{cluster_num}")) == 10000):
-                #acts = load_masks(cluster_num, f"code/Masks/Cluster{cluster_num}").numpy()
-            #else:
-            acts=build_masks(states, 4, cluster_num)
-            
-            assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
-            records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = run)
+    if not masks_saved:
+        print("creating masks storing in ",save_masks_dir )
+        activation_ranges = create_clusters(activations,4)
+        acts=build_masks(states, activation_ranges, 4, save_masks_dir)
+    for cluster_num in range(1,5): 
+        if masks_saved:
+            if f"Cluster{cluster_num}masks.pt" in os.listdir(save_masks_dir):
+                acts = torch.load(f"{save_masks_dir}/Cluster{cluster_num}masks.pt").numpy()
+                #if acts.dtype == torch.float32:
+                print("converting")
+                acts =torch.tensor(acts).bool().numpy()
+
+            else:
+                raise Exception("cant find")
+                return
+
+        assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
+        records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = 0, save_dir=save_exp_dir)
     return states
 
-
-#added
-def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
-    import csv
-    activations= torch.from_numpy(np.array(states))
-    
-    activation_ranges = create_clusters(activations, 4)
-    file="CompExpClusters.csv"
-    with open(file, "w") as fp:
-        wr = csv.writer(fp, dialect='excel')
-        wr.writerow(["cluster", 'neuron','feature','iou', 'w_contra','w_neutral'])
-        for cluster_num in range(1,5):
-            
-            acts=build_act_mask(activations,activation_ranges, cluster_num)
-            assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
-            records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num)
-            for rec in records:
-                if (rec['iou'] > 0):
-                    wr = csv.writer(fp, dialect='excel')
-                    wr.writerow([rec['cluster'],rec['neuron'],rec['feature'], rec['iou'], rec['w_contra'], rec['w_neutral']])
-            break
 
 #added         
 def per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
@@ -801,7 +791,7 @@ def per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dat
             for cluster_num in range(1,6):
                 acts=build_act_mask(activations,activation_ranges, cluster_num)
                 records = search_feats(acts, state, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num,sentence_num = sent_num)
-                #rint(records)
+               
                 for rec in records:
                     if rec['iou'] > 0.0:
                         print(rec['cluster'],rec['neuron'],rec['feature'],rec['iou'])
@@ -809,18 +799,23 @@ def per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dat
     return states
             
 
-
-
-def main():
-    os.makedirs(settings.RESULT, exist_ok=True)
-
-    print("Loading model/vocab")
-    model, dataset = data.snli.load_for_analysis(
-        settings.MODEL,
-        settings.DATA,
-        model_type=settings.MODEL_TYPE,
-        cuda=settings.CUDA,
-    )
+def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path, adjust_final_weights=False, amount=0, model_=None, dataset=None):
+    
+    if model_==None and dataset==None:
+        model, dataset = data.snli.load_for_analysis(
+            path,
+            settings.DATA,
+            model_type=settings.MODEL_TYPE,
+            cuda=settings.CUDA,
+            prune_at_end=adjust_final_weights
+        )
+    else:
+        model= model_
+        dataset =dataset
+        
+        if settings.CUDA:
+            model.to('cuda')
+            
 
  
     # Last model weight
@@ -830,34 +825,26 @@ def main():
         weights = model.mlp[-1].weight.t().detach().cpu().numpy()
 
     print("Extracting features")
+    
     toks, states, feats, idxs = extract_features(
         model,
         dataset,
+        adjust_final_weights,
+        amount=amount
     )
     
-    torch.save(states, "Analysis/Data/5%PrunedActivs.pt")
-    
-    
-    #print(toks[0])#VECS_ITOS)
-    sents=[]
-    
-        
    
     print("Extracting sentence token features")
     
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
-    
-    """np.savetxt('data/tok_feats.csv', tok_feats, fmt="%d", delimiter=",")
-    with open('data/tok_feats_vocab.txt','w') as datas:  
-        datas.write(str(tok_feats_vocab))
-        
-    settings.NEURONS = [i for i in range(15,1024,20)]
-    settings.NEURONS.append(1023)"""
-    
-    acts = clustered_NLI_multirun(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
-    #per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
-    #default(tok_feats, tok_feats_vocab,states,feats, weights, dataset)
-    
+   
+    acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved)
+    return acts, weights
+
+def main():
+    os.makedirs(settings.RESULT, exist_ok=True)
+
+    states, weights = initiate_exp_run()
     
     print("Load predictions")
     mbase = os.path.splitext(os.path.basename(settings.MODEL))[0]

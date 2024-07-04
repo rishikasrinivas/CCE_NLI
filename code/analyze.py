@@ -416,6 +416,8 @@ def pairs(x):
 def extract_features(
     model,
     dataset,
+    adjust_final_weights,
+    amount
 ):
     loader = DataLoader(
         dataset,
@@ -446,7 +448,7 @@ def extract_features(
             s2 = src_one_comb[:, :, 1]
             s2len = src_lengths_comb[:, 1]
 
-            final_reprs = model.get_final_reprs(s1, s1len, s2, s2len)
+            final_reprs = model.get_final_reprs(s1, s1len, s2, s2len, adjust_final_weights, amount)
 
         # Pack the sequence
         all_srcs.extend(list(np.transpose(src_one_comb.cpu().numpy(), (1, 2, 0))))
@@ -797,13 +799,23 @@ def per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dat
     return states
             
 
-def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path):
-    model, dataset = data.snli.load_for_analysis(
-        path,
-        settings.DATA,
-        model_type=settings.MODEL_TYPE,
-        cuda=settings.CUDA,
-    )
+def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path, adjust_final_weights=False, amount=0, model_=None, dataset=None):
+    
+    if model_==None and dataset==None:
+        model, dataset = data.snli.load_for_analysis(
+            path,
+            settings.DATA,
+            model_type=settings.MODEL_TYPE,
+            cuda=settings.CUDA,
+            prune_at_end=adjust_final_weights
+        )
+    else:
+        model= model_
+        dataset =dataset
+        
+        if settings.CUDA:
+            model.to('cuda')
+            
 
  
     # Last model weight
@@ -817,6 +829,8 @@ def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path):
     toks, states, feats, idxs = extract_features(
         model,
         dataset,
+        adjust_final_weights,
+        amount=amount
     )
     
    
@@ -825,12 +839,12 @@ def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path):
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
    
     acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved)
-    return acts
+    return acts, weights
 
 def main():
     os.makedirs(settings.RESULT, exist_ok=True)
 
-    initiate_exp_run()
+    states, weights = initiate_exp_run()
     
     print("Load predictions")
     mbase = os.path.splitext(os.path.basename(settings.MODEL))[0]

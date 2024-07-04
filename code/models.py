@@ -96,7 +96,7 @@ class BowmanEntailmentClassifier(nn.Module):
         self.mlp_input_dim = self.encoder_dim * 4
         self.dropout = nn.Dropout(0.1)
         self.bn = nn.BatchNorm1d(self.mlp_input_dim)
-
+        
         self.mlp = nn.Sequential(
             nn.Linear(self.mlp_input_dim, 1024),
             nn.ReLU(),
@@ -105,7 +105,8 @@ class BowmanEntailmentClassifier(nn.Module):
         )
         #self.mlp[:-1][0] = prune.ln_structured(self.mlp[:-1][0], name="weight", amount=0.05, dim=1, n=float('-inf'))
         self.output_dim = 3
-
+        
+        
     def forward(self, s1, s1len, s2, s2len):
         s1enc = self.encoder(s1, s1len)
         s2enc = self.encoder(s2, s2len)
@@ -128,15 +129,14 @@ class BowmanEntailmentClassifier(nn.Module):
             layer = self.mlp[:-1]
         return prune.is_pruned(layer)
     
-    def prune(self, layer='default', amount=0.05):
+    def prune(self, layer='default', amount=0.005):
         if layer == 'default':
             layer = self.mlp[:-1][0]
-            
-        if not self.check_pruned(layer):
-            prune.ln_structured(layer, name="weight", amount=amount, dim=1, n=float('-inf'))
-    def prune_lt(self, final_state, layer='default', amount=0.05):
-        if layer == 'default':
-            layer = self.mlp[:-1][0]
+        
+        if not self.check_pruned() :
+            prune.ln_structured(layer, name="weight", amount=amount, dim=1, n=2)
+        
+   
             
     def prune_masks(percents, mask, final_weights):
         """Return new masks that involve pruning the smallest of the final weights.
@@ -190,7 +190,7 @@ class BowmanEntailmentClassifier(nn.Module):
             linear_pruned.weight_orig.copy_(linear_unpruned.weight)
             linear_pruned.bias_orig.copy_(linear_unpruned.bias)
 
-    def get_final_reprs(self, s1, s1len, s2, s2len):
+    def get_final_reprs(self, s1, s1len, s2, s2len, adjust_final_weights, amount):
         s1enc = self.encoder(s1, s1len)
         s2enc = self.encoder(s2, s2len)
 
@@ -202,8 +202,10 @@ class BowmanEntailmentClassifier(nn.Module):
         mlp_input = self.bn(mlp_input)
         mlp_input = self.dropout(mlp_input)
         
-        #self.prune()
-        #assert self.check_pruned() == True
+        if adjust_final_weights:
+            self.prune(amount=amount)
+            assert self.check_pruned() == True
+            
         rep = self.mlp[:-1](mlp_input) #this would need to be updated w the pruning
         return rep
 

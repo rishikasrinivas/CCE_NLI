@@ -96,16 +96,17 @@ class BowmanEntailmentClassifier(nn.Module):
         self.mlp_input_dim = self.encoder_dim * 4
         self.dropout = nn.Dropout(0.1)
         self.bn = nn.BatchNorm1d(self.mlp_input_dim)
-
+        
         self.mlp = nn.Sequential(
             nn.Linear(self.mlp_input_dim, 1024),
             nn.ReLU(),
             nn.Dropout(0.1),  # Mimic classifier MLP keep rate of 94%
             nn.Linear(1024, 3),
         )
-        self.mlp[:-1][0] = prune.ln_structured(self.mlp[:-1][0], name="weight", amount=0.05, dim=1, n=float('-inf'))
+        #self.mlp[:-1][0] = prune.ln_structured(self.mlp[:-1][0], name="weight", amount=0.05, dim=1, n=float('-inf'))
         self.output_dim = 3
-
+        
+        
     def forward(self, s1, s1len, s2, s2len):
         s1enc = self.encoder(s1, s1len)
         s2enc = self.encoder(s2, s2len)
@@ -115,19 +116,81 @@ class BowmanEntailmentClassifier(nn.Module):
         prods = s1enc * s2enc
 
         mlp_input = torch.cat([s1enc, s2enc, diffs, prods], 1) #1x2048
-      
+    
         mlp_input = self.bn(mlp_input)
         mlp_input = self.dropout(mlp_input)
         
-        #prune.ln_structured(self.mlp[:-1][0], name="weight", amount=0.05, dim=1, n=float('-inf'))
-       
-        assert prune.is_pruned(self.mlp[:-1]) == True
         preds = self.mlp(mlp_input)
 
         return preds
     
+    def check_pruned(self, layer='default'):
+        if layer == 'default':
+            layer = self.mlp[:-1]
+        return prune.is_pruned(layer)
+    
+    def prune(self, layer='default', amount=0.005):
+        if layer == 'default':
+            layer = self.mlp[:-1][0]
+        
+        if not self.check_pruned() :
+            prune.ln_structured(layer, name="weight", amount=amount, dim=1, n=2)
+        
+   
+            
+    def prune_masks(percents, mask, final_weights):
+        """Return new masks that involve pruning the smallest of the final weights.
 
-    def get_final_reprs(self, s1, s1len, s2, s2len):
+            Args:
+                percents: A dictionary determining the percent by which to prune each layer.
+                  Keys are layer names and values are floats between 0 and 1 (inclusive).
+                masks: A dictionary containing the current masks. Keys are strings and
+                  values are numpy arrays with values in {0, 1}.
+                final_weights: The weights at the end of the last training run. A
+                  dictionary whose keys are strings and whose values are numpy arrays.
+
+            Returns:
+                A dictionary containing the newly-pruned masks.
+        """
+        def prune_by_percent_once(percent, mask, final_weight):
+            # Put the weights that aren't masked out in sorted order.
+            sorted_weights = np.sort(np.abs(final_weight[mask == 1]))
+
+            # Determine the cutoff for weights to be pruned.
+            cutoff_index = np.round(percent * sorted_weights.size).astype(int)
+            cutoff = sorted_weights[cutoff_index]
+
+            # Prune all weights below the cutoff.
+            return np.where(np.abs(final_weight) <= cutoff, np.zeros(mask.shape), mask)
+
+        new_masks = {}
+        for k, percent in percents.items():
+            new_masks[k] = prune_by_percent_once(percent, masks[k], final_weights[k])
+
+        return new_masks
+        
+    # from https://github.com/jankrepl/mildlyoverfitted/blob/master/github_adventures/lottery/utils.py
+    def copy_weights_linear(linear_unpruned, linear_pruned):
+        """Copy weights from an unpruned model to a pruned model.
+
+        Modifies `linear_pruned` in place.
+
+        Parameters
+        ----------
+        linear_unpruned : nn.Linear
+            Linear model with a bias that was not pruned.
+
+        linear_pruned : nn.Linear
+            Linear model with a bias that was pruned.
+        """
+        assert check_pruned_linear(linear_pruned)
+        assert not check_pruned_linear(linear_unpruned)
+
+        with torch.no_grad():
+            linear_pruned.weight_orig.copy_(linear_unpruned.weight)
+            linear_pruned.bias_orig.copy_(linear_unpruned.bias)
+
+    def get_final_reprs(self, s1, s1len, s2, s2len, adjust_final_weights, amount):
         s1enc = self.encoder(s1, s1len)
         s2enc = self.encoder(s2, s2len)
 
@@ -138,10 +201,11 @@ class BowmanEntailmentClassifier(nn.Module):
 
         mlp_input = self.bn(mlp_input)
         mlp_input = self.dropout(mlp_input)
-        #prune.ln_structured(self.mlp[:-1][0], name="weight", amount=0.05, dim=1, n=float('-inf'))
-        assert prune.is_pruned(self.mlp[:-1]) == True
         
-        
+        if adjust_final_weights:
+            self.prune(amount=amount)
+            assert self.check_pruned() == True
+            
         rep = self.mlp[:-1](mlp_input) #this would need to be updated w the pruning
         return rep
 
@@ -151,6 +215,8 @@ class BowmanEntailmentClassifier(nn.Module):
     
     def get_encoder(self):
         return self.encoder
+    
+     
 
 
 class DropoutLSTMCell(nn.Module):

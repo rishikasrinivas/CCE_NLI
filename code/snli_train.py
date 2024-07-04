@@ -22,7 +22,7 @@ import models
 import util
 
 
-def run(split, epoch, model, optimizer, criterion, dataloaders, args):
+def run(split, epoch, model, optimizer, criterion, dataloaders, args, device='cuda'):
     training = split == "train"
     if training:
         ctx = nullcontext
@@ -37,7 +37,7 @@ def run(split, epoch, model, optimizer, criterion, dataloaders, args):
     acc_meter = util.AverageMeter()
     for (s1, s1len, s2, s2len, targets) in ranger:
 
-        if args.cuda:
+        if args.cuda or device == 'cuda':
             s1 = s1.cuda()
             s1len = s1len.cuda()
             s2 = s2.cuda()
