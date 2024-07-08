@@ -45,7 +45,7 @@ def record_cluster_level_sim(pruned, noprune, grouped_cps):
                 nopruned_row.append(1)
             else:
                 nopruned_row.append(0)
-        d[f'Cluster{i}'] = intersection(pruned_row,nopruned_row)/union(pruned_row,nopruned_row)
+        d[f'Cluster{i}'] = utils.intersection(pruned_row,nopruned_row)/utils.union(pruned_row,nopruned_row)
     return d
 
 

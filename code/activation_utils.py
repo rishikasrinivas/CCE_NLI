@@ -84,7 +84,7 @@ def build_masks(activations, activation_ranges, num_clusters, save_dir):
   
     for cluster_num in range(1,num_clusters+1):
         act_masks=[]
-        os.mkdir(f"{save_dir}/Cluster{cluster_num}/")
+        os.makedirs(f"{save_dir}/Cluster{cluster_num}/", exist_ok=True)
         for i, activ_for_sample in enumerate(activations):
             #if torch.all(activ_for_sample >= 0):
                 #activ_for_sample=activ_for_sample[activ_for_sample>0]

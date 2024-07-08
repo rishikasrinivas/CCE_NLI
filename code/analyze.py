@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #todo: make clusters
@@ -469,7 +470,8 @@ def extract_features(
 def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =None, run=None, save_dir=None):
     if save_dir is None:
         return "Invalid save_dir"
-    rfile = os.path.join(settings.RESULT, "result.csv")
+    
+    rfile = os.path.join(save_dir, "result.csv")
     #if os.path.exists(rfile):
         #print(f"Loading cached {rfile}")
         #return pd.read_csv(rfile).to_dict("records")
@@ -743,7 +745,7 @@ def load_sents(path):
     return sents
 
 
-def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved):
+def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved, resume_from=1):
     activations= torch.from_numpy(np.array(states))
     #1st  time run this, after that dont
     
@@ -751,7 +753,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
         print("creating masks storing in ",save_masks_dir )
         activation_ranges = create_clusters(activations,4)
         acts=build_masks(states, activation_ranges, 4, save_masks_dir)
-    for cluster_num in range(1,5): 
+    for cluster_num in range(resume_from,5): 
         if masks_saved:
             if f"Cluster{cluster_num}masks.pt" in os.listdir(save_masks_dir):
                 acts = torch.load(f"{save_masks_dir}/Cluster{cluster_num}masks.pt").numpy()
@@ -799,7 +801,7 @@ def per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dat
     return states
             
 
-def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path, adjust_final_weights=False, amount=0, model_=None, dataset=None):
+def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path, adjust_final_weights=False, amount=0, model_=None, dataset=None,resume_from=1, q_ret=0):
     
     if model_==None and dataset==None:
         model, dataset = data.snli.load_for_analysis(
@@ -814,7 +816,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path, adjust_fina
         dataset =dataset
         
         if settings.CUDA:
-            model.to('cuda')
+            model=model.to('cuda')
             
 
  
@@ -833,12 +835,14 @@ def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path, adjust_fina
         amount=amount
     )
     
+    if q_ret==1:
+        return states, weights
    
     print("Extracting sentence token features")
     
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
    
-    acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved)
+    acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved, resume_from=resume_from)
     return acts, weights
 
 def main():

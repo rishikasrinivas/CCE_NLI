@@ -1,19 +1,65 @@
 from cleaning import prep, store_best_exp
 from concept_analysis import concept_similarity, Union, calculate_similarity_across_explanations, count_ANDOR, sum_andor
 from concept_getters import get_indiv_concepts, get_grouped_concepts, get_all_grouped_cps, get_lost_concepts, get_avg_iou, get_common_neurons, get_new_concepts, get_indiv_concepts_per_cluster, get_grouped_concepts_per_cluster, get_preserved_concepts
-from record import record_cluster_level_sim, record_lost_concepts, record_new_concepts, record_retained_concepts, record_common_concepts, record_across_concepts
+import record_local 
+import record_global
 from stats import percent_overlap
+import pipelines
+from utils import intersection, union
 
-def filter_invalid_compositions(all_pruned_concepts,all_nopruned_concepts,all_pwor_concepts):
-    for df1, df2, df3 in zip(all_pruned_concepts.values(),all_nopruned_concepts.values(),all_pwor_concepts.values()):
-        df1 = count_ANDOR(df1)
-        df2 = count_ANDOR(df2)
-        df3 = count_ANDOR(df3)
-        
-        for ands,ors in df1.values():
-            if ands==0 and ors==0:
-                pass
-        
+def main():
+    initial_expls = {'original': 
+                     ["Analysis/Expls0.0%Pruned/Cluster1IOUS1024N.csv",
+                      "Analysis/Expls0.0%Pruned/Cluster2IOUS1024N.csv",
+                      "Analysis/Expls0.0%Pruned/Cluster3IOUS1024N.csv",
+                     "Analysis/Expls0.0%Pruned/Cluster4IOUS1024N.csv"
+                     ]
+                    }
+    prunedBeforeRT_expls = {'prunedBefore': [
+                f"Cluster1IOUSPruneWoRetrain.csv",
+                f"Cluster1IOUSPruneWoRetrain.csv",
+                f"Cluster1IOUSPruneWoRetrain.csv",
+                f"Cluster1IOUSPruneWoRetrain.csv",
+            ]}
+
+    #ANALYSIS measure local consistency and global consistency
+    prunedAfterRT_expls = {'prunedAfter': [
+        f"Cluster1IOUS5%.csv",
+        f"Cluster2IOUS5%.csv",
+        f"Cluster3IOUS5%.csv",
+        f"Cluster4IOUS5%.csv",
+    ]}
+
+    percent_of_cps_preserved_globally = pipelines.pipe_explanation_similiarity(
+        [initial_expls,prunedAfterRT_expls], 
+        task='global', 
+        get_concepts_func = 'indiv',
+    )
+    print(f"percent_of_cps_preserved_globally: {percent_of_cps_preserved_globally}")
+
+    percent_of_cps_preserved_locally = pipelines.pipe_explanation_similiarity(
+        [initial_expls,prunedAfterRT_expls],
+        task='local', 
+        get_concepts_func = 'indiv',
+        fname = f"LocallyPreserved5%Pruned.csv"
+    )
+
+    percent_relearned_through_finetuning = pipelines.pipe_relearned_concepts(
+        [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
+        task='global', 
+        get_concepts_func = 'indiv'
+    )
+    
+    print(f"percent_relearned_through_finetuning: {percent_relearned_through_finetuning}")
+
+    percent_relearned_through_finetuning = pipelines.pipe_relearned_concepts(
+        [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
+        task='local', 
+        get_concepts_func = 'indiv',
+        fname = f"LocallyRelearned5%Pruned.csv"
+    )
+
+"""        
 def main():
     concept_retrieve_funcs = [(get_indiv_concepts_per_cluster,get_indiv_concepts) , (get_grouped_concepts_per_cluster,get_all_grouped_cps)]
     clus_1_5 = prep("Analysis/Explanations/Cluster1IOUS5%.csv")
@@ -40,7 +86,7 @@ def main():
         if i == 0:
             print("LOGGING for individual concepts")
         else:
-            print("\n\nLOGGING for compositions")
+            print("LOGGING for compositions")
         all_pruned_concepts=retrieval[0](pruned_clusters)
         all_nopruned_concepts=retrieval[0](nopruned_clusters)
         all_pwor_concepts=retrieval[0](pwor_clusters)
@@ -48,24 +94,24 @@ def main():
         #filter_invalid_compositions(all_pruned_concepts,all_nopruned_concepts,all_pwor_concepts)
 
     
-        iou_indiv_cps = record_cluster_level_sim(pruned_clusters, nopruned_clusters, grouped_cps=False)
-        iou_grouped_cps = record_cluster_level_sim(pruned_clusters, nopruned_clusters, grouped_cps=True)
+        iou_indiv_cps = record_local.record_cluster_level_sim(pruned_clusters, nopruned_clusters, grouped_cps=False)
+        iou_grouped_cps = record_local.record_cluster_level_sim(pruned_clusters, nopruned_clusters, grouped_cps=True)
         print(f"IOU for individual concepts: {iou_indiv_cps}\nIOU of groups of concepts: {iou_grouped_cps}")
 
     
-        concepts_lost_after_pruning_beforeRT = record_lost_concepts(all_nopruned_concepts, all_pwor_concepts)
-        concepts_retained_after_pruning_beforeRT = record_retained_concepts(all_pwor_concepts, all_nopruned_concepts)
+        concepts_lost_after_pruning_beforeRT =  record_local.record_lost_concepts(all_nopruned_concepts, all_pwor_concepts)
+        concepts_retained_after_pruning_beforeRT = record_local.record_retained_concepts(all_pwor_concepts, all_nopruned_concepts)
 
-        concepts_preserved_throughout = record_common_concepts(all_pruned_concepts, all_nopruned_concepts, all_pwor_concepts, task ='across_prune_runs')
+        concepts_preserved_throughout = record_local.record_common_concepts(all_pruned_concepts, all_nopruned_concepts, all_pwor_concepts)
 
         for j,(k,v) in enumerate(concepts_preserved_throughout.items()):
             union_of_cps = (all_pruned_concepts[k].union(all_nopruned_concepts[k])).union(all_pwor_concepts[k])
             print(f"Cluster{j+1}: % of all concepts preserved from original explanations: {len(v)/len(union_of_cps)}")
 
-        relearned = record_across_concepts(all_nopruned_concepts, all_pruned_concepts, all_pwor_concepts, 'relearned')
+        relearned = record_local.record_across_concepts(all_nopruned_concepts, all_pruned_concepts, all_pwor_concepts, 'relearned')
 
 
-        lost_completely = record_across_concepts(all_nopruned_concepts, all_pruned_concepts, all_pwor_concepts, 'lost')
+        lost_completely = record_local.record_across_concepts(all_nopruned_concepts, all_pruned_concepts, all_pwor_concepts, 'lost')
 
         percent_relearned_from_training = percent_overlap(relearned, concepts_lost_after_pruning_beforeRT)
         print("percent relearned from training: ", percent_relearned_from_training)
@@ -74,12 +120,12 @@ def main():
         print("percent not relearned from training: ", percent_lost_cmplt)
 
 
-        new_concepts_in_retrained = record_new_concepts(all_nopruned_concepts, all_pruned_concepts)
+        new_concepts_in_retrained = record_local.record_new_concepts(all_nopruned_concepts, all_pruned_concepts)
 
-        new_concepts_wo_retraining = record_new_concepts(all_nopruned_concepts, all_pwor_concepts)
+        new_concepts_wo_retraining = record_local.record_new_concepts(all_nopruned_concepts, all_pwor_concepts)
       
     
-        concepts_common_to_all_clusters_inOrig = record_common_concepts(all_nopruned_concepts, task='across_clusters')
+        concepts_common_to_all_clusters_inOrig = record_local.record_common_concepts(all_nopruned_concepts)
         print("concepts_common_to_all_clusters_inOrig: ", len(concepts_common_to_all_clusters_inOrig["Concepts common to all clusters"]))
         
         if i == 0:
@@ -87,7 +133,7 @@ def main():
         else:
             fname = "Analysis/CompositionalConceptAnalysis/concepts_common_to_all_clusters_inPruned.csv"
             
-        concepts_common_to_all_clusters_inPruned = record_common_concepts(all_pruned_concepts, task='across_clusters', fname=fname)
+        concepts_common_to_all_clusters_inPruned = record_local.record_common_concepts(all_pruned_concepts, fname=fname)
         print("concepts_common_to_all_clusters_inPruned: ", len(concepts_common_to_all_clusters_inPruned["Concepts common to all clusters"]))
         
         if i == 0:
@@ -95,7 +141,7 @@ def main():
         else:
             fname = "Analysis/CompositionalConceptAnalysis/concepts_common_to_all_clusters_inPrunedBeforeRT.csv"
           
-        concepts_common_to_all_clusters_inPrunedBeforeRT = record_common_concepts(all_pwor_concepts, task='across_clusters', fname=fname)
+        concepts_common_to_all_clusters_inPrunedBeforeRT = record_local.record_common_concepts(all_pwor_concepts, fname=fname)
         print("concepts_common_to_all_clusters_inPrunedBeforeRT: ", len(concepts_common_to_all_clusters_inPrunedBeforeRT["Concepts common to all clusters"]))
         
      
@@ -105,7 +151,7 @@ def main():
         common_overall_bween_pnp = get_preserved_concepts(all_nopruned_concepts, all_pruned_concepts)
         print("% of concepts common to no prune and pruned without considering clusters: ", len(common_overall_bween_pnp) / len(all_pruned_concepts.union(all_nopruned_concepts)) )
         #similarity across all clusters
-    
+"""   
 main()
 
 # when u prune wo retran you retain some concepts and lost some. of the ones you retain, do the pruned expls have these? --> x

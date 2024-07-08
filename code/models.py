@@ -1,3 +1,4 @@
+    
 import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
@@ -207,6 +208,7 @@ class BowmanEntailmentClassifier(nn.Module):
             assert self.check_pruned() == True
             
         rep = self.mlp[:-1](mlp_input) #this would need to be updated w the pruning
+        
         return rep
 
     def forward_from_final(self, rep):

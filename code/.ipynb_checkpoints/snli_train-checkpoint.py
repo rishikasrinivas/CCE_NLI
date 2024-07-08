@@ -17,6 +17,7 @@ from tqdm import tqdm
 import numpy as np
 from collections import defaultdict
 
+import torch.nn.utils.prune as prune
 
 import models
 import util
@@ -38,6 +39,7 @@ def run(split, epoch, model, optimizer, criterion, dataloaders, args, device='cu
     for (s1, s1len, s2, s2len, targets) in ranger:
 
         if args.cuda or device == 'cuda':
+            model = model.cuda()
             s1 = s1.cuda()
             s1len = s1len.cuda()
             s2 = s2.cuda()
@@ -83,6 +85,8 @@ def build_model(vocab_size, model_type, embedding_dim=300, hidden_dim=512):
 
 
 def serialize(model, dataset):
+    if model.check_pruned():
+        prune.remove(model.mlp[:-1][0], name="weight")
     return {
         "state_dict": model.state_dict(),
         "stoi": dataset.stoi,
