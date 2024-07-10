@@ -63,7 +63,7 @@ def pipe_percent_lost(filenames :list, task='global', get_concepts_func = 'group
         all_pruned_concepts = set(list(all_pruned_concepts.values())[0])
        
     
-        return record_global.record_lost_concepts(all_nopruned_concepts, all_pruned_concepts, fname, as_percent=True)
+        return record_global.record_lost_concepts(all_nopruned_concepts, all_pruned_concepts, fname, as_percent=False)
     else:
         return record_local.record_lost_concepts(all_nopruned_concepts, all_pruned_concepts, fname, as_percent=False)
         

@@ -1,5 +1,5 @@
 cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neutral,w_contra
-4,0,((((NOT oth:overlap:overlap25) AND (pre:tok:and OR pre:tok:woman)) OR hyp:tok:swimming) OR hyp:tok:down),((((NOT oth) AND (pre OR pre)) OR hyp) OR hyp),((((NOT oth:overlap) AND (pre:tok OR pre:tok)) OR hyp:tok) OR hyp:tok),0.11728139245752175,6,-0.07079438,-0.04229847,0.069053166
+4,0,((((NOT oth:overlap:overlap25) AND (pre:tok:and OR pre:tok:woman)) OR hyp:tok:swimming) OR hyp:tok:down),((((NOT oth) AND (pre OR pre)) OR hyp) OR hyp),((((NOT oth:overlap) AND (pre:tok OR pre:tok)) OR hyp:tok) OR hyp:tok),0.11686697057604642,6,-0.07079438,-0.04229847,0.069053166
 4,1,pre:tok:in,pre,pre:tok,0.0,1,0.0047763498,0.0021374722,0.014035168
 4,2,pre:tok:in,pre,pre:tok,0.0,1,-0.028240746,-0.018325444,-0.01801046
 4,3,pre:tok:in,pre,pre:tok,0.0,1,0.0005738688,-0.0071000154,0.013591588
@@ -15,7 +15,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,13,pre:tok:in,pre,pre:tok,0.0,1,0.00069109304,-0.022033479,-0.039120488
 4,14,pre:tok:in,pre,pre:tok,0.0,1,0.015123305,0.0017837533,-0.029876685
 4,15,((((hyp:tok:buggy OR hyp:tok:shaved) AND hyp:tok:is) OR pre:tok:displaying) AND hyp:tok:is),((((hyp OR hyp) AND hyp) OR pre) AND hyp),((((hyp:tok OR hyp:tok) AND hyp:tok) OR pre:tok) AND hyp:tok),0.2,5,-0.07337173,-0.06702094,0.10653824
-4,16,((((hyp:tok:park OR pre:tok:local) OR pre:tok:walkway) OR pre:tok:photographers) OR pre:tok:antique),((((hyp OR pre) OR pre) OR pre) OR pre),((((hyp:tok OR pre:tok) OR pre:tok) OR pre:tok) OR pre:tok),0.08187134502923976,5,-0.0043798145,0.056614786,-0.07393414
+4,16,((((hyp:tok:park OR pre:tok:local) OR pre:tok:walkway) OR pre:tok:photographers) OR pre:tok:antique),((((hyp OR pre) OR pre) OR pre) OR pre),((((hyp:tok OR pre:tok) OR pre:tok) OR pre:tok) OR pre:tok),0.08163265306122448,5,-0.0043798145,0.056614786,-0.07393414
 4,17,(hyp:tok:chairs AND pre:tok:sitting),(hyp AND pre),(hyp:tok AND pre:tok),0.3333333333333333,2,0.043710735,-0.06855258,0.067592084
 4,18,pre:tok:in,pre,pre:tok,0.0,1,-0.019470567,0.000523566,0.009931134
 4,19,((((hyp:tok:eats AND hyp:tok:man) OR hyp:tok:tutu) OR hyp:tok:doctors) AND hyp:tok:man),((((hyp AND hyp) OR hyp) OR hyp) AND hyp),((((hyp:tok AND hyp:tok) OR hyp:tok) OR hyp:tok) AND hyp:tok),0.16666666666666666,5,-0.227373,0.10179005,0.07413475
@@ -64,13 +64,13 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,62,pre:tok:in,pre,pre:tok,0.0,1,0.03103753,-0.024496555,-0.025770273
 4,63,hyp:tok:action,hyp,hyp:tok,0.5,1,-0.00034531517,0.024479814,-0.06005339
 4,64,pre:tok:in,pre,pre:tok,0.0,1,0.00252681,0.00079259474,0.0026084005
-4,65,((((hyp:tok:old AND pre:tok:young) OR hyp:tok:lying) OR hyp:tok:tag) AND (NOT pre:tok:is)),((((hyp AND pre) OR hyp) OR hyp) AND (NOT pre)),((((hyp:tok AND pre:tok) OR hyp:tok) OR hyp:tok) AND (NOT pre:tok)),0.13157894736842105,6,-0.15078151,-0.114310764,0.15280762
+4,65,((((hyp:tok:old AND pre:tok:young) OR hyp:tok:lying) OR hyp:tok:tag) AND (NOT pre:tok:is)),((((hyp AND pre) OR hyp) OR hyp) AND (NOT pre)),((((hyp:tok AND pre:tok) OR hyp:tok) OR hyp:tok) AND (NOT pre:tok)),0.13333333333333333,6,-0.15078151,-0.114310764,0.15280762
 4,66,pre:tok:in,pre,pre:tok,0.0,1,0.033789285,-0.03808392,-0.018338058
 4,67,(hyp:tok:sisters AND pre:tok:photographers),(hyp AND pre),(hyp:tok AND pre:tok),0.5,2,-0.13045253,0.08823275,-0.044984005
 4,68,pre:tok:in,pre,pre:tok,0.0,1,-0.0076259715,0.020113282,0.000622851
 4,69,pre:tok:in,pre,pre:tok,0.0,1,-0.007861247,0.0061739935,0.0059137563
-4,70,((((hyp:tok:field AND pre:tok:on) OR pre:tok:checks) OR pre:tok:move) AND (NOT hyp:tok:on)),((((hyp AND pre) OR pre) OR pre) AND (NOT hyp)),((((hyp:tok AND pre:tok) OR pre:tok) OR pre:tok) AND (NOT hyp:tok)),0.13636363636363635,6,-0.13264374,-0.0730269,0.11834054
-4,71,((((hyp:tok:eating OR hyp:tok:in) OR hyp:tok:down) AND (NOT oth:overlap:overlap75)) OR hyp:tok:driving),((((hyp OR hyp) OR hyp) AND (NOT oth)) OR hyp),((((hyp:tok OR hyp:tok) OR hyp:tok) AND (NOT oth:overlap)) OR hyp:tok),0.12226684515841142,6,0.042904258,-0.13725656,0.070526786
+4,70,((((hyp:tok:field AND pre:tok:on) OR pre:tok:checks) OR pre:tok:move) AND (NOT hyp:tok:on)),((((hyp AND pre) OR pre) OR pre) AND (NOT hyp)),((((hyp:tok AND pre:tok) OR pre:tok) OR pre:tok) AND (NOT hyp:tok)),0.13432835820895522,6,-0.13264374,-0.0730269,0.11834054
+4,71,((((hyp:tok:eating OR hyp:tok:in) OR hyp:tok:down) AND (NOT oth:overlap:overlap75)) OR hyp:tok:driving),((((hyp OR hyp) OR hyp) AND (NOT oth)) OR hyp),((((hyp:tok OR hyp:tok) OR hyp:tok) AND (NOT oth:overlap)) OR hyp:tok),0.1223760607414024,6,0.042904258,-0.13725656,0.070526786
 4,72,pre:tok:in,pre,pre:tok,0.0,1,-0.15900011,-0.097140536,0.044627722
 4,73,(hyp:tok:hammer AND pre:tok:and),(hyp AND pre),(hyp:tok AND pre:tok),1.0,2,-0.104942866,0.05820365,-0.1329929
 4,74,pre:tok:in,pre,pre:tok,0.0,1,-0.011482277,0.0011194352,0.0120803835
@@ -127,7 +127,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,125,(((hyp:tok:arena OR hyp:tok:tips) AND pre:tok:in) AND (NOT oth:overlap:overlap50)),(((hyp OR hyp) AND pre) AND (NOT oth)),(((hyp:tok OR hyp:tok) AND pre:tok) AND (NOT oth:overlap)),0.2857142857142857,5,0.01979461,-0.2049488,-0.030944403
 4,126,pre:tok:in,pre,pre:tok,0.0,1,0.007641409,0.0072017685,0.0040696347
 4,127,pre:tok:in,pre,pre:tok,0.0,1,0.008601519,-0.023871878,0.029000605
-4,128,((((hyp:tok:eating OR hyp:tok:going) OR hyp:tok:chasing) OR hyp:tok:they) AND (NOT oth:overlap:overlap50)),((((hyp OR hyp) OR hyp) OR hyp) AND (NOT oth)),((((hyp:tok OR hyp:tok) OR hyp:tok) OR hyp:tok) AND (NOT oth:overlap)),0.11992263056092843,6,-0.06500197,0.06470929,-0.007901558
+4,128,((((hyp:tok:eating OR hyp:tok:going) OR hyp:tok:chasing) OR hyp:tok:they) AND (NOT oth:overlap:overlap50)),((((hyp OR hyp) OR hyp) OR hyp) AND (NOT oth)),((((hyp:tok OR hyp:tok) OR hyp:tok) OR hyp:tok) AND (NOT oth:overlap)),0.11969111969111969,6,-0.06500197,0.06470929,-0.007901558
 4,129,((((pre:tok:bass OR pre:tok:observes) AND hyp:tok:man) OR pre:tok:exercise) AND (NOT pre:tok:and)),((((pre OR pre) AND hyp) OR pre) AND (NOT pre)),((((pre:tok OR pre:tok) AND hyp:tok) OR pre:tok) AND (NOT pre:tok)),0.2,6,-0.07074855,-0.057134412,0.08632755
 4,130,pre:tok:in,pre,pre:tok,0.0,1,0.021420863,-0.019099804,-0.015435871
 4,131,pre:tok:in,pre,pre:tok,0.0,1,-0.008187658,-0.003069799,-0.0018015172
@@ -172,7 +172,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,170,pre:tok:in,pre,pre:tok,0.0,1,0.13529341,-0.110448994,-0.17525521
 4,171,pre:tok:in,pre,pre:tok,0.0,1,0.07788236,-0.100813866,-0.2384025
 4,172,pre:tok:in,pre,pre:tok,0.0,1,-0.074928164,0.015890753,0.018604869
-4,173,((((hyp:tok:bed OR hyp:tok:car) OR hyp:tok:no) AND (NOT pre:tok:car)) OR hyp:tok:throwing),((((hyp OR hyp) OR hyp) AND (NOT pre)) OR hyp),((((hyp:tok OR hyp:tok) OR hyp:tok) AND (NOT pre:tok)) OR hyp:tok),0.09846827133479212,6,-0.15460712,-0.032254536,0.072602674
+4,173,((((hyp:tok:bed OR hyp:tok:car) OR hyp:tok:no) AND (NOT pre:tok:car)) OR hyp:tok:throwing),((((hyp OR hyp) OR hyp) AND (NOT pre)) OR hyp),((((hyp:tok OR hyp:tok) OR hyp:tok) AND (NOT pre:tok)) OR hyp:tok),0.09868421052631579,6,-0.15460712,-0.032254536,0.072602674
 4,174,pre:tok:in,pre,pre:tok,0.0,1,0.045036357,-0.022107106,-0.016550107
 4,175,pre:tok:in,pre,pre:tok,0.0,1,0.007010473,-0.0333985,0.0011862116
 4,176,(hyp:tok:not AND pre:tok:races),(hyp AND pre),(hyp:tok AND pre:tok),1.0,2,-0.22669777,-0.05526092,0.04313385
@@ -212,7 +212,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,210,pre:tok:in,pre,pre:tok,0.0,1,0.016614368,0.027203389,0.0057107573
 4,211,pre:tok:in,pre,pre:tok,0.0,1,-0.0051469444,0.015383896,-0.0002964192
 4,212,pre:tok:in,pre,pre:tok,0.0,1,-0.02968788,0.015877381,0.018498002
-4,213,((((NOT oth:overlap:overlap50) AND (hyp:tok:cafe OR hyp:tok:cake)) OR hyp:tok:poor) AND (NOT pre:tok:at)),((((NOT oth) AND (hyp OR hyp)) OR hyp) AND (NOT pre)),((((NOT oth:overlap) AND (hyp:tok OR hyp:tok)) OR hyp:tok) AND (NOT pre:tok)),0.18604651162790697,7,-0.13622753,-0.104784995,0.14626274
+4,213,((((NOT oth:overlap:overlap50) AND (hyp:tok:cafe OR hyp:tok:cake)) OR hyp:tok:poor) AND (NOT pre:tok:-)),((((NOT oth) AND (hyp OR hyp)) OR hyp) AND (NOT pre)),((((NOT oth:overlap) AND (hyp:tok OR hyp:tok)) OR hyp:tok) AND (NOT pre:tok)),0.19047619047619047,7,-0.13622753,-0.104784995,0.14626274
 4,214,(hyp:tok:dresses AND pre:tok:men),(hyp AND pre),(hyp:tok AND pre:tok),1.0,2,-0.064023785,-0.05005555,0.025917469
 4,215,(hyp:tok:barbecue AND hyp:tok:person),(hyp AND hyp),(hyp:tok AND hyp:tok),0.25,2,0.1346047,-0.033710334,-0.119105175
 4,216,pre:tok:in,pre,pre:tok,0.0,1,-0.012621381,-4.6711353e-05,-0.014240419
@@ -279,7 +279,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,277,pre:tok:in,pre,pre:tok,0.0,1,0.0113594765,9.817706e-05,-0.0034953442
 4,278,pre:tok:in,pre,pre:tok,0.0,1,0.017460749,-0.06361183,-0.026882976
 4,279,pre:tok:in,pre,pre:tok,0.0,1,-0.03907658,0.0060771233,-0.06031292
-4,280,((((hyp:tok:on OR hyp:tok:pool) OR hyp:tok:car) OR hyp:tok:empty) OR hyp:tok:cat),((((hyp OR hyp) OR hyp) OR hyp) OR hyp),((((hyp:tok OR hyp:tok) OR hyp:tok) OR hyp:tok) OR hyp:tok),0.10156971375807941,5,0.04690789,-0.17190318,0.08584605
+4,280,((((hyp:tok:on OR hyp:tok:pool) OR hyp:tok:car) OR hyp:tok:empty) OR hyp:tok:cat),((((hyp OR hyp) OR hyp) OR hyp) OR hyp),((((hyp:tok OR hyp:tok) OR hyp:tok) OR hyp:tok) OR hyp:tok),0.10161662817551963,5,0.04690789,-0.17190318,0.08584605
 4,281,pre:tok:in,pre,pre:tok,0.0,1,-0.009757218,-0.021517513,-0.0017034727
 4,282,pre:tok:in,pre,pre:tok,0.0,1,-0.020869039,-0.03439933,0.039400123
 4,283,((((hyp:tok:friend OR hyp:tok:sad) OR hyp:tok:mother) OR hyp:tok:wife) OR hyp:tok:broken),((((hyp OR hyp) OR hyp) OR hyp) OR hyp),((((hyp:tok OR hyp:tok) OR hyp:tok) OR hyp:tok) OR hyp:tok),0.10759493670886076,5,-0.12887962,0.09034268,-0.0337396
@@ -289,7 +289,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,287,(hyp:tok:leaps AND pre:tok:near),(hyp AND pre),(hyp:tok AND pre:tok),1.0,2,-0.2433388,-0.090244636,0.065597035
 4,288,((((hyp:tok:guitars OR pre:tok:got) OR pre:tok:exercise) OR hyp:tok:pipes) AND (NOT pre:tok:are)),((((hyp OR pre) OR pre) OR hyp) AND (NOT pre)),((((hyp:tok OR pre:tok) OR pre:tok) OR hyp:tok) AND (NOT pre:tok)),0.16666666666666666,6,-0.045920976,-0.09937958,0.10075532
 4,289,pre:tok:in,pre,pre:tok,0.0,1,-0.019099105,-0.017004687,-0.022361914
-4,290,((((hyp:tok:purse OR pre:tok:tunnel) AND pre:tok:is) OR hyp:tok:basket) OR hyp:tok:soap),((((hyp OR pre) AND pre) OR hyp) OR hyp),((((hyp:tok OR pre:tok) AND pre:tok) OR hyp:tok) OR hyp:tok),0.23809523809523808,5,-0.14358002,-0.13347533,0.09234338
+4,290,((((hyp:tok:purse OR pre:tok:tunnel) AND pre:tok:is) OR hyp:tok:basket) AND pre:tok:in),((((hyp OR pre) AND pre) OR hyp) AND pre),((((hyp:tok OR pre:tok) AND pre:tok) OR hyp:tok) AND pre:tok),0.25,5,-0.14358002,-0.13347533,0.09234338
 4,291,pre:tok:in,pre,pre:tok,0.0,1,0.017681258,-0.01667235,0.0063416855
 4,292,((((hyp:tok:upside OR pre:tok:bank) AND pre:tok:man) OR hyp:tok:tired) OR pre:tok:ok),((((hyp OR pre) AND pre) OR hyp) OR pre),((((hyp:tok OR pre:tok) AND pre:tok) OR hyp:tok) OR pre:tok),0.14,5,-0.092493065,0.08129684,-0.12463713
 4,293,(hyp:tok:leaps AND pre:tok:near),(hyp AND pre),(hyp:tok AND pre:tok),1.0,2,-0.017800698,0.08092704,-0.092360884
@@ -301,7 +301,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,299,pre:tok:in,pre,pre:tok,0.0,1,0.01104053,0.00084995653,-5.5537857e-05
 4,300,pre:tok:in,pre,pre:tok,0.0,1,-0.022364594,-0.0016705373,-0.024519714
 4,301,pre:tok:in,pre,pre:tok,0.0,1,0.03804945,0.02473932,-0.039984506
-4,302,((((hyp:tok:snowboarding OR pre:tok:tour) OR hyp:tok:carving) OR hyp:tok:steering) OR pre:tok:sandwich),((((hyp OR pre) OR hyp) OR hyp) OR pre),((((hyp:tok OR pre:tok) OR hyp:tok) OR hyp:tok) OR pre:tok),0.11538461538461539,5,-0.09602423,0.10919355,-0.054350212
+4,302,((((hyp:tok:snowboarding OR pre:tok:tour) OR hyp:tok:carving) OR hyp:tok:steering) OR pre:tok:sandwich),((((hyp OR pre) OR hyp) OR hyp) OR pre),((((hyp:tok OR pre:tok) OR hyp:tok) OR hyp:tok) OR pre:tok),0.11842105263157894,5,-0.09602423,0.10919355,-0.054350212
 4,303,pre:tok:in,pre,pre:tok,0.0,1,0.013864807,-0.033972554,0.018810619
 4,304,((((pre:tok:benches OR pre:tok:cloudy) OR pre:tok:pauses) OR pre:tok:raising) OR hyp:tok:professional),((((pre OR pre) OR pre) OR pre) OR hyp),((((pre:tok OR pre:tok) OR pre:tok) OR pre:tok) OR hyp:tok),0.08547008547008547,5,-0.025718637,0.11062152,-0.15014945
 4,305,pre:tok:in,pre,pre:tok,0.0,1,0.04907726,0.0051228795,0.0013278788
@@ -374,7 +374,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,372,pre:tok:in,pre,pre:tok,0.0,1,-0.035080377,-0.02549487,0.021345621
 4,373,((((hyp:tok:guns OR hyp:tok:hammer) AND pre:tok:with) OR pre:tok:fly) AND (NOT hyp:tok:are)),((((hyp OR hyp) AND pre) OR pre) AND (NOT hyp)),((((hyp:tok OR hyp:tok) AND pre:tok) OR pre:tok) AND (NOT hyp:tok)),0.375,6,0.105540626,-0.19793257,0.07129354
 4,374,pre:tok:in,pre,pre:tok,0.0,1,-0.017029732,-0.008752043,0.024259947
-4,375,((((hyp:tok:swimsuit OR pre:tok:oriental) OR hyp:tok:bearded) OR pre:tok:shooting) OR hyp:tok:harnesses),((((hyp OR pre) OR hyp) OR pre) OR hyp),((((hyp:tok OR pre:tok) OR hyp:tok) OR pre:tok) OR hyp:tok),0.12987012987012986,5,-0.048370574,-0.11793468,0.16733633
+4,375,((((hyp:tok:swimsuit OR pre:tok:oriental) OR hyp:tok:bearded) OR pre:tok:shooting) OR hyp:tok:harnesses),((((hyp OR pre) OR hyp) OR pre) OR hyp),((((hyp:tok OR pre:tok) OR hyp:tok) OR pre:tok) OR hyp:tok),0.13157894736842105,5,-0.048370574,-0.11793468,0.16733633
 4,376,((((NOT pre:tok:and) AND (hyp:tok:nobody AND pre:tok:is)) OR hyp:tok:desks) AND (NOT pre:tok:on)),((((NOT pre) AND (hyp AND pre)) OR hyp) AND (NOT pre)),((((NOT pre:tok) AND (hyp:tok AND pre:tok)) OR hyp:tok) AND (NOT pre:tok)),0.21052631578947367,7,-0.070523776,-0.239277,0.10696977
 4,377,(hyp:tok:counter AND pre:tok:woman),(hyp AND pre),(hyp:tok AND pre:tok),0.25,2,-0.16906428,-0.091649495,0.16960016
 4,378,(hyp:tok:singer AND hyp:tok:this),(hyp AND hyp),(hyp:tok AND hyp:tok),1.0,2,-0.08107603,-0.07020172,0.052930515
@@ -391,7 +391,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,389,(hyp:tok:gets AND pre:tok:splashing),(hyp AND pre),(hyp:tok AND pre:tok),1.0,2,-0.23932731,0.0015657549,0.0686773
 4,390,((((NOT pre:tok:to) AND (hyp:tok:for OR hyp:tok:to)) OR hyp:tok:his) AND (NOT pre:tok:one)),((((NOT pre) AND (hyp OR hyp)) OR hyp) AND (NOT pre)),((((NOT pre:tok) AND (hyp:tok OR hyp:tok)) OR hyp:tok) AND (NOT pre:tok)),0.19220208676551345,7,-0.07136728,0.067506,-0.017447101
 4,391,(hyp:tok:bus AND pre:tok:read),(hyp AND pre),(hyp:tok AND pre:tok),1.0,2,-0.036328435,-0.15481618,0.03788089
-4,392,((((NOT hyp:tok:for) AND (hyp:tok:people OR oth:overlap:overlap25)) AND (NOT hyp:tok:to)) OR hyp:tok:person),((((NOT hyp) AND (hyp OR oth)) AND (NOT hyp)) OR hyp),((((NOT hyp:tok) AND (hyp:tok OR oth:overlap)) AND (NOT hyp:tok)) OR hyp:tok),0.3057076967425771,7,0.037223835,-0.092520714,0.058348477
+4,392,((((NOT hyp:tok:for) AND (hyp:tok:people OR oth:overlap:overlap25)) AND (NOT hyp:tok:to)) OR hyp:tok:person),((((NOT hyp) AND (hyp OR oth)) AND (NOT hyp)) OR hyp),((((NOT hyp:tok) AND (hyp:tok OR oth:overlap)) AND (NOT hyp:tok)) OR hyp:tok),0.30560761135937725,7,0.037223835,-0.092520714,0.058348477
 4,393,pre:tok:in,pre,pre:tok,0.0,1,-0.017723856,-0.065566994,0.03575714
 4,394,pre:tok:in,pre,pre:tok,0.0,1,-0.059571475,-0.07015296,0.028570607
 4,395,(hyp:tok:looking AND pre:tok:n't),(hyp AND pre),(hyp:tok AND pre:tok),0.5,2,-0.1381857,0.21596925,-0.21991743
@@ -412,7 +412,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,410,((((hyp:tok:eating OR pre:tok:reads) OR hyp:tok:grass) AND (NOT oth:overlap:overlap50)) OR pre:tok:curb),((((hyp OR pre) OR hyp) AND (NOT oth)) OR pre),((((hyp:tok OR pre:tok) OR hyp:tok) AND (NOT oth:overlap)) OR pre:tok),0.11743772241992882,6,-0.06881459,-0.09981629,0.11838274
 4,411,((((pre:tok:- AND pre:tok:gold) OR hyp:tok:stroller) AND hyp:tok:is) OR hyp:tok:sells),((((pre AND pre) OR hyp) AND hyp) OR hyp),((((pre:tok AND pre:tok) OR hyp:tok) AND hyp:tok) OR hyp:tok),0.16666666666666666,5,-0.16735284,0.19912219,-0.154423
 4,412,((((hyp:tok:plates OR hyp:tok:shaped) OR hyp:tok:numbers) AND (NOT pre:tok:are)) AND (NOT pre:tok:shirt)),((((hyp OR hyp) OR hyp) AND (NOT pre)) AND (NOT pre)),((((hyp:tok OR hyp:tok) OR hyp:tok) AND (NOT pre:tok)) AND (NOT pre:tok)),0.3333333333333333,7,-0.2347843,-0.08288386,0.0736493
-4,413,((((hyp:tok:nobody OR hyp:tok:tunnel) OR pre:tok:shelter) OR pre:tok:saw) OR pre:tok:farmer),((((hyp OR hyp) OR pre) OR pre) OR pre),((((hyp:tok OR hyp:tok) OR pre:tok) OR pre:tok) OR pre:tok),0.11731843575418995,5,0.025437094,-0.14061803,0.09451004
+4,413,((((hyp:tok:nobody OR hyp:tok:tunnel) OR pre:tok:shelter) OR pre:tok:saw) OR pre:tok:farmer),((((hyp OR hyp) OR pre) OR pre) OR pre),((((hyp:tok OR hyp:tok) OR pre:tok) OR pre:tok) OR pre:tok),0.11173184357541899,5,0.025437094,-0.14061803,0.09451004
 4,414,pre:tok:in,pre,pre:tok,0.0,1,-0.02372531,0.02944194,0.014424353
 4,415,pre:tok:in,pre,pre:tok,0.0,1,0.005377025,0.001135537,0.0043723066
 4,416,pre:tok:in,pre,pre:tok,0.0,1,-0.117521614,0.03083214,0.027495265
@@ -423,10 +423,10 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,421,pre:tok:in,pre,pre:tok,0.0,1,-0.016919468,0.041221656,-0.03847667
 4,422,pre:tok:in,pre,pre:tok,0.0,1,-0.058806267,0.005171926,-0.029065013
 4,423,(hyp:tok:dance AND hyp:tok:one),(hyp AND hyp),(hyp:tok AND hyp:tok),0.5,2,0.023335502,-0.12543766,0.02003466
-4,424,((((hyp:tok:activity OR hyp:tok:multiple) OR pre:tok:year) OR hyp:tok:lit) OR hyp:tok:sport),((((hyp OR hyp) OR pre) OR hyp) OR hyp),((((hyp:tok OR hyp:tok) OR pre:tok) OR hyp:tok) OR hyp:tok),0.15853658536585366,5,0.10007301,-0.090900205,-0.13456814
+4,424,((((hyp:tok:activity OR hyp:tok:multiple) OR pre:tok:year) OR hyp:tok:lit) OR hyp:tok:sport),((((hyp OR hyp) OR pre) OR hyp) OR hyp),((((hyp:tok OR hyp:tok) OR pre:tok) OR hyp:tok) OR hyp:tok),0.16049382716049382,5,0.10007301,-0.090900205,-0.13456814
 4,425,pre:tok:in,pre,pre:tok,0.0,1,0.0070390385,0.012154701,0.0061966553
 4,426,pre:tok:in,pre,pre:tok,0.0,1,-0.012762922,-0.018394154,-0.071953036
-4,427,hyp:tok:crouches,hyp,hyp:tok,0.16666666666666666,1,-0.0040622954,-0.14444359,-0.0012256164
+4,427,hyp:tok:crouches,hyp,hyp:tok,0.14285714285714285,1,-0.0040622954,-0.14444359,-0.0012256164
 4,428,pre:tok:in,pre,pre:tok,0.0,1,-0.01941985,-0.027514078,0.028267128
 4,429,(hyp:tok:her AND pre:tok:pushes),(hyp AND pre),(hyp:tok AND pre:tok),1.0,2,-0.28162208,0.13425332,-0.079621375
 4,430,pre:tok:in,pre,pre:tok,0.0,1,-0.012718891,-0.005738064,0.033842638
@@ -511,7 +511,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,509,pre:tok:in,pre,pre:tok,0.0,1,-0.009491831,0.016301647,-0.014467513
 4,510,(((NOT pre:tok:in) AND pre:tok:preschool) AND (NOT hyp:tok:is)),(((NOT pre) AND pre) AND (NOT hyp)),(((NOT pre:tok) AND pre:tok) AND (NOT hyp:tok)),0.3333333333333333,5,-0.044312496,-0.13440637,0.07441673
 4,511,(hyp:tok:anything AND pre:tok:two),(hyp AND pre),(hyp:tok AND pre:tok),0.5,2,-0.01742803,-0.045314673,0.085774645
-4,512,((((NOT oth:overlap:overlap50) AND (hyp:tok:at OR pre:tok:to)) OR hyp:tok:for) OR hyp:tok:from),((((NOT oth) AND (hyp OR pre)) OR hyp) OR hyp),((((NOT oth:overlap) AND (hyp:tok OR pre:tok)) OR hyp:tok) OR hyp:tok),0.11960943856794141,6,-0.085633144,0.045866057,-0.0025188169
+4,512,((((NOT oth:overlap:overlap50) AND (hyp:tok:at OR pre:tok:to)) OR hyp:tok:for) OR hyp:tok:from),((((NOT oth) AND (hyp OR pre)) OR hyp) OR hyp),((((NOT oth:overlap) AND (hyp:tok OR pre:tok)) OR hyp:tok) OR hyp:tok),0.11929967426710097,6,-0.085633144,0.045866057,-0.0025188169
 4,513,pre:tok:in,pre,pre:tok,0.0,1,-0.0092774695,-0.01765693,-0.01545591
 4,514,(((((NOT pre:tok:man) AND hyp:tok:man) AND oth:overlap:overlap50) AND (NOT pre:tok:on)) OR hyp:tok:dryer),(((((NOT pre) AND hyp) AND oth) AND (NOT pre)) OR hyp),(((((NOT pre:tok) AND hyp:tok) AND oth:overlap) AND (NOT pre:tok)) OR hyp:tok),0.2602739726027397,7,-0.14369619,-0.15185833,0.19375898
 4,515,((((hyp:tok:rolled OR pre:tok:landscape) OR hyp:tok:tiny) OR pre:tok:pizza) OR pre:tok:wings),((((hyp OR pre) OR hyp) OR pre) OR pre),((((hyp:tok OR pre:tok) OR hyp:tok) OR pre:tok) OR pre:tok),0.11764705882352941,5,-0.10255599,-0.18577151,0.14553556
@@ -532,17 +532,17 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,530,pre:tok:in,pre,pre:tok,0.0,1,0.00019631817,-0.038150918,-0.023291847
 4,531,pre:tok:in,pre,pre:tok,0.0,1,0.0054627894,0.013325423,0.0048430823
 4,532,pre:tok:in,pre,pre:tok,0.0,1,-0.026361406,0.004992048,-0.018724289
-4,533,((((NOT oth:overlap:overlap50) AND (hyp:tok:is OR hyp:tok:to)) OR hyp:tok:they) OR hyp:tok:their),((((NOT oth) AND (hyp OR hyp)) OR hyp) OR hyp),((((NOT oth:overlap) AND (hyp:tok OR hyp:tok)) OR hyp:tok) OR hyp:tok),0.22469079248740265,6,-0.11114063,0.042056806,-0.0024235658
+4,533,((((NOT oth:overlap:overlap50) AND (hyp:tok:is OR hyp:tok:to)) OR hyp:tok:they) OR hyp:tok:their),((((NOT oth) AND (hyp OR hyp)) OR hyp) OR hyp),((((NOT oth:overlap) AND (hyp:tok OR hyp:tok)) OR hyp:tok) OR hyp:tok),0.22491983508932661,6,-0.11114063,0.042056806,-0.0024235658
 4,534,((((hyp:tok:kind OR hyp:tok:shoot) AND pre:tok:with) OR pre:tok:teaching) AND (NOT hyp:tok:her)),((((hyp OR hyp) AND pre) OR pre) AND (NOT hyp)),((((hyp:tok OR hyp:tok) AND pre:tok) OR pre:tok) AND (NOT hyp:tok)),0.375,6,-0.02713626,-0.17284755,0.2014163
 4,535,pre:tok:in,pre,pre:tok,0.0,1,-0.006117771,0.005550909,-0.011341975
-4,536,((((hyp:tok:balloon OR pre:tok:tool) OR hyp:tok:bowler) OR hyp:tok:expression) OR hyp:tok:sleeved),((((hyp OR pre) OR hyp) OR hyp) OR hyp),((((hyp:tok OR pre:tok) OR hyp:tok) OR hyp:tok) OR hyp:tok),0.16666666666666666,5,-0.11485765,0.015395767,0.11748553
+4,536,((((hyp:tok:balloon OR hyp:tok:suv) OR pre:tok:tool) OR hyp:tok:bowler) OR hyp:tok:expression),((((hyp OR hyp) OR pre) OR hyp) OR hyp),((((hyp:tok OR hyp:tok) OR pre:tok) OR hyp:tok) OR hyp:tok),0.18,5,-0.11485765,0.015395767,0.11748553
 4,537,((((pre:tok:clothed OR pre:tok:doctor) AND pre:tok:to) AND (NOT hyp:tok:is)) AND (NOT hyp:tok:on)),((((pre OR pre) AND pre) AND (NOT hyp)) AND (NOT hyp)),((((pre:tok OR pre:tok) AND pre:tok) AND (NOT hyp:tok)) AND (NOT hyp:tok)),0.18181818181818182,7,-0.08319913,0.11855664,-0.07632648
 4,538,pre:tok:in,pre,pre:tok,0.0,1,-0.08109433,0.0017365393,-0.0056015914
 4,539,pre:tok:in,pre,pre:tok,0.0,1,-0.0060185124,0.022766933,0.0054011303
 4,540,(hyp:tok:surfing AND pre:tok:sleds),(hyp AND pre),(hyp:tok AND pre:tok),0.5,2,-0.12421729,-0.06498773,0.10368947
 4,541,pre:tok:in,pre,pre:tok,0.0,1,-0.02684842,0.035823047,-0.013002016
 4,542,pre:tok:in,pre,pre:tok,0.0,1,-0.020812014,0.02901306,0.0053166873
-4,543,(hyp:tok:nice AND pre:tok:little),(hyp AND pre),(hyp:tok AND pre:tok),0.5,2,-0.10328537,0.12760977,-0.1345785
+4,543,(hyp:tok:nice AND pre:tok:little),(hyp AND pre),(hyp:tok AND pre:tok),0.3333333333333333,2,-0.10328537,0.12760977,-0.1345785
 4,544,pre:tok:in,pre,pre:tok,0.0,1,-0.00028379768,0.0070864065,0.000915459
 4,545,pre:tok:in,pre,pre:tok,0.0,1,0.0032199444,0.018194528,0.012795572
 4,546,pre:tok:in,pre,pre:tok,0.0,1,-0.011474944,-0.0009249676,0.0028297098
@@ -556,7 +556,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,554,pre:tok:in,pre,pre:tok,0.0,1,-0.046496354,0.020604378,-0.012823682
 4,555,pre:tok:in,pre,pre:tok,0.0,1,-0.10938763,-0.022869645,-0.0002514526
 4,556,pre:tok:in,pre,pre:tok,0.0,1,-0.024827229,-0.021264955,-0.020532224
-4,557,((((hyp:tok:people OR oth:overlap:overlap75) OR hyp:tok:there) OR hyp:tok:person) AND (NOT hyp:tok:for)),((((hyp OR oth) OR hyp) OR hyp) AND (NOT hyp)),((((hyp:tok OR oth:overlap) OR hyp:tok) OR hyp:tok) AND (NOT hyp:tok)),0.22980690780527604,6,0.04165497,-0.041726395,-0.055697303
+4,557,((((hyp:tok:people OR oth:overlap:overlap75) OR hyp:tok:there) OR hyp:tok:person) AND (NOT hyp:tok:for)),((((hyp OR oth) OR hyp) OR hyp) AND (NOT hyp)),((((hyp:tok OR oth:overlap) OR hyp:tok) OR hyp:tok) AND (NOT hyp:tok)),0.22913835281326447,6,0.04165497,-0.041726395,-0.055697303
 4,558,pre:tok:in,pre,pre:tok,0.0,1,0.0065510212,0.04267326,-0.015050945
 4,559,pre:tok:in,pre,pre:tok,0.0,1,-0.00661124,-0.030081537,0.0035361343
 4,560,pre:tok:in,pre,pre:tok,0.0,1,0.0413004,-0.016180905,-0.017703848
@@ -574,10 +574,10 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,572,(hyp:tok:lies AND pre:tok:and),(hyp AND pre),(hyp:tok AND pre:tok),0.4,2,-0.12744099,0.17197266,-0.14185572
 4,573,pre:tok:in,pre,pre:tok,0.0,1,0.021428566,0.018522875,0.0015512445
 4,574,pre:tok:in,pre,pre:tok,0.0,1,-0.030087763,-0.13492891,0.09107824
-4,575,(((((NOT hyp:tok:to) AND hyp:tok:their) AND (NOT hyp:tok:in)) AND (NOT hyp:tok:and)) AND (NOT pre:tok:at)),(((((NOT hyp) AND hyp) AND (NOT hyp)) AND (NOT hyp)) AND (NOT pre)),(((((NOT hyp:tok) AND hyp:tok) AND (NOT hyp:tok)) AND (NOT hyp:tok)) AND (NOT pre:tok)),0.11515151515151516,9,0.0031756496,0.10718005,-0.10368686
+4,575,(((((NOT hyp:tok:to) AND hyp:tok:their) AND (NOT hyp:tok:in)) AND (NOT hyp:tok:and)) AND (NOT pre:tok:at)),(((((NOT hyp) AND hyp) AND (NOT hyp)) AND (NOT hyp)) AND (NOT pre)),(((((NOT hyp:tok) AND hyp:tok) AND (NOT hyp:tok)) AND (NOT hyp:tok)) AND (NOT pre:tok)),0.12121212121212122,9,0.0031756496,0.10718005,-0.10368686
 4,576,pre:tok:in,pre,pre:tok,0.0,1,-0.02206876,0.004094051,-0.024491057
 4,577,((((hyp:tok:bedroom OR hyp:tok:van) OR hyp:tok:perform) OR hyp:tok:falls) OR hyp:tok:though),((((hyp OR hyp) OR hyp) OR hyp) OR hyp),((((hyp:tok OR hyp:tok) OR hyp:tok) OR hyp:tok) OR hyp:tok),0.09278350515463918,5,-0.11126817,-0.060870882,0.10003249
-4,578,(((((NOT hyp:tok:is) AND oth:overlap:overlap75) AND (NOT hyp:tok:are)) OR hyp:tok:sad) OR hyp:tok:friend),(((((NOT hyp) AND oth) AND (NOT hyp)) OR hyp) OR hyp),(((((NOT hyp:tok) AND oth:overlap) AND (NOT hyp:tok)) OR hyp:tok) OR hyp:tok),0.11694510739856802,7,-0.13643281,0.10011508,0.007150057
+4,578,(((((NOT hyp:tok:is) AND oth:overlap:overlap75) AND (NOT hyp:tok:are)) OR hyp:tok:sad) OR hyp:tok:friend),(((((NOT hyp) AND oth) AND (NOT hyp)) OR hyp) OR hyp),(((((NOT hyp:tok) AND oth:overlap) AND (NOT hyp:tok)) OR hyp:tok) OR hyp:tok),0.11680572109654351,7,-0.13643281,0.10011508,0.007150057
 4,579,(hyp:tok:chasing AND pre:tok:herding),(hyp AND pre),(hyp:tok AND pre:tok),0.2,2,0.14574827,-0.1367311,-0.026356528
 4,580,pre:tok:in,pre,pre:tok,0.0,1,-0.013474222,0.012941604,-0.036421463
 4,581,pre:tok:in,pre,pre:tok,0.0,1,0.01684298,0.01410907,-0.04743061
@@ -605,7 +605,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,603,pre:tok:in,pre,pre:tok,0.0,1,-0.026045427,0.037341908,-0.020957783
 4,604,(hyp:tok:park AND pre:tok:naked),(hyp AND pre),(hyp:tok AND pre:tok),0.25,2,-0.11283396,-0.090093486,0.14159107
 4,605,(hyp:tok:shopping AND pre:tok:purchase),(hyp AND pre),(hyp:tok AND pre:tok),0.5,2,0.12432576,-0.03375733,-0.08367433
-4,606,((((hyp:tok:woman OR pre:tok:who) OR hyp:tok:walking) AND (NOT hyp:tok:to)) OR pre:tok:horse),((((hyp OR pre) OR hyp) AND (NOT hyp)) OR pre),((((hyp:tok OR pre:tok) OR hyp:tok) AND (NOT hyp:tok)) OR pre:tok),0.10240274599542334,6,0.073854335,-0.07888469,-0.015115427
+4,606,((((hyp:tok:woman OR pre:tok:who) OR hyp:tok:walking) AND (NOT hyp:tok:to)) OR pre:tok:horse),((((hyp OR pre) OR hyp) AND (NOT hyp)) OR pre),((((hyp:tok OR pre:tok) OR hyp:tok) AND (NOT hyp:tok)) OR pre:tok),0.10234419668381932,6,0.073854335,-0.07888469,-0.015115427
 4,607,pre:tok:in,pre,pre:tok,0.0,1,-0.024023855,0.009238716,0.015630635
 4,608,pre:tok:in,pre,pre:tok,0.0,1,0.031131066,-0.052180383,0.0037931034
 4,609,(hyp:tok:her AND pre:tok:dreadlocks),(hyp AND pre),(hyp:tok AND pre:tok),1.0,2,-0.29304168,-0.04061188,0.08011239
@@ -622,7 +622,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,620,((((hyp:tok:cooking AND hyp:tok:dinner) OR pre:tok:knee) OR pre:tok:neighborhood) OR hyp:tok:closely),((((hyp AND hyp) OR pre) OR pre) OR hyp),((((hyp:tok AND hyp:tok) OR pre:tok) OR pre:tok) OR hyp:tok),0.11940298507462686,5,-0.047928087,-0.060864054,0.058902927
 4,621,pre:tok:in,pre,pre:tok,0.0,1,-0.002128914,-0.017202219,0.032516915
 4,622,pre:tok:in,pre,pre:tok,0.0,1,0.0198874,0.014639995,-0.037672352
-4,623,((((hyp:tok:eating OR hyp:tok:going) OR pre:tok:bottle) OR hyp:tok:chasing) OR hyp:tok:moon),((((hyp OR hyp) OR pre) OR hyp) OR hyp),((((hyp:tok OR hyp:tok) OR pre:tok) OR hyp:tok) OR hyp:tok),0.09070294784580499,5,-0.11957031,0.02425843,0.022050511
+4,623,((((hyp:tok:eating OR hyp:tok:going) OR pre:tok:bottle) OR hyp:tok:chasing) OR hyp:tok:moon),((((hyp OR hyp) OR pre) OR hyp) OR hyp),((((hyp:tok OR hyp:tok) OR pre:tok) OR hyp:tok) OR hyp:tok),0.09049773755656108,5,-0.11957031,0.02425843,0.022050511
 4,624,(hyp:tok:hammer AND pre:tok:and),(hyp AND pre),(hyp:tok AND pre:tok),0.5,2,-0.0066428026,-0.016254652,-0.030442555
 4,625,pre:tok:in,pre,pre:tok,0.0,1,0.035027966,-0.0137349805,-0.0038427382
 4,626,pre:tok:in,pre,pre:tok,0.0,1,0.007859596,-0.011878374,-0.003884206
@@ -737,13 +737,13 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,735,pre:tok:in,pre,pre:tok,0.0,1,-0.020381251,-0.030655697,0.017917749
 4,736,pre:tok:in,pre,pre:tok,0.0,1,-0.013333826,0.01922594,-0.030947477
 4,737,pre:tok:in,pre,pre:tok,0.0,1,-0.0039853426,-0.001378188,-0.04486622
-4,738,((((hyp:tok:are OR oth:overlap:overlap25) OR hyp:tok:person) AND (NOT hyp:tok:sleeping)) AND (NOT hyp:tok:running)),((((hyp OR oth) OR hyp) AND (NOT hyp)) AND (NOT hyp)),((((hyp:tok OR oth:overlap) OR hyp:tok) AND (NOT hyp:tok)) AND (NOT hyp:tok)),0.25015929654645086,7,0.027874418,0.04399309,-0.09772647
+4,738,((((hyp:tok:are OR oth:overlap:overlap25) OR hyp:tok:person) AND (NOT hyp:tok:sleeping)) AND (NOT hyp:tok:running)),((((hyp OR oth) OR hyp) AND (NOT hyp)) AND (NOT hyp)),((((hyp:tok OR oth:overlap) OR hyp:tok) AND (NOT hyp:tok)) AND (NOT hyp:tok)),0.25028673378361155,7,0.027874418,0.04399309,-0.09772647
 4,739,pre:tok:in,pre,pre:tok,0.0,1,0.005853029,-0.01015415,0.008197032
 4,740,pre:tok:in,pre,pre:tok,0.0,1,-0.034062147,-0.015732273,-0.034964863
 4,741,pre:tok:in,pre,pre:tok,0.0,1,-0.20943485,-0.031501986,0.06689656
 4,742,((((hyp:tok:brushes OR pre:tok:closed) AND hyp:tok:woman) OR hyp:tok:backpack) AND hyp:tok:woman),((((hyp OR pre) AND hyp) OR hyp) AND hyp),((((hyp:tok OR pre:tok) AND hyp:tok) OR hyp:tok) AND hyp:tok),0.3,5,0.06140884,-0.16618364,0.050781578
 4,743,((((hyp:tok:these AND pre:tok:two) OR pre:tok:holiday) OR pre:tok:sheep) OR hyp:tok:leaping),((((hyp AND pre) OR pre) OR pre) OR hyp),((((hyp:tok AND pre:tok) OR pre:tok) OR pre:tok) OR hyp:tok),0.16129032258064516,5,-0.07726522,-0.10568495,0.10072474
-4,744,((((NOT oth:overlap:overlap25) AND (hyp:tok:are OR pre:tok:and)) OR hyp:tok:beach) AND (NOT hyp:tok:man)),((((NOT oth) AND (hyp OR pre)) OR hyp) AND (NOT hyp)),((((NOT oth:overlap) AND (hyp:tok OR pre:tok)) OR hyp:tok) AND (NOT hyp:tok)),0.15771670190274842,7,-0.14405619,0.0367088,0.016496867
+4,744,((((NOT oth:overlap:overlap25) AND (hyp:tok:are OR pre:tok:and)) OR hyp:tok:was) AND (NOT hyp:tok:man)),((((NOT oth) AND (hyp OR pre)) OR hyp) AND (NOT hyp)),((((NOT oth:overlap) AND (hyp:tok OR pre:tok)) OR hyp:tok) AND (NOT hyp:tok)),0.157466837826273,7,-0.14405619,0.0367088,0.016496867
 4,745,pre:tok:in,pre,pre:tok,0.0,1,-0.010664836,-0.06481148,-0.10359201
 4,746,pre:tok:in,pre,pre:tok,0.0,1,-0.0075508226,-0.015426596,-0.00094630127
 4,747,pre:tok:in,pre,pre:tok,0.0,1,-0.016761819,-0.0063884286,-0.009043682
@@ -764,7 +764,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,762,pre:tok:in,pre,pre:tok,0.0,1,0.004211873,-0.01130745,0.010486055
 4,763,(hyp:tok:carrying AND pre:tok:purse),(hyp AND pre),(hyp:tok AND pre:tok),0.5,2,0.0371159,-0.14987122,-0.0018329432
 4,764,pre:tok:in,pre,pre:tok,0.0,1,0.02491829,-0.0011842146,-0.018240305
-4,765,((((hyp:tok:people OR oth:overlap:overlap50) OR hyp:tok:person) OR hyp:tok:playing) AND (NOT hyp:tok:for)),((((hyp OR oth) OR hyp) OR hyp) AND (NOT hyp)),((((hyp:tok OR oth:overlap) OR hyp:tok) OR hyp:tok) AND (NOT hyp:tok)),0.296662786185487,6,0.04674045,-0.09815551,0.047115233
+4,765,((((hyp:tok:people OR oth:overlap:overlap50) OR hyp:tok:person) OR hyp:tok:playing) AND (NOT hyp:tok:for)),((((hyp OR oth) OR hyp) OR hyp) AND (NOT hyp)),((((hyp:tok OR oth:overlap) OR hyp:tok) OR hyp:tok) AND (NOT hyp:tok)),0.2973025422084223,6,0.04674045,-0.09815551,0.047115233
 4,766,pre:tok:in,pre,pre:tok,0.0,1,-0.10665777,-0.028584022,0.057263874
 4,767,pre:tok:in,pre,pre:tok,0.0,1,-0.033370465,-0.0019064364,0.012438614
 4,768,pre:tok:in,pre,pre:tok,0.0,1,-0.030775541,-0.028217765,-0.021726752
@@ -781,12 +781,12 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,779,pre:tok:in,pre,pre:tok,0.0,1,0.058000367,-0.060740788,-0.027105924
 4,780,pre:tok:in,pre,pre:tok,0.0,1,-0.008895686,0.024212552,0.0154787125
 4,781,pre:tok:in,pre,pre:tok,0.0,1,0.045155212,-0.03302059,0.0060507823
-4,782,((((hyp:tok:for OR hyp:tok:to) OR hyp:tok:her) OR hyp:tok:his) AND (NOT oth:overlap:overlap75)),((((hyp OR hyp) OR hyp) OR hyp) AND (NOT oth)),((((hyp:tok OR hyp:tok) OR hyp:tok) OR hyp:tok) AND (NOT oth:overlap)),0.2301845819761129,6,-0.1423687,0.07768218,-0.0023443182
+4,782,((((hyp:tok:for OR hyp:tok:to) OR hyp:tok:her) OR hyp:tok:his) AND (NOT oth:overlap:overlap75)),((((hyp OR hyp) OR hyp) OR hyp) AND (NOT oth)),((((hyp:tok OR hyp:tok) OR hyp:tok) OR hyp:tok) AND (NOT oth:overlap)),0.2301013024602026,6,-0.1423687,0.07768218,-0.0023443182
 4,783,pre:tok:in,pre,pre:tok,0.0,1,-0.07849241,-0.017510802,0.0063259467
 4,784,pre:tok:in,pre,pre:tok,0.0,1,0.012694055,-0.053998288,0.016810047
 4,785,((hyp:tok:bowls OR hyp:tok:fetch) AND pre:tok:on),((hyp OR hyp) AND pre),((hyp:tok OR hyp:tok) AND pre:tok),0.2222222222222222,3,-0.09828093,0.058098055,-0.13603589
 4,786,pre:tok:in,pre,pre:tok,0.0,1,0.020628966,0.042676136,-0.015168832
-4,787,(((((NOT oth:overlap:overlap25) AND hyp:tok:in) OR hyp:tok:eating) OR hyp:tok:alone) OR hyp:tok:only),(((((NOT oth) AND hyp) OR hyp) OR hyp) OR hyp),(((((NOT oth:overlap) AND hyp:tok) OR hyp:tok) OR hyp:tok) OR hyp:tok),0.13395638629283488,6,-0.0029954878,-0.10279111,0.06871578
+4,787,(((((NOT oth:overlap:overlap25) AND hyp:tok:in) OR hyp:tok:eating) OR hyp:tok:alone) OR hyp:tok:only),(((((NOT oth) AND hyp) OR hyp) OR hyp) OR hyp),(((((NOT oth:overlap) AND hyp:tok) OR hyp:tok) OR hyp:tok) OR hyp:tok),0.13423517169614985,6,-0.0029954878,-0.10279111,0.06871578
 4,788,pre:tok:in,pre,pre:tok,0.0,1,-0.015541491,-0.0094561055,-0.010181836
 4,789,pre:tok:in,pre,pre:tok,0.0,1,-0.022175338,0.016977042,-0.03553668
 4,790,(((hyp:tok:outside AND pre:tok:diner) OR hyp:tok:row) AND (NOT pre:tok:with)),(((hyp AND pre) OR hyp) AND (NOT pre)),(((hyp:tok AND pre:tok) OR hyp:tok) AND (NOT pre:tok)),0.4,5,-0.2643897,-0.07902395,0.11412181
@@ -804,7 +804,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,802,(((NOT hyp:tok:are) AND (hyp:tok:seen OR pre:tok:fly)) AND (NOT pre:tok:in)),(((NOT hyp) AND (hyp OR pre)) AND (NOT pre)),(((NOT hyp:tok) AND (hyp:tok OR pre:tok)) AND (NOT pre:tok)),0.3333333333333333,6,0.14302771,-0.050417908,-0.21978907
 4,803,pre:tok:in,pre,pre:tok,0.0,1,0.03143318,0.033815973,-0.021659948
 4,804,pre:tok:in,pre,pre:tok,0.0,1,-0.17383566,0.07594533,-0.05623225
-4,805,((((hyp:tok:talking AND pre:tok:there) OR hyp:tok:lemons) OR hyp:tok:hammer) OR hyp:tok:terrain),((((hyp AND pre) OR hyp) OR hyp) OR hyp),((((hyp:tok AND pre:tok) OR hyp:tok) OR hyp:tok) OR hyp:tok),0.125,5,0.06942857,-0.20911026,-0.04639701
+4,805,((((hyp:tok:terrain OR pre:tok:before) AND hyp:tok:are) OR hyp:tok:lemons) OR hyp:tok:hammer),((((hyp OR pre) AND hyp) OR hyp) OR hyp),((((hyp:tok OR pre:tok) AND hyp:tok) OR hyp:tok) OR hyp:tok),0.12195121951219512,5,0.06942857,-0.20911026,-0.04639701
 4,806,pre:tok:in,pre,pre:tok,0.0,1,-0.017837873,0.02675163,-0.024923509
 4,807,pre:tok:in,pre,pre:tok,0.0,1,0.06634901,-0.029636964,-0.022699555
 4,808,pre:tok:in,pre,pre:tok,0.0,1,-0.014400814,0.0338888,-0.0072049093
@@ -812,7 +812,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,810,pre:tok:in,pre,pre:tok,0.0,1,-0.049917538,-0.036133185,0.07042075
 4,811,pre:tok:in,pre,pre:tok,0.0,1,0.049828198,-0.010860656,0.018544996
 4,812,pre:tok:in,pre,pre:tok,0.0,1,-0.03242424,0.06231704,0.0005102366
-4,813,((((NOT pre:tok:woman) AND (hyp:tok:woman AND pre:tok:man)) AND (NOT hyp:tok:man)) AND (NOT pre:tok:men)),((((NOT pre) AND (hyp AND pre)) AND (NOT hyp)) AND (NOT pre)),((((NOT pre:tok) AND (hyp:tok AND pre:tok)) AND (NOT hyp:tok)) AND (NOT pre:tok)),0.4050632911392405,8,0.012320044,-0.19839348,0.122540414
+4,813,(((((NOT pre:tok:woman) AND hyp:tok:woman) AND pre:tok:man) AND (NOT hyp:tok:man)) AND (NOT pre:tok:two)),(((((NOT pre) AND hyp) AND pre) AND (NOT hyp)) AND (NOT pre)),(((((NOT pre:tok) AND hyp:tok) AND pre:tok) AND (NOT hyp:tok)) AND (NOT pre:tok)),0.3974358974358974,8,0.012320044,-0.19839348,0.122540414
 4,814,pre:tok:in,pre,pre:tok,0.0,1,0.017555635,0.0018933914,0.040990833
 4,815,pre:tok:in,pre,pre:tok,0.0,1,-0.051645108,0.034919426,-0.045261987
 4,816,pre:tok:in,pre,pre:tok,0.0,1,-0.04667837,0.029944664,-0.015898108
@@ -820,7 +820,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,818,pre:tok:in,pre,pre:tok,0.0,1,0.021436028,-0.005212413,0.038150877
 4,819,pre:tok:in,pre,pre:tok,0.0,1,0.0076836264,-0.013701035,-0.018587802
 4,820,((((hyp:tok:rest OR pre:tok:enter) AND hyp:tok:man) OR hyp:tok:steering) OR hyp:tok:file),((((hyp OR pre) AND hyp) OR hyp) OR hyp),((((hyp:tok OR pre:tok) AND hyp:tok) OR hyp:tok) OR hyp:tok),0.15,5,-0.017510097,0.07719145,-0.20353416
-4,821,((((hyp:tok:there OR oth:overlap:overlap50) OR hyp:tok:person) OR hyp:tok:people) AND (NOT hyp:tok:for)),((((hyp OR oth) OR hyp) OR hyp) AND (NOT hyp)),((((hyp:tok OR oth:overlap) OR hyp:tok) OR hyp:tok) AND (NOT hyp:tok)),0.3096242716495881,6,0.05696522,-0.1057354,0.031302854
+4,821,((((hyp:tok:there OR oth:overlap:overlap50) OR hyp:tok:person) OR hyp:tok:people) AND (NOT hyp:tok:for)),((((hyp OR oth) OR hyp) OR hyp) AND (NOT hyp)),((((hyp:tok OR oth:overlap) OR hyp:tok) OR hyp:tok) AND (NOT hyp:tok)),0.3095620731217356,6,0.05696522,-0.1057354,0.031302854
 4,822,pre:tok:in,pre,pre:tok,0.0,1,-0.027345771,-0.020081006,0.022135695
 4,823,pre:tok:in,pre,pre:tok,0.0,1,0.02588675,0.013030838,-0.003964383
 4,824,pre:tok:in,pre,pre:tok,0.0,1,0.0014232141,0.019526409,0.009483495
@@ -832,7 +832,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,830,pre:tok:in,pre,pre:tok,0.0,1,-0.0091768615,-0.00014233813,-0.023583358
 4,831,pre:tok:in,pre,pre:tok,0.0,1,-0.017805306,-0.006869775,-0.019699302
 4,832,pre:tok:in,pre,pre:tok,0.0,1,-0.00030858026,-0.054669634,0.004654782
-4,833,((((hyp:tok:to AND oth:overlap:overlap50) OR hyp:tok:friend) AND (NOT pre:tok:to)) OR pre:tok:puppies),((((hyp AND oth) OR hyp) AND (NOT pre)) OR pre),((((hyp:tok AND oth:overlap) OR hyp:tok) AND (NOT pre:tok)) OR pre:tok),0.0947075208913649,6,-0.082019955,-0.007130467,0.05232906
+4,833,((((hyp:tok:to AND oth:overlap:overlap50) OR hyp:tok:friend) AND (NOT pre:tok:to)) OR pre:tok:puppies),((((hyp AND oth) OR hyp) AND (NOT pre)) OR pre),((((hyp:tok AND oth:overlap) OR hyp:tok) AND (NOT pre:tok)) OR pre:tok),0.09497206703910614,6,-0.082019955,-0.007130467,0.05232906
 4,834,pre:tok:in,pre,pre:tok,0.0,1,-0.021049552,-0.0046330295,-0.007633139
 4,835,pre:tok:in,pre,pre:tok,0.0,1,-0.05814749,-0.006284206,-0.0071548675
 4,836,pre:tok:in,pre,pre:tok,0.0,1,-0.026560374,0.0044539515,-0.0038219457
@@ -906,7 +906,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,904,pre:tok:in,pre,pre:tok,0.0,1,-0.0020874208,0.0013897113,0.004637845
 4,905,(((((NOT hyp:tok:in) AND oth:overlap:overlap50) AND (NOT hyp:tok:and)) AND (NOT hyp:tok:outside)) AND (NOT hyp:tok:to)),(((((NOT hyp) AND oth) AND (NOT hyp)) AND (NOT hyp)) AND (NOT hyp)),(((((NOT hyp:tok) AND oth:overlap) AND (NOT hyp:tok)) AND (NOT hyp:tok)) AND (NOT hyp:tok)),0.09530938123752496,9,0.091006026,-0.123879515,-0.016992891
 4,906,pre:tok:in,pre,pre:tok,0.0,1,-0.0203257,-0.042445596,0.019872595
-4,907,((((NOT pre:tok:with) AND (hyp:tok:fun AND hyp:tok:is)) OR hyp:tok:shoveling) AND hyp:tok:is),((((NOT pre) AND (hyp AND hyp)) OR hyp) AND hyp),((((NOT pre:tok) AND (hyp:tok AND hyp:tok)) OR hyp:tok) AND hyp:tok),0.375,6,-0.13553105,0.2357537,-0.18013836
+4,907,(((NOT pre:tok:and) AND (hyp:tok:bananas OR hyp:tok:shoveling)) AND (NOT pre:tok:is)),(((NOT pre) AND (hyp OR hyp)) AND (NOT pre)),(((NOT pre:tok) AND (hyp:tok OR hyp:tok)) AND (NOT pre:tok)),0.2857142857142857,6,-0.13553105,0.2357537,-0.18013836
 4,908,(((hyp:tok:leaps AND pre:tok:near) OR pre:tok:fly) AND (NOT hyp:tok:are)),(((hyp AND pre) OR pre) AND (NOT hyp)),(((hyp:tok AND pre:tok) OR pre:tok) AND (NOT hyp:tok)),0.4,5,0.11266556,-0.12862699,-0.15964651
 4,909,pre:tok:in,pre,pre:tok,0.0,1,0.03117406,-0.017819876,-0.0053877807
 4,910,pre:tok:in,pre,pre:tok,0.0,1,-0.03141093,0.030009119,0.011477419
@@ -940,7 +940,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,938,pre:tok:in,pre,pre:tok,0.0,1,-0.03464031,-0.0027132118,-0.01716617
 4,939,(((hyp:tok:eating AND pre:tok:crying) OR pre:tok:target) AND (NOT hyp:tok:woman)),(((hyp AND pre) OR pre) AND (NOT hyp)),(((hyp:tok AND pre:tok) OR pre:tok) AND (NOT hyp:tok)),0.2727272727272727,5,0.08805198,-0.2559522,0.08034186
 4,940,pre:tok:in,pre,pre:tok,0.0,1,-0.044780247,0.034955606,0.0050901566
-4,941,((((hyp:tok:terrain OR pre:tok:year) OR hyp:tok:visiting) OR hyp:tok:eight) OR hyp:tok:tourists),((((hyp OR pre) OR hyp) OR hyp) OR hyp),((((hyp:tok OR pre:tok) OR hyp:tok) OR hyp:tok) OR hyp:tok),0.13636363636363635,5,0.14950067,-0.07606304,-0.050082836
+4,941,((((hyp:tok:terrain OR pre:tok:year) OR hyp:tok:visiting) OR hyp:tok:eight) OR hyp:tok:tourists),((((hyp OR pre) OR hyp) OR hyp) OR hyp),((((hyp:tok OR pre:tok) OR hyp:tok) OR hyp:tok) OR hyp:tok),0.13333333333333333,5,0.14950067,-0.07606304,-0.050082836
 4,942,pre:tok:in,pre,pre:tok,0.0,1,0.023784863,-0.0019849667,-0.024708016
 4,943,(hyp:tok:something AND pre:tok:diving),(hyp AND pre),(hyp:tok AND pre:tok),1.0,2,-0.052354988,-0.043036148,0.08505611
 4,944,pre:tok:in,pre,pre:tok,0.0,1,-0.027050931,0.023863478,-0.018337335
@@ -979,9 +979,9 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,977,((((hyp:tok:each AND pre:tok:at) OR pre:tok:storefront) OR pre:tok:mcdonald) AND (NOT pre:tok:two)),((((hyp AND pre) OR pre) OR pre) AND (NOT pre)),((((hyp:tok AND pre:tok) OR pre:tok) OR pre:tok) AND (NOT pre:tok)),0.13333333333333333,6,-0.056311302,-0.13052401,0.13618433
 4,978,pre:tok:in,pre,pre:tok,0.0,1,0.052013095,0.009538243,-0.038768437
 4,979,((((hyp:tok:finishing OR hyp:tok:skirt) AND pre:tok:man) OR pre:tok:skateboards) AND (NOT oth:overlap:overlap50)),((((hyp OR hyp) AND pre) OR pre) AND (NOT oth)),((((hyp:tok OR hyp:tok) AND pre:tok) OR pre:tok) AND (NOT oth:overlap)),0.3,6,-0.21672878,-0.094499305,0.11883713
-4,980,((((hyp:tok:hall OR pre:tok:walked) AND hyp:tok:walking) OR pre:tok:doctors) AND (NOT oth:overlap:overlap50)),((((hyp OR pre) AND hyp) OR pre) AND (NOT oth)),((((hyp:tok OR pre:tok) AND hyp:tok) OR pre:tok) AND (NOT oth:overlap)),0.15789473684210525,6,-0.08143893,-0.08058851,0.12793885
+4,980,((((hyp:tok:hall OR pre:tok:walked) AND hyp:tok:walking) OR pre:tok:doctors) AND (NOT oth:overlap:overlap50)),((((hyp OR pre) AND hyp) OR pre) AND (NOT oth)),((((hyp:tok OR pre:tok) AND hyp:tok) OR pre:tok) AND (NOT oth:overlap)),0.16666666666666666,6,-0.08143893,-0.08058851,0.12793885
 4,981,pre:tok:in,pre,pre:tok,0.0,1,0.016225403,0.012337659,0.015103177
-4,982,(((((NOT hyp:tok:is) AND hyp:tok:outside) AND (NOT pre:tok:outside)) AND (NOT pre:tok:one)) OR hyp:tok:grilling),(((((NOT hyp) AND hyp) AND (NOT pre)) AND (NOT pre)) OR hyp),(((((NOT hyp:tok) AND hyp:tok) AND (NOT pre:tok)) AND (NOT pre:tok)) OR hyp:tok),0.15348837209302327,8,0.01596389,0.0133229485,-0.06504342
+4,982,(((((NOT hyp:tok:is) AND hyp:tok:outside) AND (NOT pre:tok:outside)) AND (NOT pre:tok:one)) OR hyp:tok:grilling),(((((NOT hyp) AND hyp) AND (NOT pre)) AND (NOT pre)) OR hyp),(((((NOT hyp:tok) AND hyp:tok) AND (NOT pre:tok)) AND (NOT pre:tok)) OR hyp:tok),0.1527777777777778,8,0.01596389,0.0133229485,-0.06504342
 4,983,((((pre:tok:leaps AND pre:tok:near) OR hyp:tok:books) OR hyp:tok:plates) OR hyp:tok:motorbikes),((((pre AND pre) OR hyp) OR hyp) OR hyp),((((pre:tok AND pre:tok) OR hyp:tok) OR hyp:tok) OR hyp:tok),0.18518518518518517,5,-0.030066034,0.11882998,-0.16295184
 4,984,pre:tok:in,pre,pre:tok,0.0,1,-0.012407386,-0.033270366,-0.00075256807
 4,985,pre:tok:in,pre,pre:tok,0.0,1,-0.028127475,-0.033239525,-0.019724695
@@ -989,7 +989,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,987,pre:tok:in,pre,pre:tok,0.0,1,0.06864218,-0.10959544,-0.03307671
 4,988,pre:tok:in,pre,pre:tok,0.0,1,0.040756952,-0.015648799,-0.010843503
 4,989,pre:tok:in,pre,pre:tok,0.0,1,-0.0054364935,0.0034248102,0.009160587
-4,990,((((NOT oth:overlap:overlap25) AND (hyp:tok:is OR pre:tok:in)) OR hyp:tok:sleeping) AND (NOT hyp:tok:to)),((((NOT oth) AND (hyp OR pre)) OR hyp) AND (NOT hyp)),((((NOT oth:overlap) AND (hyp:tok OR pre:tok)) OR hyp:tok) AND (NOT hyp:tok)),0.1688708036622584,7,-0.14276643,0.01955953,0.060338076
+4,990,((((NOT oth:overlap:overlap25) AND (hyp:tok:is OR pre:tok:and)) OR hyp:tok:sleeping) AND (NOT hyp:tok:to)),((((NOT oth) AND (hyp OR pre)) OR hyp) AND (NOT hyp)),((((NOT oth:overlap) AND (hyp:tok OR pre:tok)) OR hyp:tok) AND (NOT hyp:tok)),0.16208496965369512,7,-0.14276643,0.01955953,0.060338076
 4,991,pre:tok:in,pre,pre:tok,0.0,1,0.030958308,-0.059088323,0.026118964
 4,992,pre:tok:in,pre,pre:tok,0.0,1,0.039132252,-0.07422789,-0.21244417
 4,993,pre:tok:in,pre,pre:tok,0.0,1,0.0032266588,-0.016455255,-0.011617068
@@ -1019,7 +1019,7 @@ cluster,neuron,feature,category,category_fine,iou,feature_length,w_entail,w_neut
 4,1017,(hyp:tok:playground AND pre:tok:falling),(hyp AND pre),(hyp:tok AND pre:tok),1.0,2,-0.06346479,0.14295235,-0.13890877
 4,1018,pre:tok:in,pre,pre:tok,0.0,1,-0.036031954,0.020831084,0.019810366
 4,1019,pre:tok:in,pre,pre:tok,0.0,1,-0.09489468,0.00023331877,-0.028722527
-4,1020,((((hyp:tok:his OR hyp:tok:outside) OR hyp:tok:another) OR hyp:tok:water) OR hyp:tok:something),((((hyp OR hyp) OR hyp) OR hyp) OR hyp),((((hyp:tok OR hyp:tok) OR hyp:tok) OR hyp:tok) OR hyp:tok),0.1255364806866953,5,0.040667463,0.025045369,-0.09066749
+4,1020,((((hyp:tok:his OR hyp:tok:outside) OR hyp:tok:another) OR hyp:tok:water) OR hyp:tok:something),((((hyp OR hyp) OR hyp) OR hyp) OR hyp),((((hyp:tok OR hyp:tok) OR hyp:tok) OR hyp:tok) OR hyp:tok),0.1251342642320086,5,0.040667463,0.025045369,-0.09066749
 4,1021,((((hyp:tok:home OR hyp:tok:without) OR hyp:tok:mall) AND oth:overlap:overlap25) OR hyp:tok:bride),((((hyp OR hyp) OR hyp) AND oth) OR hyp),((((hyp:tok OR hyp:tok) OR hyp:tok) AND oth:overlap) OR hyp:tok),0.10106382978723404,5,-0.09180138,-0.02547317,0.081400126
 4,1022,pre:tok:in,pre,pre:tok,0.0,1,-0.004505479,-0.0022257557,-0.0066198725
-4,1023,((((NOT oth:overlap:overlap50) AND (hyp:tok:is OR pre:tok:on)) OR hyp:tok:his) OR hyp:tok:for),((((NOT oth) AND (hyp OR pre)) OR hyp) OR hyp),((((NOT oth:overlap) AND (hyp:tok OR pre:tok)) OR hyp:tok) OR hyp:tok),0.23552052785923755,6,-0.13768019,0.06472252,0.025554905
+4,1023,((((NOT oth:overlap:overlap50) AND (hyp:tok:is OR pre:tok:on)) OR hyp:tok:his) OR hyp:tok:for),((((NOT oth) AND (hyp OR pre)) OR hyp) OR hyp),((((NOT oth:overlap) AND (hyp:tok OR pre:tok)) OR hyp:tok) OR hyp:tok),0.23529411764705882,6,-0.13768019,0.06472252,0.025554905

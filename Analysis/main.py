@@ -29,6 +29,8 @@ def main():
         f"Cluster3IOUS5%.csv",
         f"Cluster4IOUS5%.csv",
     ]}
+    
+    print(pipelines.pipe_percent_lost([initial_expls,prunedAfterRT_expls], get_concepts_func='indiv'))
 
     percent_of_cps_preserved_globally = pipelines.pipe_explanation_similiarity(
         [initial_expls,prunedAfterRT_expls], 
