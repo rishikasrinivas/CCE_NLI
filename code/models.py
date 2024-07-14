@@ -133,13 +133,20 @@ class BowmanEntailmentClassifier(nn.Module):
     def prune(self, layer='default', amount=0.005):
         if layer == 'default':
             layer = self.mlp[:-1][0]
-        
-        if not self.check_pruned() :
-            prune.ln_structured(layer, name="weight", amount=amount, dim=1, n=2)
+        if settings.method == 'lottery_ticket':
+            final_weights=torch.ones(weights.shape)
+            assert final_weights.shape[0] == 1024
+            mask = torch.ones(weights.shape)
+            mask = prune_masks(amount, mask, final_weights) #basically need to set this = to the weights in analyze
+            self.mlp[:-1][0]=mask
+        elif settings.method == 'incremental':
+            if not self.check_pruned() :
+                prune.ln_structured(layer, name="weight", amount=amount, dim=1, n=2)
+        return self
         
    
             
-    def prune_masks(percents, mask, final_weights):
+    def prune_masks(percent, mask, final_weights):
         """Return new masks that involve pruning the smallest of the final weights.
 
             Args:
@@ -162,13 +169,10 @@ class BowmanEntailmentClassifier(nn.Module):
             cutoff = sorted_weights[cutoff_index]
 
             # Prune all weights below the cutoff.
-            return np.where(np.abs(final_weight) <= cutoff, np.zeros(mask.shape), mask)
+            return torch.where(torch.abs(torch.tensor(final_weight)) <= cutoff, torch.zeros(mask.shape), mask)
 
-        new_masks = {}
-        for k, percent in percents.items():
-            new_masks[k] = prune_by_percent_once(percent, masks[k], final_weights[k])
+        return prune_by_percent_once(percent, masks[k], final_weights[k])
 
-        return new_masks
         
     # from https://github.com/jankrepl/mildlyoverfitted/blob/master/github_adventures/lottery/utils.py
     def copy_weights_linear(linear_unpruned, linear_pruned):
@@ -191,7 +195,7 @@ class BowmanEntailmentClassifier(nn.Module):
             linear_pruned.weight_orig.copy_(linear_unpruned.weight)
             linear_pruned.bias_orig.copy_(linear_unpruned.bias)
 
-    def get_final_reprs(self, s1, s1len, s2, s2len, adjust_final_weights, amount):
+    def get_final_reprs(self, s1, s1len, s2, s2len, adjust_final_weights, final_weights, amount):
         s1enc = self.encoder(s1, s1len)
         s2enc = self.encoder(s2, s2len)
 
