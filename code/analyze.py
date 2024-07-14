@@ -419,8 +419,6 @@ def pairs(x):
 def extract_features(
     model,
     dataset,
-    adjust_final_weights,
-    amount
 ):
     loader = DataLoader(
         dataset,
@@ -434,6 +432,7 @@ def extract_features(
     all_feats = []
     all_multifeats = []
     all_idxs = []
+    
     for src, src_feats, src_multifeats, src_lengths, idx in tqdm(loader):
       
         #  words = dataset.to_text(src)
@@ -451,7 +450,7 @@ def extract_features(
             s2 = src_one_comb[:, :, 1]
             s2len = src_lengths_comb[:, 1]
 
-            final_reprs = model.get_final_reprs(s1, s1len, s2, s2len, adjust_final_weights, amount)
+            final_reprs = model.get_final_reprs(s1, s1len, s2, s2len)
 
         # Pack the sequence
         all_srcs.extend(list(np.transpose(src_one_comb.cpu().numpy(), (1, 2, 0))))
@@ -749,7 +748,7 @@ def load_sents(path):
     return sents
 
 
-def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved, resume_from=1):
+def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved):
     activations= torch.from_numpy(np.array(states))
     #1st  time run this, after that dont
     
@@ -758,7 +757,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
         activation_ranges = create_clusters(activations,4)
         build_masks(states, activation_ranges, 4, save_masks_dir)
     masks_saved = True
-    for cluster_num in range(resume_from,5): 
+    for cluster_num in range(1,5): 
         if masks_saved:
             print(f"{cluster_num} found : {f'Cluster{cluster_num}masks.pt' in os.listdir(save_masks_dir)}")
             if f"Cluster{cluster_num}masks.pt" in os.listdir(save_masks_dir):
@@ -807,7 +806,7 @@ def per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dat
     return states
             
 
-def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path=None, adjust_final_weights=False, amount=0, model_=None, dataset=None,resume_from=1, q_ret=0):
+def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path=None, model_=None, dataset=None, q_ret=0):
     
     if model_==None and dataset==None:
         model, dataset = data.snli.load_for_analysis(
@@ -831,25 +830,24 @@ def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path=None, adjust
         weights = model.mlp.weight.t().detach().cpu().numpy()
     else:
         weights = model.mlp[-1].weight.t().detach().cpu().numpy()
+        final_weights = model.mlp[0].weight.t().detach().cpu().numpy()
 
     print("Extracting features")
     
     toks, states, feats, idxs = extract_features(
         model,
-        dataset,
-        adjust_final_weights,
-        amount=amount
+        dataset
     )
     
     if q_ret==1:
-        return states, weights
+        return states, final_weights
    
     print("Extracting sentence token features")
     
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
     
-    acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved, resume_from=resume_from)
-    return acts, weights
+    acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved)
+    return acts, final_weights
 
 def main():
     os.makedirs(settings.RESULT, exist_ok=True)

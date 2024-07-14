@@ -130,22 +130,6 @@ class BowmanEntailmentClassifier(nn.Module):
             layer = self.mlp[:-1]
         return prune.is_pruned(layer)
     
-    def prune(self, layer='default', amount=0.005):
-        if layer == 'default':
-            layer = self.mlp[:-1][0]
-        if settings.method == 'lottery_ticket':
-            final_weights=torch.ones(weights.shape)
-            assert final_weights.shape[0] == 1024
-            mask = torch.ones(weights.shape)
-            mask = prune_masks(amount, mask, final_weights) #basically need to set this = to the weights in analyze
-            self.mlp[:-1][0]=mask
-        elif settings.method == 'incremental':
-            if not self.check_pruned() :
-                prune.ln_structured(layer, name="weight", amount=amount, dim=1, n=2)
-        return self
-        
-   
-            
     def prune_masks(percent, mask, final_weights):
         """Return new masks that involve pruning the smallest of the final weights.
 
@@ -171,8 +155,25 @@ class BowmanEntailmentClassifier(nn.Module):
             # Prune all weights below the cutoff.
             return torch.where(torch.abs(torch.tensor(final_weight)) <= cutoff, torch.zeros(mask.shape), mask)
 
-        return prune_by_percent_once(percent, masks[k], final_weights[k])
+        return prune_by_percent_once(percent, mask, final_weights)
 
+    
+    def prune(self, layer='default', amount=0.005, final_weights, mask=None):
+        if layer == 'default':
+            layer = self.mlp[:-1][0]
+        if settings.PRUNE_METHOD == 'lottery_ticket':
+            assert final_weights.shape[0] == 2048
+            mask = self.prune_masks(amount, mask, final_weights) #basically need to set this = to the weights in analyze
+            layer.weight.t().detach().cpu().copy_(mask)
+            return self, mask
+        elif settings.PRUNE_METHOD == 'incremental':
+            if not self.check_pruned() :
+                prune.ln_structured(layer, name="weight", amount=amount, dim=1, n=2)
+        return self
+        
+   
+            
+    
         
     # from https://github.com/jankrepl/mildlyoverfitted/blob/master/github_adventures/lottery/utils.py
     def copy_weights_linear(linear_unpruned, linear_pruned):
@@ -195,7 +196,7 @@ class BowmanEntailmentClassifier(nn.Module):
             linear_pruned.weight_orig.copy_(linear_unpruned.weight)
             linear_pruned.bias_orig.copy_(linear_unpruned.bias)
 
-    def get_final_reprs(self, s1, s1len, s2, s2len, adjust_final_weights, final_weights, amount):
+    def get_final_reprs(self, s1, s1len, s2, s2len):
         s1enc = self.encoder(s1, s1len)
         s2enc = self.encoder(s2, s2len)
 
@@ -207,10 +208,7 @@ class BowmanEntailmentClassifier(nn.Module):
         mlp_input = self.bn(mlp_input)
         mlp_input = self.dropout(mlp_input)
         
-        if adjust_final_weights:
-            self.prune(amount=amount)
-            assert self.check_pruned() == True
-            
+                
         rep = self.mlp[:-1](mlp_input) #this would need to be updated w the pruning
         
         return rep

@@ -19,7 +19,7 @@ def pipe_avg_ious(filenames :list, prune_iter :int):
                     dfs_og.append(cleaning.prep(f))
             else:
                 raise NameError("Invalid Key ", p_np)
-    print(filenames)
+    
     for np,p in zip(dfs_og, dfs_pruned):
         print(f"Avg IOU 0% : {concept_getters.get_avg_iou(np.best_iou)}")
         print(f"Avg IOU {0.5*prune_iter}% : {concept_getters.get_avg_iou(p.best_iou)}")

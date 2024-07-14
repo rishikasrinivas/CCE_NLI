@@ -38,8 +38,7 @@ def run(split, epoch, model, optimizer, criterion, dataloaders, args, device='cu
     acc_meter = util.AverageMeter()
     for (s1, s1len, s2, s2len, targets) in ranger:
 
-        if args.cuda or device == 'cuda':
-            model = model.cuda()
+        if device == 'cuda' or args.cuda:
             s1 = s1.cuda()
             s1len = s1len.cuda()
             s2 = s2.cuda()

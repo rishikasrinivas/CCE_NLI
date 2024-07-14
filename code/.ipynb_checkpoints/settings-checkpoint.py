@@ -18,11 +18,12 @@ METRIC = "iou"
 EMBEDDING_NEIGHBORHOOD_SIZE = 5
 
 NEURONS = None
-PARALLEL = 0.5
+PARALLEL = 1
 
 SHUFFLE = False
 SAVE_EVERY = 4
-
+PRUNE_METHOD='lottery_ticket' #coices: lottery_ticket, incremental
+PRUNE_AMT=0.005
 # How many "maximally activating" open features to use, PER CATEGORY
 MAX_OPEN_FEATS = 5
 # Minimum number of activations to analyze a neuron
