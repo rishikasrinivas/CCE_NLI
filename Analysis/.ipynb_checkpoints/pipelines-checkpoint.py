@@ -6,8 +6,24 @@ import cleaning
 import record_local
 import record_global
 import os
-def pipe_explanation_similiarity(filenames :list, task='global', get_concepts_func = 'group', fname=None):
+def pipe_avg_ious(filenames :list, prune_iter :int):
+    dfs_pruned=[]
+    dfs_og= []
+    for expl_dict in filenames:
+        for p_np, file in expl_dict.items():
+            if 'pruned' in p_np:
+                for f in file:
+                    dfs_pruned.append(cleaning.prep(f))
+            elif p_np == 'original':
+                for f in file:
+                    dfs_og.append(cleaning.prep(f))
+            else:
+                raise NameError("Invalid Key ", p_np)
     print(filenames)
+    for np,p in zip(dfs_og, dfs_pruned):
+        print(f"Avg IOU 0% : {concept_getters.get_avg_iou(np.best_iou)}")
+        print(f"Avg IOU {0.5*prune_iter}% : {concept_getters.get_avg_iou(p.best_iou)}")
+def pipe_explanation_similiarity(filenames :list, task='global', get_concepts_func = 'group', fname=None):
     dfs_pruned=[]
     dfs_og= []
     for expl_dict in filenames:
@@ -31,13 +47,12 @@ def pipe_explanation_similiarity(filenames :list, task='global', get_concepts_fu
 
         all_nopruned_concepts = set(list(all_nopruned_concepts.values())[0])
         all_pruned_concepts = set(list(all_pruned_concepts.values())[0])
-        print("intersection ", all_nopruned_concepts.intersection(all_pruned_concepts))
         return record_global.record_common_concepts([all_pruned_concepts, all_nopruned_concepts], fname=fname)
     else:
         task = 'local'
         return record_local.record_common_concepts([dfs_pruned, dfs_og], fname=fname)
         
-def pipe_percent_lost(filenames :list, task='global', get_concepts_func = 'group', fname=None):
+def pipe_percent_lost(filenames :list, task='global', get_concepts_func = 'group', fname=None, as_percent=False):
     dfs_pruned=[]
     dfs_og= []
     for expl_dict in filenames:
@@ -63,9 +78,9 @@ def pipe_percent_lost(filenames :list, task='global', get_concepts_func = 'group
         all_pruned_concepts = set(list(all_pruned_concepts.values())[0])
        
     
-        return record_global.record_lost_concepts(all_nopruned_concepts, all_pruned_concepts, fname, as_percent=False)
+        return record_global.record_lost_concepts(all_nopruned_concepts, all_pruned_concepts, fname, as_percent)
     else:
-        return record_local.record_lost_concepts(all_nopruned_concepts, all_pruned_concepts, fname, as_percent=False)
+        return record_local.record_lost_concepts(all_nopruned_concepts, all_pruned_concepts, fname, as_percent)
         
 def pipe_relearned_concepts(filenames :list, task='global', get_concepts_func = 'indiv', fname=None):
     dfs_pruned=[]

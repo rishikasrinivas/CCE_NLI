@@ -25,6 +25,7 @@ import util
 from data import analysis
 import importlib.util
 import sys
+import fileio
 # Define the path to the module you want to import
 analysis_path = os.path.abspath("Analysis/pipelines.py")
 
@@ -36,14 +37,7 @@ spec.loader.exec_module(module)
 sys.path.append("Analysis/")
 import pipelines as pipelines
 
-def log_to_csv(file, data):
-    with open(file, mode='w', newline='') as file:
-        writer = csv.writer(file)
 
-        # Write the header
-
-        # Write the data rows
-        writer.writerow(data)
 def finetune_pruned_model(model,optimizer,criterion, dataloaders, train, val, finetune_epochs, prune_metrics_dir, metrics,device):
     for epoch in range(finetune_epochs):
         train_metrics = run(
@@ -78,7 +72,91 @@ def finetune_pruned_model(model,optimizer,criterion, dataloaders, train, val, fi
     path_to_ckpt = os.path.join(prune_metrics_dir, f"LotTick{finetune_epochs-1}.pth")
     return path_to_ckpt, metrics
         
+def reload_stats():
+    prunedBeforeRT_expls = {'prunedBefore': [
+                f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster1IOUS1024N.csv",
+                f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster2IOUS1024N.csv",
+                f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster3IOUS1024N.csv",
+                f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster4IOUS1024N.csv",
+            ]}
+    prunedAfterRT_expls = {'prunedAfter': [
+            f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster1IOUS1024N.csv",
+            f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster2IOUS1024N.csv",
+            f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster3IOUS1024N.csv",
+            f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster4IOUS1024N.csv",
+        ]}
+    initial_expls = {'original': 
+                     ["Analysis/Explanations/Cluster1IOUSOrig.csv",
+                      "Analysis/Explanations/Cluster2IOUSOrig.csv",
+                      "Analysis/Explanations/Cluster3IOUSOrig.csv",
+                      "Analysis/Explanations/Cluster4IOUSOrig.csv"
+                     ]
+                    }
+    percent_concepts_lost_to_pruning_local = pipelines.pipe_percent_lost(
+        [initial_expls,prunedBeforeRT_expls],
+        task = 'local',
+        fname = f"Analysis/Expls{identifier}%Pruned/LostTo{identifier}%PruningBeforeFinetune.csv"
 
+    )
+
+    percent_concepts_lost_to_pruning_globally = pipelines.pipe_percent_lost(
+        [initial_expls,prunedBeforeRT_expls],
+        task = 'global'
+    )
+    print(f"percent_concepts_lost_to_pruning_globally: {percent_concepts_lost_to_pruning_globally}")
+    
+    prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{identifier}%")
+    weights=torch.load(f"{prune_metrics_dir}/model_best.pth")['state_dict']['mlp.0.weight']
+
+    fileio.log_to_csv(os.path.join(prune_metrics_dir,"pruned_status.csv"), torch.where(weights==0,1,0).sum() / (1024*2048), f"{prune_iter}: % PRUNED")
+    percent_of_cps_preserved_globally = pipelines.pipe_explanation_similiarity(
+        [initial_expls,prunedAfterRT_expls], 
+        task='global', 
+        get_concepts_func = 'indiv',
+    )
+        
+    fileio.log_to_csv(os.path.join(prune_metrics_dir,"global_exp_sim_indiv.csv"), percent_of_cps_preserved_globally, "Explanation similarity individual concept level globally")
+
+    percent_of_comp_cps_preserved_globally = pipelines.pipe_explanation_similiarity(
+        [initial_expls,prunedAfterRT_expls], 
+        task='global', 
+        get_concepts_func = 'group',
+    )
+        
+    fileio.log_to_csv(os.path.join(prune_metrics_dir,"global_exp_sim_compos.csv"), percent_of_comp_cps_preserved_globally, "Explanation similarity compositional concept level globally")
+
+
+    percent_of_cps_preserved_locally = pipelines.pipe_explanation_similiarity(
+        [initial_expls,prunedAfterRT_expls],
+        task='local', 
+        get_concepts_func = 'indiv',
+        fname = f"Analysis/Expls{identifier}%Pruned/LocallyPreserved{identifier}%Pruned.csv"
+    )
+
+    percent_relearned_through_finetuning_g = pipelines.pipe_relearned_concepts(
+        [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
+        task='global', 
+        get_concepts_func = 'indiv'
+    )
+
+    fileio.log_to_csv(os.path.join(prune_metrics_dir,"indiv_after_finetune_glob.csv"), percent_relearned_through_finetuning_g, "% of indiv concepts relearned after finetuning globally")
+    
+    percent_relearned_through_finetuning_g_group = pipelines.pipe_relearned_concepts(
+        [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
+        task='global', 
+        get_concepts_func = 'group'
+    )
+    
+    print("% of compositions relearned after finetuning globally: ", percent_relearned_through_finetuning_g_group)
+    fileio.log_to_csv(os.path.join(prune_metrics_dir,"comp_relearned_glob.csv"), percent_relearned_through_finetuning_g_group, "% of compositions relearned after finetuning globally")
+
+    percent_relearned_through_finetuning_l = pipelines.pipe_relearned_concepts(
+        [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
+        task='local', 
+        get_concepts_func = 'indiv',
+        fname = f"Analysis/Expls{identifier}%Pruned/LocallyRelearned{identifier}%Pruned.csv"
+    )
+#running the expls using the already finetuned and precreated masks from before
 def main(args):
     os.makedirs(args.exp_dir, exist_ok=True)
 
@@ -112,7 +190,7 @@ def main(args):
     }
 
     # ==== BUILD MODEL ====
-    resume_from_ckpt = True
+    resume_from_ckpt = False
     if resume_from_ckpt:
         path_to_ckpt= f"models/snli/prune_metrics/0.5%/model_best.pth"
     else:
@@ -150,25 +228,26 @@ def main(args):
 
     # Save model with 0 training
     
-    masks_saved=False
+
     
     initial_expls = {'original': 
-                     ["Analysis/Explanations/Cluster1IOUSOrig.csv",
-                      "Analysis/Explanations/Cluster2IOUSOrig.csv",
-                      "Analysis/Explanations/Cluster3IOUSOrig.csv",
-                     "Analysis/Explanations/Cluster4IOUSOrig.csv"
+                     ["Analysis/Expls0.0%Pruned/Cluster1IOUSOrig.csv",
+                      "Analysis/Expls0.0%Pruned/Cluster2IOUSOrig.csv",
+                      "Analysis/Expls0.0%Pruned/Cluster3IOUSOrig.csv",
+                      "Analysis/Expls0.0%Pruned/Cluster4IOUSOrig.csv"
                      ]
                     }
     # ==== TRAIN ====
     
     for prune_iter in tqdm(range(1,args.prune_iters+1)):
+        ckpt_orig=torch.load(settings.MODEL, map_location="cpu")
+        clf = models.BowmanEntailmentClassifier
+        enc = models.TextEncoder(len(ckpt_orig["stoi"])).cuda()
+        model=clf(enc)
+        model.load_state_dict(ckpt_orig["state_dict"])
+        
+        
         #identifier to track pruning amount'
-        if prune_iter <= 2:
-            assert model.check_pruned() == False
-            masks_saved=True
-        else:
-            masks_saved=False
-            assert model.check_pruned()==False #should have removd the keys 
         identifier = 0.005*prune_iter*100
         
         #masks and explanation storing paths before finetuning
@@ -182,160 +261,159 @@ def main(args):
         if not os.path.exists(expls_before_finetuning_flder):
             os.makedirs(f"Analysis/Expls{identifier}%Pruned",exist_ok=True)
             os.makedirs(expls_before_finetuning_flder,exist_ok=True) 
-
-        if prune_iter != 1:
-
-            #run after pruning before finetuning
-            if prune_iter <= 2:
-                initiate_exp_run(
-                    save_exp_dir = expls_before_finetuning_flder, 
-                    save_masks_dir= masks_before_finetuning_flder, 
-                    masks_saved=masks_saved, 
-                    path = path_to_ckpt,
-                    adjust_final_weights=True,
-                    amount=0.005,
-                    model_=model,
-                    dataset=dataset,
-                    q_ret = 1,
-                )
-            else:
-                initiate_exp_run(
-                    save_exp_dir = expls_before_finetuning_flder, 
-                    save_masks_dir= masks_before_finetuning_flder, 
-                    masks_saved=masks_saved, 
-                    path = path_to_ckpt,
-                    adjust_final_weights=True,
-                    amount=0.005,
-                    model_=model,
-                    dataset=dataset,
-                )
-            assert model.check_pruned() == True
-       
-            #ANALYSIS: % of lost concepts
-            prunedBeforeRT_expls = {'prunedBefore': [
-                f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster1IOUS1024N.csv",
-                f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster2IOUS1024N.csv",
-                f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster3IOUS1024N.csv",
-                f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster4IOUS1024N.csv",
-            ]}
-
-
-            percent_concepts_lost_to_pruning_local = pipelines.pipe_percent_lost(
-                [initial_expls,prunedBeforeRT_expls],
-                task = 'local',
-                fname = f"Analysis/Expls{identifier}%Pruned/LostTo{identifier}%PruningBeforeFinetune.csv"
-
-            )
-
-            percent_concepts_lost_to_pruning_globally = pipelines.pipe_percent_lost(
-                [initial_expls,prunedBeforeRT_expls],
-                task = 'global'
-            )
-            print(f"percent_concepts_lost_to_pruning_globally: {percent_concepts_lost_to_pruning_globally}")
-
-
-
-            #location to store metrics
-            prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{identifier}%")
-            if not os.path.exists(prune_metrics_dir):
-                os.makedirs(args.prune_metrics_dir,exist_ok=True)
-                os.makedirs(prune_metrics_dir,exist_ok=True)
-
-            #finetuning
-
-            model.prune(amount=0.005) #0.5% prune
-            assert model.check_pruned()
-
-
-            path_to_ckpt, metrics = finetune_pruned_model(model,optimizer,criterion,dataloaders, train,val, args.finetune_epochs, prune_metrics_dir, metrics, device)
-
-
-            prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{identifier}%")
-            weights=torch.load(f"{prune_metrics_dir}/model_best.pth")['state_dict']['mlp.0.weight']
-
-            log_to_csv(os.path.join(prune_metrics_dir,"pruned_status.csv"), f"{prune_iter}: % PRUNED : {torch.where(weights==0,1,0).sum() / (1024*2048)}")
-
-
-            if args.cuda:
-                device = 'cuda'
-                model = model.cuda()
-            else:
-                device = 'cpu'
-            #masks and explanation storing paths after finetuning
-            exp_after_finetuning_flder = f"Analysis/Expls{identifier}%Pruned/AfterFT"
-            if not os.path.exists(exp_after_finetuning_flder):
-                os.mkdir(exp_after_finetuning_flder) 
-
-            masks_after_finetuning_flder = f"code/Masks{identifier}%Pruned/AfterFT"
-            if not os.path.exists(masks_after_finetuning_flder):
-                os.mkdir(masks_after_finetuning_flder)
-
-            #run after pruning and finetuning
+        
+        #run after pruning before finetuning
+        if prune_iter==1:
             initiate_exp_run(
-                save_exp_dir = exp_after_finetuning_flder, 
-                save_masks_dir= masks_after_finetuning_flder, 
-                masks_saved=False, 
-                path = path_to_ckpt,
-                adjust_final_weights=False,
-                model_=model,
-                dataset=dataset,
+                    save_exp_dir = expls_before_finetuning_flder, 
+                    save_masks_dir= masks_before_finetuning_flder, 
+                    masks_saved=True, 
+                    adjust_final_weights=True,
+                    amount=identifier/100,
+                    model_=model,
+                    dataset=dataset,
+                )
+        else:
+             initiate_exp_run(
+                    save_exp_dir = expls_before_finetuning_flder, 
+                    save_masks_dir= masks_before_finetuning_flder, 
+                    masks_saved=False, 
+                    adjust_final_weights=True,
+                    amount=identifier/100,
+                    model_=model,
+                    dataset=dataset,
+                )
+        assert model.check_pruned() == True
 
-            ) 
-
-
-            #ANALYSIS measure local consistency and global consistency
-            prunedAfterRT_expls = {'prunedAfter': [
-                f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster1IOUS1024N.csv",
-                f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster2IOUS1024N.csv",
-                f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster3IOUS1024N.csv",
-                f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster4IOUS1024N.csv",
-            ]}
-
-            percent_of_cps_preserved_globally = pipelines.pipe_explanation_similiarity(
-                [initial_expls,prunedAfterRT_expls], 
-                task='global', 
-                get_concepts_func = 'indiv',
-            )
-            log_to_csv(os.path.join(prune_metrics_dir,"glbal_exp_sim_indiv.csv"), f"Explanation similarity individual concept level globally: {percent_of_cps_preserved_globally}")
-
-            percent_of_comp_cps_preserved_globally = pipelines.pipe_explanation_similiarity(
-                [initial_expls,prunedAfterRT_expls], 
-                task='global', 
-                get_concepts_func = 'group',
-            )
-            log_to_csv(os.path.join(prune_metrics_dir,"global_exp_sim_compos.csv"), f"Explanation similarity compositional concept level globally:  {percent_of_comp_cps_preserved_globally}")
+        #ANALYSIS: % of lost concepts
+        prunedBeforeRT_expls = {'prunedBefore': [
+            f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster1IOUS1024N.csv",
+            f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster2IOUS1024N.csv",
+            f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster3IOUS1024N.csv",
+            f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster4IOUS1024N.csv",
+        ]}
 
 
-            percent_of_cps_preserved_locally = pipelines.pipe_explanation_similiarity(
-                [initial_expls,prunedAfterRT_expls],
-                task='local', 
-                get_concepts_func = 'indiv',
-                fname = f"Analysis/Expls{identifier}%Pruned/LocallyPreserved{identifier}%Pruned.csv"
-            )
+        percent_concepts_lost_to_pruning_local = pipelines.pipe_percent_lost(
+            [initial_expls,prunedBeforeRT_expls],
+            task = 'local',
+            fname = f"Analysis/Expls{identifier}%Pruned/LostTo{identifier}%PruningBeforeFinetune.csv"
 
-            percent_relearned_through_finetuning_g = pipelines.pipe_relearned_concepts(
-                [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
-                task='global', 
-                get_concepts_func = 'indiv'
-            )
+        )
 
-            log_to_csv(os.path.join(prune_metrics_dir,"indiv_after_finetune_glob.csv"), f"% of indiv concepts relearned after finetuning globally: {percent_relearned_through_finetuning_g}")
-            percent_relearned_through_finetuning_g_group = pipelines.pipe_relearned_concepts(
-                [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
-                task='global', 
-                get_concepts_func = 'group'
-            )
-            print("% of compositions relearned after finetuning globally: ", percent_relearned_through_finetuning_g_group)
-            log_to_csv(os.path.join(prune_metrics_dir,"comp_relearned_glob.csv"), f"% of compositions relearned after finetuning globally: {percent_relearned_through_finetuning_g_group}")
+        percent_concepts_lost_to_pruning_globally = pipelines.pipe_percent_lost(
+            [initial_expls,prunedBeforeRT_expls],
+            task = 'global'
+        )
+        print(f"percent_concepts_lost_to_pruning_globally: {percent_concepts_lost_to_pruning_globally}")
 
-            percent_relearned_through_finetuning_l = pipelines.pipe_relearned_concepts(
-                [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
-                task='local', 
-                get_concepts_func = 'indiv',
-                fname = f"Analysis/Expls{identifier}%Pruned/LocallyRelearned{identifier}%Pruned.csv"
-            )
 
-    
+
+        #location to store metrics
+        prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{identifier}%")
+        if not os.path.exists(prune_metrics_dir):
+            os.makedirs(args.prune_metrics_dir,exist_ok=True)
+            os.makedirs(prune_metrics_dir,exist_ok=True)
+
+        #finetuning
+
+        model.prune(amount=identifier/100) #0.5,1.0,...2.5% prune
+        if settings.CUDA:
+            device = 'cuda'
+            model = model.cuda()
+        assert model.check_pruned()
+
+
+        path_to_ckpt, metrics = finetune_pruned_model(model,optimizer,criterion,dataloaders, train,val, args.finetune_epochs, prune_metrics_dir, metrics, device)
+
+
+        prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{identifier}%")
+        weights=torch.load(f"{prune_metrics_dir}/model_best.pth")['state_dict']['mlp.0.weight']
+
+        fileio.log_to_csv(os.path.join(prune_metrics_dir,"pruned_status.csv"), torch.where(weights==0,1,0).sum() / (1024*2048), f"{prune_iter}: % PRUNED")
+        
+        model.load_state_dict(weights)
+
+        if settings.CUDA:
+            device = 'cuda'
+            model = model.cuda()
+        else:
+            device = 'cpu'
+        #masks and explanation storing paths after finetuning
+        exp_after_finetuning_flder = f"Analysis/Expls{identifier}%Pruned/AfterFT"
+        if not os.path.exists(exp_after_finetuning_flder):
+            os.mkdir(exp_after_finetuning_flder) 
+
+        masks_after_finetuning_flder = f"code/Masks{identifier}%Pruned/AfterFT"
+        if not os.path.exists(masks_after_finetuning_flder):
+            os.mkdir(masks_after_finetuning_flder)
+        
+        #run after pruning and finetuning
+        initiate_exp_run(
+            save_exp_dir = exp_after_finetuning_flder, 
+            save_masks_dir= masks_after_finetuning_flder, 
+            masks_saved=False, 
+            adjust_final_weights=False,
+            model_=model,
+            dataset=dataset,
+
+        ) 
+        
+        #ANALYSIS measure local consistency and global consistency
+        prunedAfterRT_expls = {'prunedAfter': [
+            f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster1IOUS1024N.csv",
+            f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster2IOUS1024N.csv",
+            f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster3IOUS1024N.csv",
+            f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster4IOUS1024N.csv",
+        ]}
+
+        percent_of_cps_preserved_globally = pipelines.pipe_explanation_similiarity(
+            [initial_expls,prunedAfterRT_expls], 
+            task='global', 
+            get_concepts_func = 'indiv',
+        )
+        
+        fileio.log_to_csv(os.path.join(prune_metrics_dir,"global_exp_sim_indiv.csv"), percent_of_cps_preserved_globally, "Explanation similarity individual concept level globally")
+
+        percent_of_comp_cps_preserved_globally = pipelines.pipe_explanation_similiarity(
+            [initial_expls,prunedAfterRT_expls], 
+            task='global', 
+            get_concepts_func = 'group',
+        )
+        
+        fileio.log_to_csv(os.path.join(prune_metrics_dir,"global_exp_sim_compos.csv"), percent_of_comp_cps_preserved_globally, "Explanation similarity compositional concept level globally")
+
+
+        percent_of_cps_preserved_locally = pipelines.pipe_explanation_similiarity(
+            [initial_expls,prunedAfterRT_expls],
+            task='local', 
+            get_concepts_func = 'indiv',
+            fname = f"Analysis/Expls{identifier}%Pruned/LocallyPreserved{identifier}%Pruned.csv"
+        )
+
+        percent_relearned_through_finetuning_g = pipelines.pipe_relearned_concepts(
+            [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
+            task='global', 
+            get_concepts_func = 'indiv'
+        )
+
+        fileio.log_to_csv(os.path.join(prune_metrics_dir,"indiv_after_finetune_glob.csv"), percent_relearned_through_finetuning_g, "% of indiv concepts relearned after finetuning globally")
+        percent_relearned_through_finetuning_g_group = pipelines.pipe_relearned_concepts(
+            [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
+            task='global', 
+            get_concepts_func = 'group'
+        )
+        print("% of compositions relearned after finetuning globally: ", percent_relearned_through_finetuning_g_group)
+        fileio.log_to_csv(os.path.join(prune_metrics_dir,"comp_relearned_glob.csv"), percent_relearned_through_finetuning_g_group, "% of compositions relearned after finetuning globally")
+
+        percent_relearned_through_finetuning_l = pipelines.pipe_relearned_concepts(
+            [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
+            task='local', 
+            get_concepts_func = 'indiv',
+            fname = f"Analysis/Expls{identifier}%Pruned/LocallyRelearned{identifier}%Pruned.csv"
+        )
+
+
 
 
 def parse_args():

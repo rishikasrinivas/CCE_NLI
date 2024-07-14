@@ -18,7 +18,7 @@ METRIC = "iou"
 EMBEDDING_NEIGHBORHOOD_SIZE = 5
 
 NEURONS = None
-PARALLEL = 1
+PARALLEL = 0.5
 
 SHUFFLE = False
 SAVE_EVERY = 4
@@ -28,7 +28,7 @@ MAX_OPEN_FEATS = 5
 # Minimum number of activations to analyze a neuron
 
 
-MODEL = "models/snli/6.pth"
+MODEL = "models/snli/nopruning.pth"
 MODEL_TYPE = "bowman"  # choices: bowman, minimal, imdbData
 RANDOM_WEIGHTS = False  # Initialize weights randomly (equivalent to an untrained model)
 N_SENTENCE_FEATS = 2000  # how many of the most common sentence lemmas to keep

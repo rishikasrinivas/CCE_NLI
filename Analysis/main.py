@@ -6,60 +6,59 @@ import record_global
 from stats import percent_overlap
 import pipelines
 from utils import intersection, union
+import sys
+sys.path.append('/workspace/CCE_NLI/code')
+import fileio as fileio
+sys.path.append('/workspace/CCE_NLI/Results')
+import files
 
 def main():
-    initial_expls = {'original': 
-                     ["Analysis/Expls0.0%Pruned/Cluster1IOUS1024N.csv",
-                      "Analysis/Expls0.0%Pruned/Cluster2IOUS1024N.csv",
-                      "Analysis/Expls0.0%Pruned/Cluster3IOUS1024N.csv",
-                     "Analysis/Expls0.0%Pruned/Cluster4IOUS1024N.csv"
-                     ]
-                    }
-    prunedBeforeRT_expls = {'prunedBefore': [
-                f"Cluster1IOUSPruneWoRetrain.csv",
-                f"Cluster1IOUSPruneWoRetrain.csv",
-                f"Cluster1IOUSPruneWoRetrain.csv",
-                f"Cluster1IOUSPruneWoRetrain.csv",
-            ]}
-
-    #ANALYSIS measure local consistency and global consistency
-    prunedAfterRT_expls = {'prunedAfter': [
-        f"Cluster1IOUS5%.csv",
-        f"Cluster2IOUS5%.csv",
-        f"Cluster3IOUS5%.csv",
-        f"Cluster4IOUS5%.csv",
-    ]}
     
-    print(pipelines.pipe_percent_lost([initial_expls,prunedAfterRT_expls], get_concepts_func='indiv'))
+    expls=[files.prune_b_half,files.prune_a_half, files.prune_b_1,files.prune_a_1, files.prune_b_1half, files.prune_a_1half, files.prune_b_2, files.prune_a_2]
+    prune_iter=0
+    for i in range(0,len(expls),2):
+        prune_iter+=1
+        print(f"{0.5*prune_iter}% pruned")
+        prunedBeforeRT_expls = {'prunedBefore': expls[i]}
 
-    percent_of_cps_preserved_globally = pipelines.pipe_explanation_similiarity(
-        [initial_expls,prunedAfterRT_expls], 
-        task='global', 
-        get_concepts_func = 'indiv',
-    )
-    print(f"percent_of_cps_preserved_globally: {percent_of_cps_preserved_globally}")
+        #ANALYSIS measure local consistency and global consistency
+        prunedAfterRT_expls = {'prunedAfter': expls[i+1]}
 
-    percent_of_cps_preserved_locally = pipelines.pipe_explanation_similiarity(
-        [initial_expls,prunedAfterRT_expls],
-        task='local', 
-        get_concepts_func = 'indiv',
-        fname = f"LocallyPreserved5%Pruned.csv"
-    )
+        globally_lost = pipelines.pipe_percent_lost([files.initial_expls,prunedAfterRT_expls], get_concepts_func='indiv', as_percent=True)
+        print(f"Globally lost: {globally_lost}")
+        percent_of_cps_preserved_globally = pipelines.pipe_explanation_similiarity(
+            [files.initial_expls,prunedAfterRT_expls], 
+            task='global', 
+            get_concepts_func = 'indiv',
+        )
+        print(f"percent_of_cps_preserved_globally: {percent_of_cps_preserved_globally}")
 
-    percent_relearned_through_finetuning = pipelines.pipe_relearned_concepts(
-        [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
-        task='global', 
-        get_concepts_func = 'indiv'
-    )
+        percent_of_cps_preserved_locally = pipelines.pipe_explanation_similiarity(
+            [files.initial_expls,prunedAfterRT_expls],
+            task='local', 
+            get_concepts_func = 'indiv',
+            fname = f"Results/LocallyPreserved{0.5*prune_iter}%Pruned.csv"
+        )
+
+        percent_relearned_through_finetuning_g = pipelines.pipe_relearned_concepts(
+            [files.initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
+            task='global', 
+            get_concepts_func = 'indiv'
+        )
+
+        print(f"percent_relearned_through_finetuning: {percent_relearned_through_finetuning_g}")
+
+        percent_relearned_through_finetuning = pipelines.pipe_relearned_concepts(
+            [files.initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
+            task='local', 
+            get_concepts_func = 'indiv',
+            fname = f"Results/LocallyRelearned{0.5*prune_iter}%Pruned.csv"
+        )
+        fileio.log_to_csv("results_xai.csv", [0.5*prune_iter, percent_relearned_through_finetuning_g, percent_of_cps_preserved_globally, globally_lost], ['% pruned', '% relearned', '% preserved', 'lost'])
+        pipelines.pipe_avg_ious([files.initial_expls,prunedAfterRT_expls], prune_iter)
+        
     
-    print(f"percent_relearned_through_finetuning: {percent_relearned_through_finetuning}")
-
-    percent_relearned_through_finetuning = pipelines.pipe_relearned_concepts(
-        [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
-        task='local', 
-        get_concepts_func = 'indiv',
-        fname = f"LocallyRelearned5%Pruned.csv"
-    )
+        
 
 """        
 def main():

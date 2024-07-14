@@ -1,5 +1,0 @@
-unit,best_name,best_iou
-6,((((pre:tok:lower OR pre:tok:spin) OR hyp:tok:gym) OR pre:tok:riders) OR hyp:tok:bandanna),0.0891089108910891
-8,((((hyp:tok:mall OR hyp:tok:shooting) OR hyp:tok:so) OR pre:tok:curb) OR hyp:tok:stream),0.10112359550561797
-12,(hyp:tok:wearing AND pre:tok:commuter),0.5
-15,((((hyp:tok:buggy OR hyp:tok:shaved) AND hyp:tok:is) OR pre:tok:displaying) AND hyp:tok:is),0.2

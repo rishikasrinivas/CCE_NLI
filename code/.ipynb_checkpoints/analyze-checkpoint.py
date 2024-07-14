@@ -328,12 +328,14 @@ def compute_best_sentence_iou(args):
             new_formula = formula
             if negate:
                 new_formula = FM.Not(new_formula)
+                
             #handling if neightbors dont exist --added
             new_formula = op(new_formula)
             
             new_iou = compute_iou(unit, cluster,run,
                 new_formula, acts, feats, dataset, feat_type="sentence"
             )
+            
             formulas[new_formula] = new_iou
     nonzero_iou = [k.val for k, v in formulas.items() if v > 0]
     #print("Finished computing formulas. Derived ", len(formulas), " formulas")
@@ -514,8 +516,10 @@ def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =No
     
 
     if settings.PARALLEL < 1:
+        print("fake pool")
         pool_cls = util.FakePool
     else:
+        print("multithread")
         pool_cls = mp.Pool
 
     n_done = 0
@@ -752,14 +756,16 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
     if not masks_saved:
         print("creating masks storing in ",save_masks_dir )
         activation_ranges = create_clusters(activations,4)
-        acts=build_masks(states, activation_ranges, 4, save_masks_dir)
+        build_masks(states, activation_ranges, 4, save_masks_dir)
+    masks_saved = True
     for cluster_num in range(resume_from,5): 
         if masks_saved:
+            print(f"{cluster_num} found : {f'Cluster{cluster_num}masks.pt' in os.listdir(save_masks_dir)}")
             if f"Cluster{cluster_num}masks.pt" in os.listdir(save_masks_dir):
-                acts = torch.load(f"{save_masks_dir}/Cluster{cluster_num}masks.pt").numpy()
+                acts = torch.load(f"{save_masks_dir}/Cluster{cluster_num}masks.pt")
                 #if acts.dtype == torch.float32:
                 print("converting")
-                acts =torch.tensor(acts).bool().numpy()
+                acts = acts.bool().numpy()
 
             else:
                 raise Exception("cant find")
@@ -801,7 +807,7 @@ def per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dat
     return states
             
 
-def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path, adjust_final_weights=False, amount=0, model_=None, dataset=None,resume_from=1, q_ret=0):
+def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path=None, adjust_final_weights=False, amount=0, model_=None, dataset=None,resume_from=1, q_ret=0):
     
     if model_==None and dataset==None:
         model, dataset = data.snli.load_for_analysis(
@@ -841,7 +847,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path, adjust_fina
     print("Extracting sentence token features")
     
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
-   
+    
     acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved, resume_from=resume_from)
     return acts, weights
 
