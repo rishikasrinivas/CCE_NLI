@@ -167,11 +167,7 @@ class BowmanEntailmentClassifier(nn.Module):
         if settings.PRUNE_METHOD == 'lottery_ticket':
             assert final_weights.shape[0] == 2048
             mask, weights = self.prune_masks(amount, mask, final_weights) #basically need to set this = to the weights in analyze
-            self.mlp[:-1][0].weight.t().detach().cpu().copy_(weights)
-            if torch.equal(self.mlp[:-1][0].weight.t().detach().cpu(), weights):
-                print("Same")
-            else:
-                print(torch.where(layer.weight.t().detach().cpu() != weights, 1,0).sum())
+            self.mlp[:-1][0].weight.t().detach().copy_(weights)
             return self, mask, weights
         elif settings.PRUNE_METHOD == 'incremental':
             print("Pruning by: ",amount)

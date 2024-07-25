@@ -23,7 +23,7 @@ PARALLEL = 1
 SHUFFLE = False
 SAVE_EVERY = 4
 PRUNE_METHOD='incremental' #coices: lottery_ticket, incremental
-PRUNE_AMT=0.005
+PRUNE_AMT=0.05
 # How many "maximally activating" open features to use, PER CATEGORY
 MAX_OPEN_FEATS = 5
 # Minimum number of activations to analyze a neuron

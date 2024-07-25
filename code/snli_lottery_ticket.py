@@ -80,28 +80,28 @@ def verify_pruning(model, prev_total_pruned_amt): # does this:
     
 def reload_stats():
     prunedBeforeRT_expls = {'prunedBefore': [
-                f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster1IOUS1024N.csv",
-                f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster2IOUS1024N.csv",
-                f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster3IOUS1024N.csv",
-                f"Analysis/Expls{identifier}%Pruned/BeforeFT/Cluster4IOUS1024N.csv",
+                f"Analysis/LHExpls/Expls{identifier}%Pruned/BeforeFT/Cluster1IOUS1024N.csv",
+                f"Analysis/LHExpls/Expls{identifier}%Pruned/BeforeFT/Cluster2IOUS1024N.csv",
+                f"Analysis/LHExpls/Expls{identifier}%Pruned/BeforeFT/Cluster3IOUS1024N.csv",
+                f"Analysis/LHExpls/Expls{identifier}%Pruned/BeforeFT/Cluster4IOUS1024N.csv",
             ]}
     prunedAfterRT_expls = {'prunedAfter': [
-            f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster1IOUS1024N.csv",
-            f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster2IOUS1024N.csv",
-            f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster3IOUS1024N.csv",
-            f"Analysis/Expls{identifier}%Pruned/AfterFT/Cluster4IOUS1024N.csv",
+            f"Analysis/LHExpls/Expls{identifier}%Pruned/AfterFT/Cluster1IOUS1024N.csv",
+            f"Analysis/LHExpls/Expls{identifier}%Pruned/AfterFT/Cluster2IOUS1024N.csv",
+            f"Analysis/LHExpls/Expls{identifier}%Pruned/AfterFT/Cluster3IOUS1024N.csv",
+            f"Analysis/LHExpls/Expls{identifier}%Pruned/AfterFT/Cluster4IOUS1024N.csv",
         ]}
     initial_expls = {'original': 
-                     ["Analysis/Explanations/Cluster1IOUSOrig.csv",
-                      "Analysis/Explanations/Cluster2IOUSOrig.csv",
-                      "Analysis/Explanations/Cluster3IOUSOrig.csv",
-                      "Analysis/Explanations/Cluster4IOUSOrig.csv"
+                     ["Analysis/LHExpls/Explanations/Cluster1IOUSOrig.csv",
+                      "Analysis/LHExpls/Explanations/Cluster2IOUSOrig.csv",
+                      "Analysis/LHExpls/Explanations/Cluster3IOUSOrig.csv",
+                      "Analysis/LHExpls/Explanations/Cluster4IOUSOrig.csv"
                      ]
                     }
     percent_concepts_lost_to_pruning_local = pipelines.pipe_percent_lost(
         [initial_expls,prunedBeforeRT_expls],
         task = 'local',
-        fname = f"Analysis/Expls{identifier}%Pruned/LostTo{identifier}%PruningBeforeFinetune.csv"
+        fname = f"Analysis/LHExpls/Expls{identifier}%Pruned/LostTo{identifier}%PruningBeforeFinetune.csv"
 
     )
 
@@ -136,7 +136,7 @@ def reload_stats():
         [initial_expls,prunedAfterRT_expls],
         task='local', 
         get_concepts_func = 'indiv',
-        fname = f"Analysis/Expls{identifier}%Pruned/LocallyPreserved{identifier}%Pruned.csv"
+        fname = f"Analysis/LHExpls/Expls{identifier}%Pruned/LocallyPreserved{identifier}%Pruned.csv"
     )
 
     percent_relearned_through_finetuning_g = pipelines.pipe_relearned_concepts(
@@ -160,12 +160,13 @@ def reload_stats():
         [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
         task='local', 
         get_concepts_func = 'indiv',
-        fname = f"Analysis/Expls{identifier}%Pruned/LocallyRelearned{identifier}%Pruned.csv"
+        fname = f"Analysis/LHExpls/Expls{identifier}%Pruned/LocallyRelearned{identifier}%Pruned.csv"
     )
 #running the expls using the already finetuned and precreated masks from before
 def main(args):
     
     settings.PRUNE_METHOD='lottery_ticket'
+    settings.PRUNE_AMT=0.2
     os.makedirs(args.exp_dir, exist_ok=True)
 
     # ==== LOAD DATA ====
@@ -286,7 +287,6 @@ def main(args):
                     save_exp_dir = expls_before_finetuning_flder, 
                     save_masks_dir= masks_before_finetuning_flder, 
                     masks_saved=False, 
-                    path=path_to_ckpt, 
                     model_=model,
                     dataset=dataset,
                 )
@@ -313,7 +313,6 @@ def main(args):
             save_exp_dir = exp_after_finetuning_flder, 
             save_masks_dir= masks_after_finetuning_flder, 
             masks_saved=False, 
-            path=path_to_ckpt,
             model_=model,
             dataset=dataset,
 
@@ -351,7 +350,7 @@ def parse_args():
         description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
     )
 
-    parser.add_argument("--exp_dir", default="models/snli/")
+    parser.add_argument("--exp_dir", default="models/snli/LH")
     parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/LH")
     parser.add_argument("--model_dir", default="exp/snli/model_dir")
     parser.add_argument("--store_exp_bkdown", default="exp/snli_1.0_dev-6-sentence-5/")
