@@ -24,14 +24,14 @@ def main():
         #ANALYSIS measure local consistency and global consistency
         prunedAfterRT_expls = {'prunedAfter': expls[i+1]}
 
-        globally_lost = pipelines.pipe_percent_lost([files.initial_expls,prunedAfterRT_expls], get_concepts_func='indiv', as_percent=True)
+        globally_lost = pipelines.pipe_percent_lost([files.initial_expls,prunedAfterRT_expls], get_concepts_func='indiv', task='global', fname=f"Results/LocallyLost{0.5*prune_iter}%Pruned.csv", as_percent=True)
         print(f"Globally lost: {globally_lost}")
         percent_of_cps_preserved_globally = pipelines.pipe_explanation_similiarity(
             [files.initial_expls,prunedAfterRT_expls], 
             task='global', 
-            get_concepts_func = 'indiv',
+            get_concepts_func = 'indiv'
         )
-        print(f"percent_of_cps_preserved_globally: {percent_of_cps_preserved_globally}")
+        print(f"IOU: {percent_of_cps_preserved_globally}")
 
         percent_of_cps_preserved_locally = pipelines.pipe_explanation_similiarity(
             [files.initial_expls,prunedAfterRT_expls],
@@ -63,10 +63,10 @@ def main():
 """        
 def main():
     concept_retrieve_funcs = [(get_indiv_concepts_per_cluster,get_indiv_concepts) , (get_grouped_concepts_per_cluster,get_all_grouped_cps)]
-    clus_1_5 = prep("Analysis/Explanations/Cluster1IOUS5%.csv")
-    clus_2_5 = prep("Analysis/Explanations/Cluster2IOUS5%.csv")
-    clus_3_5 = prep("Analysis/Explanations/Cluster3IOUS5%.csv")
-    clus_4_5 = prep("Analysis/Explanations/Cluster4IOUS5%.csv")
+    clus_1_5 = prep("Analysis/IncExpls/Explanations/Cluster1IOUS5%.csv")
+    clus_2_5 = prep("Analysis/IncExpls/Explanations/Cluster2IOUS5%.csv")
+    clus_3_5 = prep("Analysis/IncExpls/Explanations/Cluster3IOUS5%.csv")
+    clus_4_5 = prep("Analysis/IncExpls/Explanations/Cluster4IOUS5%.csv")
     
     clus_1_np = prep("Analysis/Explanations/Cluster1IOUSOrig.csv")
     clus_2_np = prep("Analysis/Explanations/Cluster2IOUSOrig.csv")

@@ -4,8 +4,8 @@ import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torch.nn.functional as F
 import torch.nn.utils.prune as prune
-
-
+import numpy as np
+import settings
 class SentimentClassifier(nn.Module):
     def __init__(self, encoder):
         super().__init__()
@@ -130,7 +130,7 @@ class BowmanEntailmentClassifier(nn.Module):
             layer = self.mlp[:-1]
         return prune.is_pruned(layer)
     
-    def prune_masks(percent, mask, final_weights):
+    def prune_masks(self,percent, mask, final_weights):
         """Return new masks that involve pruning the smallest of the final weights.
 
             Args:
@@ -149,24 +149,32 @@ class BowmanEntailmentClassifier(nn.Module):
             sorted_weights = np.sort(np.abs(final_weight[mask == 1]))
 
             # Determine the cutoff for weights to be pruned.
+
             cutoff_index = np.round(percent * sorted_weights.size).astype(int)
-            cutoff = sorted_weights[cutoff_index]
-
+            cutoff = sorted_weights[cutoff_index - 1] 
             # Prune all weights below the cutoff.
-            return torch.where(torch.abs(torch.tensor(final_weight)) <= cutoff, torch.zeros(mask.shape), mask)
+            new_mask= torch.where(torch.abs(torch.tensor(final_weight)) <= cutoff, torch.zeros(mask.shape), mask)
+            new_weights= torch.where(torch.abs(torch.tensor(final_weight)) <= cutoff, torch.zeros(mask.shape), torch.tensor(final_weight))
+            return new_mask, new_weights
 
+        
         return prune_by_percent_once(percent, mask, final_weights)
 
     
-    def prune(self, layer='default', amount=0.005, final_weights, mask=None):
+    def prune(self, layer='default', amount=0.005, final_weights=None, mask=None):
         if layer == 'default':
             layer = self.mlp[:-1][0]
         if settings.PRUNE_METHOD == 'lottery_ticket':
             assert final_weights.shape[0] == 2048
-            mask = self.prune_masks(amount, mask, final_weights) #basically need to set this = to the weights in analyze
-            layer.weight.t().detach().cpu().copy_(mask)
-            return self, mask
+            mask, weights = self.prune_masks(amount, mask, final_weights) #basically need to set this = to the weights in analyze
+            self.mlp[:-1][0].weight.t().detach().cpu().copy_(weights)
+            if torch.equal(self.mlp[:-1][0].weight.t().detach().cpu(), weights):
+                print("Same")
+            else:
+                print(torch.where(layer.weight.t().detach().cpu() != weights, 1,0).sum())
+            return self, mask, weights
         elif settings.PRUNE_METHOD == 'incremental':
+            print("Pruning by: ",amount)
             if not self.check_pruned() :
                 prune.ln_structured(layer, name="weight", amount=amount, dim=1, n=2)
         return self

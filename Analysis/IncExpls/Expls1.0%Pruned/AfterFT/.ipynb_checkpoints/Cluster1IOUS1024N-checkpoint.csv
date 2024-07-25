@@ -1,0 +1,9 @@
+unit,best_name,best_iou
+6,((((NOT oth:overlap:overlap50) AND (pre:tok:into OR pre:tok:to)) OR hyp:tok:couple) OR hyp:tok:he),0.06757557794902193
+8,((((NOT pre:tok:on) AND (hyp:tok:about OR hyp:tok:for)) OR hyp:tok:mother) OR pre:tok:outdoors),0.06966618287373004
+12,((((NOT oth:overlap:overlap50) AND (pre:tok:outside OR pre:tok:people)) OR hyp:tok:sleeping) OR hyp:tok:nobody),0.0801658604008293
+15,(((((NOT pre:tok:sitting) AND hyp:tok:sitting) OR hyp:tok:driving) AND (NOT hyp:tok:are)) OR hyp:tok:couch),0.08135593220338982
+16,((((oth:overlap:overlap75 OR pre:tok:to) OR pre:tok:piece) OR pre:tok:long) AND (NOT pre:tok:red)),0.08952863018032269
+17,(((((NOT pre:tok:girl) AND hyp:tok:girl) OR pre:tok:trick) OR hyp:tok:conversation) AND (NOT oth:overlap:overlap50)),0.06896551724137931
+19,((((hyp:tok:buses OR hyp:tok:hoops) OR hyp:tok:spin) OR hyp:tok:lime) OR hyp:tok:marching),0.14705882352941177
+21,((((hyp:tok:in AND oth:overlap:overlap75) OR hyp:tok:first) OR pre:tok:taken) OR pre:tok:burning),0.0662739322533137

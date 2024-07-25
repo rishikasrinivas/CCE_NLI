@@ -1,13 +1,20 @@
 import pandas as pd
+
 def save_to_csv(dictionary, fname):
     ml=0
     for k,v in dictionary.items():
-        if len(v)>ml:
-            ml=len(v)
-    for k,v in dictionary.items():
-        dictionary[k]=list(dictionary[k])
-        while len(dictionary[k])!=ml:
-            dictionary[k].append('')
+        if type(v)!= float:
+            if len(v)>ml:
+                ml=len(v)
+        else:
+            dictionary[k] = [v]
+    if type(v) != float:
+        for k,v in dictionary.items():
+
+            dictionary[k]=list(dictionary[k])
+            while len(dictionary[k])!=ml:
+                dictionary[k].append('')
+
     pd.DataFrame(dictionary).to_csv(fname)
     
 def intersection(lst1, lst2):

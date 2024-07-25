@@ -87,6 +87,10 @@ def main(args):
     # ==== BUILD MODEL ====
     model = build_model(len(ckpt["stoi"]), args.model_type)
     model.load_state_dict(ckpt["state_dict"])
+    
+    model.prune(0.02)
+    model.check_pruned()
+    
     model.eval()
 
     if args.cuda:
@@ -130,7 +134,7 @@ def main(args):
         acc = (all_preds == all_targets).mean()
         print(f"Val acc: {acc:.3f}")
 
-        # Save predictions
+        '''# Save predictions
         fbase = os.path.splitext(os.path.basename(val.text_path))[0]
         mbase = os.path.splitext(os.path.basename(args.model))[0]
         preds_file = f"{mbase}_{fbase}.csv"
@@ -142,7 +146,7 @@ def main(args):
         preds = [val.label_itos[i] for i in all_preds]
         hits = [i == j for i, j in zip(val.labels, all_preds)]
         preds_df = pd.DataFrame({"gt": gt_labels, "pred": preds, "correct": hits})
-        preds_df.to_csv(preds_file, index=False)
+        preds_df.to_csv(preds_file, index=False)'''
 
     # ==== INTERACTIVE ====
     if args.data == "-":

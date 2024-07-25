@@ -164,6 +164,8 @@ def reload_stats():
     )
 #running the expls using the already finetuned and precreated masks from before
 def main(args):
+    
+    settings.PRUNE_METHOD='lottery_ticket'
     os.makedirs(args.exp_dir, exist_ok=True)
 
     # ==== LOAD DATA ====
@@ -266,6 +268,7 @@ def main(args):
         #masks and explanation storing paths after finetuning
         exp_after_finetuning_flder = f"Analysis/LHExpls/Expls{prune_iter}Pruning_Iter/AfterFT"
         if not os.path.exists(exp_after_finetuning_flder):
+            os.mkdir(f"Analysis/LHExpls/Expls{prune_iter}Pruning_Iter/")
             os.mkdir(exp_after_finetuning_flder) 
 
         masks_after_finetuning_flder = f"code/LHMasks/Masks{prune_iter}Pruning_Iter/AfterFT"
@@ -273,7 +276,8 @@ def main(args):
             os.mkdir(masks_after_finetuning_flder)
         
         print("Prune amt", settings.PRUNE_AMT)
-        model, prune_mask = model.prune(amount=settings.PRUNE_AMT,final_weights, prune_mask) 
+        model, prune_mask, new_weights = model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, mask=prune_mask)
+        assert  torch.equal(model.mlp[:-1][0].weight.t().detach().cpu(), new_weights)
         if settings.CUDA:
             device = 'cuda'
             model = model.cuda()
@@ -323,10 +327,10 @@ def main(args):
             f"Analysis/LHExpls/Expls{identifier}%Pruned/AfterFT/Cluster4IOUS1024N.csv",
         ]}
         initial_expls = {'original': 
-                         ["CCE_NLI/Analysis/Expls0.0%Pruned/Cluster1IOUS1024N.csv",
-                          "CCE_NLI/Analysis/Expls0.0%Pruned/Cluster2IOUS1024N.csv",
-                          "CCE_NLI/Analysis/Expls0.0%Pruned/Cluster3IOUS1024N.csv",
-                          "CCE_NLI/Analysis/Expls0.0%Pruned/Cluster4IOUS1024N.csv",
+                         ["CCE_NLI/Analysis/LHExpls/Expls0.0%Pruned/Cluster1IOUS1024N.csv",
+                          "CCE_NLI/Analysis/LHExpls/Expls0.0%Pruned/Cluster2IOUS1024N.csv",
+                          "CCE_NLI/Analysis/LHExpls/Expls0.0%Pruned/Cluster3IOUS1024N.csv",
+                          "CCE_NLI/Analysis/LHExpls/Expls0.0%Pruned/Cluster4IOUS1024N.csv",
                          ]
                         }
         percent_of_cps_preserved_globally = pipelines.pipe_explanation_similiarity(

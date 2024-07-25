@@ -114,6 +114,7 @@ def record_common_concepts(concepts : list, fname=None):
     for pruned, original in zip(concepts[0], concepts[1]):
         cluster += 1
         common[f'Cluster{cluster}'] = concept_analysis.calculate_similarity_across_explanations(pruned, original).to_dict()
+        
     if fname != None:
         combined_df = pd.DataFrame({key: df for key, df in common.items()}).to_csv(fname)
     return common
