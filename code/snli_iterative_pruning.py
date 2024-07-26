@@ -72,89 +72,8 @@ def finetune_pruned_model(model,optimizer,criterion, dataloaders, train, val, fi
     path_to_ckpt = os.path.join(prune_metrics_dir, f"LotTick{finetune_epochs-1}.pth")
     return path_to_ckpt, metrics, model
         
-def record_stats(prune_metrics_dir, identifier):
-    prunedBeforeRT_expls = {'prunedBefore': [
-                f"Analysis/IncExpls/Expls{identifier}%Pruned/BeforeFT/Cluster1IOUS1024N.csv",
-                f"Analysis/IncExpls/Expls{identifier}%Pruned/BeforeFT/Cluster2IOUS1024N.csv",
-                f"Analysis/IncExpls/Expls{identifier}%Pruned/BeforeFT/Cluster3IOUS1024N.csv",
-                f"Analysis/IncExpls/Expls{identifier}%Pruned/BeforeFT/Cluster4IOUS1024N.csv",
-            ]}
-    prunedAfterRT_expls = {'prunedAfter': [
-            f"Analysis/IncExpls/Expls{identifier}%Pruned/AfterFT/Cluster1IOUS1024N.csv",
-            f"Analysis/IncExpls/Expls{identifier}%Pruned/AfterFT/Cluster2IOUS1024N.csv",
-            f"Analysis/IncExpls/Expls{identifier}%Pruned/AfterFT/Cluster3IOUS1024N.csv",
-            f"Analysis/IncExpls/Expls{identifier}%Pruned/AfterFT/Cluster4IOUS1024N.csv",
-        ]}
-    initial_expls = {'original': 
-                     ["Analysis/IncExpls/Expls0.0%Pruned/Cluster1IOUS1024N.csv",
-                      "Analysis/IncExpls/Expls0.0%Pruned/Cluster2IOUS1024N.csv",
-                      "Analysis/IncExpls/Expls0.0%Pruned/Cluster3IOUS1024N.csv",
-                      "Analysis/IncExpls/Expls0.0%Pruned/Cluster4IOUS1024N.csv"
-                     ]
-                    }
-    percent_concepts_lost_to_pruning_local = pipelines.pipe_percent_lost(
-        [initial_expls,prunedBeforeRT_expls],
-        task = 'local',
-        fname = f"Analysis/IncExpls/Expls{identifier}%Pruned/LocalLostTo{identifier}%Pruned_PruningBeforeFinetune.csv",
-
-    )
-
-    percent_concepts_lost_to_pruning_globally = pipelines.pipe_percent_lost(
-        [initial_expls,prunedBeforeRT_expls],
-        task = 'global',
-        fname = f"Analysis/IncExpls/Expls{identifier}%Pruned/GlobalLostTo{identifier}%Pruned_PruningBeforeFinetune.csv",
-     
-    )
-    
-    prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{identifier}%Pruned")
-    weights=torch.load(f"{prune_metrics_dir}/model_best.pth")['state_dict']['mlp.0.weight']
-    fileio.log_to_csv(os.path.join(prune_metrics_dir,"pruned_status.csv"), [(torch.where(weights==0,1,0).sum() / (1024*2048)).item()], f"{identifier}: % PRUNED")
-    
-    
-    percent_of_cps_preserved_globally = pipelines.pipe_explanation_similiarity(
-        [initial_expls,prunedAfterRT_expls], 
-        task='global', 
-        get_concepts_func = 'indiv',
-    )
-    fileio.log_to_csv(os.path.join(prune_metrics_dir,"global_exp_sim_indiv.csv"), percent_of_cps_preserved_globally, "Explanation similarity individual concept level globally")
-
-    percent_of_comp_cps_preserved_globally = pipelines.pipe_explanation_similiarity(
-        [initial_expls,prunedAfterRT_expls], 
-        task='global', 
-        get_concepts_func = 'group',
-    )
-        
-    fileio.log_to_csv(os.path.join(prune_metrics_dir,"global_exp_sim_compos.csv"), percent_of_comp_cps_preserved_globally, "Explanation similarity compositional concept level globally")
-
-
-    percent_of_cps_preserved_locally = pipelines.pipe_explanation_similiarity(
-        [initial_expls,prunedAfterRT_expls],
-        task='local', 
-        get_concepts_func = 'indiv',
-        fname = f"Analysis/IncExpls/Expls{identifier}%Pruned/LocallyPreserved{identifier}%Pruned.csv"
-    )
-
-    percent_relearned_through_finetuning_g = pipelines.pipe_relearned_concepts(
-        [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
-        task='global', 
-        get_concepts_func = 'indiv'
-    )
-    fileio.log_to_csv(os.path.join(prune_metrics_dir,"indiv_after_finetune_glob.csv"), percent_relearned_through_finetuning_g, "% of indiv concepts relearned after finetuning globally")
-    
-    percent_relearned_through_finetuning_g_group = pipelines.pipe_relearned_concepts(
-        [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
-        task='global', 
-        get_concepts_func = 'group'
-    )
-    fileio.log_to_csv(os.path.join(prune_metrics_dir,"comp_relearned_glob.csv"), percent_relearned_through_finetuning_g_group, "% of compositions relearned after finetuning globally")
-
-    percent_relearned_through_finetuning_l = pipelines.pipe_relearned_concepts(
-        [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
-        task='local', 
-        get_concepts_func = 'indiv',
-        fname = f"Analysis/IncExpls/Expls{identifier}%Pruned/LocallyRelearned{identifier}%Pruned.csv"
-    )
-#running the expls using the already finetuned and precreated masks from before
+  
+# running the expls using the already finetuned and precreated masks from before
 def main(args):
     settings.PRUNE_METHOD='incremental'
     os.makedirs(args.exp_dir, exist_ok=True)
@@ -313,7 +232,28 @@ def main(args):
 
         ) 
         
-        record_stats(prune_metrics_dir,identifier)
+        prunedBeforeRT_expls = {'prunedBefore': [
+                f"Analysis/IncExpls/Expls{identifier}%Pruned/BeforeFT/Cluster1IOUS1024N.csv",
+                f"Analysis/IncExpls/Expls{identifier}%Pruned/BeforeFT/Cluster2IOUS1024N.csv",
+                f"Analysis/IncExpls/Expls{identifier}%Pruned/BeforeFT/Cluster3IOUS1024N.csv",
+                f"Analysis/IncExpls/Expls{identifier}%Pruned/BeforeFT/Cluster4IOUS1024N.csv",
+            ]}
+        prunedAfterRT_expls = {'prunedAfter': [
+            f"Analysis/IncExpls/Expls{identifier}%Pruned/AfterFT/Cluster1IOUS1024N.csv",
+            f"Analysis/IncExpls/Expls{identifier}%Pruned/AfterFT/Cluster2IOUS1024N.csv",
+            f"Analysis/IncExpls/Expls{identifier}%Pruned/AfterFT/Cluster3IOUS1024N.csv",
+            f"Analysis/IncExpls/Expls{identifier}%Pruned/AfterFT/Cluster4IOUS1024N.csv",
+        ]}
+        initial_expls = {'original': 
+                     ["Analysis/IncExpls/Expls0.0%Pruned/Cluster1IOUS1024N.csv",
+                      "Analysis/IncExpls/Expls0.0%Pruned/Cluster2IOUS1024N.csv",
+                      "Analysis/IncExpls/Expls0.0%Pruned/Cluster3IOUS1024N.csv",
+                      "Analysis/IncExpls/Expls0.0%Pruned/Cluster4IOUS1024N.csv"
+                     ]
+                    }
+        
+        files=[prunedBeforeRT_expls, prunedAfterRT_expls, initial_expls]
+        util.record_stats(args.prune_metrics_dir,identifier, files, '%')
 
 
 def parse_args():
