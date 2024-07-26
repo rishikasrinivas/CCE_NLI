@@ -8,10 +8,12 @@ import shutil
 import os
 import json
 import fileio
+import sys
 # Define the path to the module you want to import
 analysis_path = os.path.abspath("Analysis/pipelines.py")
 
 # Load the module dynamically
+import importlib
 spec = importlib.util.spec_from_file_location("pipelines", analysis_path)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
