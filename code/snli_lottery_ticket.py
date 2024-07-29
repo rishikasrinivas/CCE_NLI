@@ -197,7 +197,7 @@ def main(args):
 
         print("Prune amt", settings.PRUNE_AMT)
         if prune_iter != 1:
-            model, prune_mask, new_weights = model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, mask=prune_mask)
+            model, prune_mask, new_weights = model.prune(amount=settings.PRUNE_AMT,final_weights=new_weights, mask=prune_mask)
             assert  torch.equal(model.mlp[:-1][0].weight.t().detach().cpu(), new_weights)
             if settings.CUDA:
                 device = 'cuda'
@@ -210,36 +210,39 @@ def main(args):
                         model_=model,
                         dataset=dataset,
                     )
+            assert  torch.equal(torch.tensor(final_weights), new_weights)
+            path_to_ckpt, metrics, model = finetune_pruned_model(model,optimizer,criterion,dataloaders, train, val, args.finetune_epochs, args.prune_metrics_dir, metrics, device)
+
+
+            prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{prune_iter}_Pruning_Iter")
+            weights=torch.load(f"{args.prune_metrics_dir}/model_best.pth")['state_dict']['mlp.0.weight']
+            total_pruned_amt=torch.where(weights==0,1,0).sum()
+            fileio.log_to_csv(os.path.join(prune_metrics_dir,"pruned_status.csv"), str(total_pruned_amt / (1024*2048)), f"{prune_iter}: % PRUNED")
+
+
+
+            if settings.CUDA:
+                device = 'cuda'
+                model = model.cuda()
+            else:
+                device = 'cpu'
+
+
+            #run after pruning and finetuning
+            _,final_weights=initiate_exp_run(
+                save_exp_dir = exp_after_finetuning_flder, 
+                save_masks_dir= masks_after_finetuning_flder, 
+                masks_saved=False, 
+                model_=model,
+                dataset=dataset,
+
+            ) 
         else:
             model, prune_mask, new_weights = model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, mask=prune_mask)
-        assert  torch.equal(model.mlp[:-1][0].weight.t().detach().cpu(), new_weights)
-        path_to_ckpt, metrics, model = finetune_pruned_model(model,optimizer,criterion,dataloaders, train, val, args.finetune_epochs, args.prune_metrics_dir, metrics, device)
-
-
-        prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{prune_iter}_Pruning_Iter")
-        weights=torch.load(f"{args.prune_metrics_dir}/model_best.pth")['state_dict']['mlp.0.weight']
-        total_pruned_amt=torch.where(weights==0,1,0).sum()
-        fileio.log_to_csv(os.path.join(prune_metrics_dir,"pruned_status.csv"), str(total_pruned_amt / (1024*2048)), f"{prune_iter}: % PRUNED")
-        
-
-
-        if settings.CUDA:
-            device = 'cuda'
-            model = model.cuda()
-        else:
-            device = 'cpu'
+            assert  torch.equal(model.mlp[:-1][0].weight.t().detach().cpu(), new_weights)
+    
             
-        
-        #run after pruning and finetuning
-        _,final_weights=initiate_exp_run(
-            save_exp_dir = exp_after_finetuning_flder, 
-            save_masks_dir= masks_after_finetuning_flder, 
-            masks_saved=False, 
-            model_=model,
-            dataset=dataset,
 
-        ) 
-        
         
         prunedAfterRT_expls = {'prunedAfter': [
             f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/AfterFT/Cluster1IOUS1024N.csv",

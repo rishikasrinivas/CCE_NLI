@@ -237,7 +237,7 @@ def get_concept(formula, dataset):
     """
     inds = re.findall("[0-9]+",str(formula))
     c = ""
-    if len(inds) >= 3:
+    if len(inds) >= 2:
         for i in inds:
             c += dataset['itos'][int(i)] + " "
         return c
@@ -279,7 +279,7 @@ def compute_iou(unit, cluster,run, formula, acts, feats, dataset, feat_type="wor
     
     
     
-    #concept=get_concept(formula,dataset)
+    concept=get_concept(formula,dataset)
   
     '''if (len(concept) >= 2):
         if sentence_num is None: #if not running this on 1 sentence at a time
@@ -288,6 +288,8 @@ def compute_iou(unit, cluster,run, formula, acts, feats, dataset, feat_type="wor
     if settings.METRIC == "iou":
         #if running w only 1 sentence iou would be.1 or 0, acts will be 1,1 (this is act for each neuron so 1 sentence and.1 neuon) mask is also 1x1
         comp_iou = iou(masks, acts)
+        '''if comp_iou == 1:
+            calculate_act_mask_align_index(unit,formula, cluster, run, concept, acts, masks)'''
        # if (concept != -1):
            # write_to_file(unit, f"Run{run}Cluster{cluster}IOUs.csv", concept, formula, comp_iou, "")
     elif settings.METRIC == "precision":
@@ -303,7 +305,7 @@ def compute_iou(unit, cluster,run, formula, acts, feats, dataset, feat_type="wor
 #call this for each activ range from search_feats
 def compute_best_sentence_iou(args):
     (unit,cluster, run) = args
-    
+ 
     print("Processsing neuron ", unit)
     acts = GLOBALS["acts"][:,unit]
     #acts reprseent states in activ range
@@ -340,10 +342,11 @@ def compute_best_sentence_iou(args):
     nonzero_iou = [k.val for k, v in formulas.items() if v > 0]
     #print("Finished computing formulas. Derived ", len(formulas), " formulas")
     formulas = dict(Counter(formulas).most_common(settings.BEAM_SIZE))
-   # print("Went through each feat val and num of non_zero ious for neighbor(concept) is ", len(nonzero_iou))
-    best_noncomp = Counter(formulas).most_common(1)[0]
-   
+
+    best_noncomp = Counter(formulas).most_common(1)
     
+    best_noncomp = [i for i in best_noncomp if i[1] == best_noncomp[0][1] ]
+ 
     
     #identifying the most common formula associated with a neuron then applying and/or/not on each neighbor until reaching
     # formula length of MAX Length
@@ -374,7 +377,9 @@ def compute_best_sentence_iou(args):
         # Trim the beam
         formulas = dict(Counter(formulas).most_common(settings.BEAM_SIZE))
 
-    best = Counter(formulas).most_common(1)[0]
+    best = Counter(formulas).most_common()
+    best = [i for i in best if i[1] ==best[0][1] ]
+
     return {
         "unit": unit,
         "best": best,
@@ -528,11 +533,26 @@ def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =No
         #do for each neuron and foor each range
         for res in pool.imap_unordered(ioufunc, mp_args):
             unit = res["unit"]
-            best_lab, best_iou = res["best"]
             
-            best_name = best_lab.to_str(namer, sort=True)
-            best_cat = best_lab.to_str(cat_namer, sort=True)
-            best_cat_fine = best_lab.to_str(cat_namer_fine, sort=True)
+            best_name=""
+            best_cat=""
+            best_cat_fine=""
+            best_iou=0
+            #best_lab, best_iou = res["best"]
+      
+            for i, (best_lab, best_iou) in enumerate(res["best"]):
+                best_iou=best_iou
+                if i < len(res["best"]) - 1:
+                    best_name += "(" + best_lab.to_str(namer, sort=True) + ")"+ "OR"
+
+                    best_cat += "(" + best_lab.to_str(cat_namer, sort=True) + ")"+ "OR"
+                    best_cat_fine +=  "(" + best_lab.to_str(cat_namer_fine, sort=True) + ")" + "OR"
+                else:
+                    best_name += best_lab.to_str(namer, sort=True)
+
+                    best_cat += best_lab.to_str(cat_namer, sort=True) 
+                    best_cat_fine +=  best_lab.to_str(cat_namer_fine, sort=True)
+                    
             
             entail_weight = weights[unit, 0]
             neutral_weight = weights[unit, 1]
@@ -806,15 +826,14 @@ def per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dat
     return states
             
 
-def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path=None, model_=None, dataset=None, q_ret=0):
+def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path=settings.MODEL, model_=None, dataset=None, q_ret=0):
     
     if model_==None and dataset==None:
         model, dataset = data.snli.load_for_analysis(
             path,
             settings.DATA,
             model_type=settings.MODEL_TYPE,
-            cuda=settings.CUDA,
-            prune_at_end=adjust_final_weights
+            cuda=settings.CUDA
         )
     else:
         model= model_
@@ -852,7 +871,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path=None, model_
 def main():
     os.makedirs(settings.RESULT, exist_ok=True)
 
-    states, weights = initiate_exp_run()
+    states, weights = initiate_exp_run(save_exp_dir='code/', save_masks_dir='code/',masks_saved=True)
     
     print("Load predictions")
     mbase = os.path.splitext(os.path.basename(settings.MODEL))[0]
