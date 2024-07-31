@@ -100,7 +100,7 @@ def run_eval(model, val_loader):
     all_preds = np.concatenate(all_preds, 0)
     all_targets = np.concatenate(all_targets, 0)
     acc = (all_preds == all_targets).mean()
-    print(f"Val acc: {acc:.3f}")
+    return acc
     
 def main(args):
     nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger", "ner"])

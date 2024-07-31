@@ -756,21 +756,21 @@ import pickle
 
 def searching_dead_neurons(states, threshold, model, weights, val_loader):
     activations= torch.from_numpy(np.array(states)).t()
-    
+    accs=[]
+    acc=snli_eval.run_eval(model, val_loader)
+    accs.append(acc)
+    print(f"defult: {acc}")
     for thresh in threshold:
-        print(f"Using thresh of {thresh}")
         activation_ranges, dead_neurons = create_clusters(activations,4)
-
-        pckl_file = open(f"code/DeadNeurons{thresh}.pkl", "wb")
-
-        pickle.dump(dead_neurons, pckl_file)
-        pckl_file.close()
         
         weights=model.mlp[0].weight.t().detach()
         weights[dead_neurons]= torch.zeros((1,1024)).cuda()
         model.mlp[:-1][0].weight.t().detach().copy_(weights)
         assert torch.equal(model.mlp[:-1][0].weight.t().detach()[dead_neurons],torch.zeros((len(dead_neurons),1024)).cuda())
-        snli_eval.run_eval(model, val_loader)
+        acc=snli_eval.run_eval(model, val_loader)
+        accs.append(acc)
+        print(f"{thresh}: {acc}")
+    
     
 def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved):
     activations= torch.from_numpy(np.array(states)).t() #1024x10000
@@ -913,7 +913,7 @@ def main():
         num_workers=0,
         collate_fn=data.snli.pad_collate,
     )
-    searching_dead_neurons(states, [i for i in range(4,100)], model, weights, val_loader)
+    searching_dead_neurons(states, [i for i in range(0,100)], model, weights, val_loader)
     
     
     print("Load predictions")

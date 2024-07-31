@@ -57,12 +57,10 @@ def create_clusters(activations, num_clusters, thresh=100):
     for i,neurons_acts in enumerate(activations):
         nonzero_activs_num= torch.nonzero(neurons_acts).size(0)
         
-        
-        if nonzero_activs_num < thresh:
+        if nonzero_activs_num <= thresh:
             dead_neurons.append(i)
-            activation_ranges.append([]) # ~690 neurons come here
+            activation_ranges.append([])
             continue
-            
         neurons_acts = neurons_acts[neurons_acts>0]
         neurons_acts  = neurons_acts.reshape(1,-1).t()
         
