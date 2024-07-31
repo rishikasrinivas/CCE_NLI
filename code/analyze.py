@@ -29,7 +29,7 @@ import data.snli
 import data.analysis
 from activation_utils import compute_activ_ranges, create_clusters, build_act_mask, active_neurons, build_masks
 from data.DataLoading import load_masks
-
+import snli_eval
 GLOBALS = {}
 
 def get_feat_vec_for_concept(concept_num, feats, vocab):
@@ -753,6 +753,25 @@ def load_sents(path):
     return sents
 
 import pickle
+
+def searching_dead_neurons(states, threshold, model, weights, val_loader):
+    activations= torch.from_numpy(np.array(states)).t()
+    
+    for thresh in threshold:
+        print(f"Using thresh of {thresh}")
+        activation_ranges, dead_neurons = create_clusters(activations,4)
+
+        pckl_file = open(f"code/DeadNeurons{thresh}.pkl", "wb")
+
+        pickle.dump(dead_neurons, pckl_file)
+        pckl_file.close()
+        
+        weights=model.mlp[0].weight.t().detach()
+        weights[dead_neurons]= torch.zeros((1,1024)).cuda()
+        model.mlp[:-1][0].weight.t().detach().copy_(weights)
+        assert torch.equal(model.mlp[:-1][0].weight.t().detach()[dead_neurons],torch.zeros((len(dead_neurons),1024)).cuda())
+        snli_eval.run_eval(model, val_loader)
+    
 def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved):
     activations= torch.from_numpy(np.array(states)).t() #1024x10000
     #1st  time run this, after that dont
@@ -865,11 +884,37 @@ def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path=settings.MOD
     
     acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved)
     return acts, final_weights
-
+from data.snli import SNLI
 def main():
     os.makedirs(settings.RESULT, exist_ok=True)
-
-    states, weights = initiate_exp_run(save_exp_dir='code/', save_masks_dir='code/',masks_saved=False)
+    model, dataset = data.snli.load_for_analysis(
+            settings.MODEL,
+            settings.DATA,
+            model_type=settings.MODEL_TYPE,
+            cuda=settings.CUDA
+        )
+    
+    weights= model.mlp[0].weight.t().detach().cpu().numpy()
+    
+    states, weights = initiate_exp_run(save_exp_dir='code/', save_masks_dir='code/',masks_saved=False, q_ret=1)
+    
+    ckpt = torch.load(settings.MODEL)
+    val = SNLI(
+        "data/snli_1.0/",
+        "dev",
+        vocab=(ckpt["stoi"], ckpt["itos"]),
+        unknowns=True,
+    )
+    val_loader = DataLoader(
+        val,
+        batch_size=100,
+        shuffle=False,
+        pin_memory=True,
+        num_workers=0,
+        collate_fn=data.snli.pad_collate,
+    )
+    searching_dead_neurons(states, [i for i in range(4,100)], model, weights, val_loader)
+    
     
     print("Load predictions")
     mbase = os.path.splitext(os.path.basename(settings.MODEL))[0]

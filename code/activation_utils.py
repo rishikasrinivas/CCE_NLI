@@ -43,7 +43,7 @@ def compute_activ_ranges(activations, clusters, num_clusters):
     
     return sorted(activation_ranges, key=lambda x:x[0])
 
-def create_clusters(activations, num_clusters):
+def create_clusters(activations, num_clusters, thresh=100):
     if activations.requires_grad:
         activations=activations.detach()
     # ensure activations is the right shape 
@@ -53,10 +53,13 @@ def create_clusters(activations, num_clusters):
     
     #clustering
     activation_ranges=[]
+    dead_neurons=[]
     for i,neurons_acts in enumerate(activations):
         nonzero_activs_num= torch.nonzero(neurons_acts).size(0)
         
-        if nonzero_activs_num < num_clusters:
+        
+        if nonzero_activs_num < thresh:
+            dead_neurons.append(i)
             activation_ranges.append([]) # ~690 neurons come here
             continue
             
@@ -70,7 +73,7 @@ def create_clusters(activations, num_clusters):
         activation_ranges.append(activation_range)
  
        
-    return activation_ranges
+    return activation_ranges, dead_neurons
 
 def get_avgs(all_act_rags):
     data_array = np.array(all_act_rags)

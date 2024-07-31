@@ -7,7 +7,7 @@ import os
 import torch
 import torch.optim as optim
 import torch.nn as nn
-
+import pickle
 from torch.utils.data import DataLoader
 from data.snli import SNLI, pad_collate
 from contextlib import nullcontext
@@ -17,7 +17,7 @@ from collections import defaultdict
 import spacy
 import pandas as pd
 
-
+import settings
 import models
 import util
 from snli_train import build_model, run
@@ -78,87 +78,101 @@ def from_file(fpath):
         hyp_raw = lines[i + 1]
         yield pre_raw, hyp_raw
 
+def run_eval(model, val_loader):
+    
+    all_preds = []
+    all_targets = []
+    for (s1, s1len, s2, s2len, targets) in val_loader:
+        if settings.CUDA:
+            s1 = s1.cuda()
+            s1len = s1len.cuda()
+            s2 = s2.cuda()
+            s2len = s2len.cuda()
 
+        with torch.no_grad():
+            logits = model(s1, s1len, s2, s2len)
+
+        preds = logits.argmax(1)
+
+        all_preds.append(preds.cpu().numpy())
+        all_targets.append(targets.cpu().numpy())
+
+    all_preds = np.concatenate(all_preds, 0)
+    all_targets = np.concatenate(all_targets, 0)
+    acc = (all_preds == all_targets).mean()
+    print(f"Val acc: {acc:.3f}")
+    
 def main(args):
     nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger", "ner"])
     ckpt = torch.load(args.model)
     stoi = ckpt["stoi"]
-
+    
     # ==== BUILD MODEL ====
     model = build_model(len(ckpt["stoi"]), args.model_type)
     model.load_state_dict(ckpt["state_dict"])
-    
-    model.prune(0.02)
-    model.check_pruned()
-    
+    weights=model.mlp[0].weight.t().detach()
+    with open("code/DeadNeurons.pkl", 'rb') as f:
+        dead_neurons=pickle.load(f)
+    weights[dead_neurons]= torch.zeros((1,1024))
+    model.mlp[:-1][0].weight.t().detach().copy_(weights)
     model.eval()
 
     if args.cuda:
         model = model.cuda()
 
     # ==== EVAL ON VAL SET ====
-    if args.eval:
-        val = SNLI(
-            args.eval_data_path,
-            "dev",
-            vocab=(ckpt["stoi"], ckpt["itos"]),
-            unknowns=True,
-        )
-        val_loader = DataLoader(
-            val,
-            batch_size=100,
-            shuffle=False,
-            pin_memory=True,
-            num_workers=0,
-            collate_fn=data.snli.pad_collate,
-        )
-        all_preds = []
-        all_targets = []
-        for (s1, s1len, s2, s2len, targets) in val_loader:
-            if args.cuda:
-                s1 = s1.cuda()
-                s1len = s1len.cuda()
-                s2 = s2.cuda()
-                s2len = s2len.cuda()
+    val = SNLI(
+        args.eval_data_path,
+        "dev",
+        vocab=(ckpt["stoi"], ckpt["itos"]),
+        unknowns=True,
+    )
+    val_loader = DataLoader(
+        val,
+        batch_size=100,
+        shuffle=False,
+        pin_memory=True,
+        num_workers=0,
+        collate_fn=data.snli.pad_collate,
+    )
+    all_preds = []
+    all_targets = []
+    for (s1, s1len, s2, s2len, targets) in val_loader:
+        if args.cuda:
+            s1 = s1.cuda()
+            s1len = s1len.cuda()
+            s2 = s2.cuda()
+            s2len = s2len.cuda()
 
-            with torch.no_grad():
-                logits = model(s1, s1len, s2, s2len)
+        with torch.no_grad():
+            logits = model(s1, s1len, s2, s2len)
 
-            preds = logits.argmax(1)
+        preds = logits.argmax(1)
 
-            all_preds.append(preds.cpu().numpy())
-            all_targets.append(targets.cpu().numpy())
+        all_preds.append(preds.cpu().numpy())
+        all_targets.append(targets.cpu().numpy())
 
-        all_preds = np.concatenate(all_preds, 0)
-        all_targets = np.concatenate(all_targets, 0)
-        acc = (all_preds == all_targets).mean()
-        print(f"Val acc: {acc:.3f}")
+    all_preds = np.concatenate(all_preds, 0)
+    all_targets = np.concatenate(all_targets, 0)
+    acc = (all_preds == all_targets).mean()
+    print(f"Val acc: {acc:.3f}")
 
-        '''# Save predictions
-        fbase = os.path.splitext(os.path.basename(val.text_path))[0]
-        mbase = os.path.splitext(os.path.basename(args.model))[0]
-        preds_file = f"{mbase}_{fbase}.csv"
-        preds_folder = os.path.join("data", "analysis", "preds")
-        os.makedirs(preds_folder, exist_ok=True)
+    '''# Save predictions
+    fbase = os.path.splitext(os.path.basename(val.text_path))[0]
+    mbase = os.path.splitext(os.path.basename(args.model))[0]
+    preds_file = f"{mbase}_{fbase}.csv"
+    preds_folder = os.path.join("data", "analysis", "preds")
+    os.makedirs(preds_folder, exist_ok=True)
 
-        preds_file = os.path.join(preds_folder, preds_file)
-        gt_labels = [val.label_itos.get(i, "UNK") for i in val.labels]
-        preds = [val.label_itos[i] for i in all_preds]
-        hits = [i == j for i, j in zip(val.labels, all_preds)]
-        preds_df = pd.DataFrame({"gt": gt_labels, "pred": preds, "correct": hits})
-        preds_df.to_csv(preds_file, index=False)'''
+    preds_file = os.path.join(preds_folder, preds_file)
+    gt_labels = [val.label_itos.get(i, "UNK") for i in val.labels]
+    preds = [val.label_itos[i] for i in all_preds]
+    hits = [i == j for i, j in zip(val.labels, all_preds)]
+    preds_df = pd.DataFrame({"gt": gt_labels, "pred": preds, "correct": hits})
+    preds_df.to_csv(preds_file, index=False)'''
 
     # ==== INTERACTIVE ====
-    if args.data == "-":
-        src = from_stdin()
-    else:
-        src = from_file(args.data)
-
-    for pre_raw, hyp_raw in src:
-        pred = predict(model, pre_raw, hyp_raw, nlp, stoi, args)
-        print(
-            f"Premise: {pre_raw}\nHypothesis: {hyp_raw}\nPrediction: {pred.upper()}\n"
-        )
+    
 
 
 def parse_args():
