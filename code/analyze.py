@@ -313,8 +313,8 @@ def compute_best_sentence_iou(args):
     if acts.sum() == 0:
         return { #if the neuron is dead dont run expls on it
             "unit": unit,
-            "best": (0,0.0),
-            "best_noncomp": (0,0.0),
+            "best": (FM.Leaf(0),0.0),
+            "best_noncomp": (FM.Leaf(0),0.0),
         }
 
     feats = GLOBALS["feats"]
@@ -530,9 +530,9 @@ def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =No
         #do for each neuron and foor each range
         for res in pool.imap_unordered(ioufunc, mp_args):
             unit = res["unit"]
-            print(best_lab)
+            
             best_lab, best_iou = res["best"]
-      
+       
             best_name = best_lab.to_str(namer, sort=True)
 
             best_cat = best_lab.to_str(cat_namer, sort=True) 
@@ -759,11 +759,17 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
     print("activs shaoe ", activations.shape)
     if not masks_saved:
         print("creating masks storing in ",save_masks_dir )#check how many ones per row here
-        activation_ranges= create_clusters(activations,4)
+        activation_ranges, dead_neur = create_clusters(activations,4)
         pckl_file = open(f"{save_masks_dir}/Masks.pkl", "wb")
        
         pickle.dump(activation_ranges, pckl_file)
         pckl_file.close()
+        
+        pckl_file = open(f"{save_masks_dir}/DeadNeurons.pkl", "wb")
+       
+        pickle.dump(dead_neur, pckl_file)
+        pckl_file.close()
+        
         build_masks(activations, activation_ranges, 4, save_masks_dir) #how many ones per mask
     masks_saved = True
     for cluster_num in range(1,5): 
