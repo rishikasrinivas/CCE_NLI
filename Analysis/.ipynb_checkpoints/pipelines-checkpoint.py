@@ -19,10 +19,11 @@ def pipe_avg_ious(filenames :list, prune_iter :int):
                     dfs_og.append(cleaning.prep(f))
             else:
                 raise NameError("Invalid Key ", p_np)
-    
+    i=0
     for np,p in zip(dfs_og, dfs_pruned):
-        print(f"Avg IOU 0% : {concept_getters.get_avg_iou(np.best_iou)}")
-        print(f"Avg IOU {0.5*prune_iter}% : {concept_getters.get_avg_iou(p.best_iou)}")
+        i+=1
+        print(f"Avg IOU 0% Cluster {i}: {concept_getters.get_avg_iou(np.best_iou)}")
+        print(f"Avg IOU {0.5*prune_iter}% Cluster {i}: {concept_getters.get_avg_iou(p.best_iou)}")
 def pipe_explanation_similiarity(filenames :list, task='global', get_concepts_func = 'group', fname=None):
     dfs_pruned=[]
     dfs_og= []
@@ -42,11 +43,23 @@ def pipe_explanation_similiarity(filenames :list, task='global', get_concepts_fu
             get_concepts_func = concept_getters.get_grouped_concepts_per_cluster
         else:
             get_concepts_func = concept_getters.get_indiv_concepts_per_cluster
+            
         all_pruned_concepts = get_concepts_func(dfs_pruned)
         all_nopruned_concepts = get_concepts_func(dfs_og)
+        
+        
+        all_nopruned_concepts_set=set()
+        for lis in all_nopruned_concepts.values():
+            for l in lis:
+                all_nopruned_concepts_set.add(l)
+        all_nopruned_concepts = all_nopruned_concepts_set
 
-        all_nopruned_concepts = set(list(all_nopruned_concepts.values())[0])
-        all_pruned_concepts = set(list(all_pruned_concepts.values())[0])
+        all_pruned_concepts_set=set()
+        for lis in all_pruned_concepts.values():
+            for l in lis:
+                all_pruned_concepts_set.add(l)
+        all_pruned_concepts = all_pruned_concepts_set
+        
         return record_global.record_common_concepts([all_pruned_concepts, all_nopruned_concepts], fname=fname)
     else:
         task = 'local'
@@ -74,8 +87,17 @@ def pipe_percent_lost(filenames :list, task='global', get_concepts_func = 'group
     all_nopruned_concepts = get_concepts_func(dfs_og)
     
     if task == 'global':
-        all_nopruned_concepts = set(list(all_nopruned_concepts.values())[0])
-        all_pruned_concepts = set(list(all_pruned_concepts.values())[0])
+        all_nopruned_concepts_set=set()
+        for lis in all_nopruned_concepts.values():
+            for l in lis:
+                all_nopruned_concepts_set.add(l)
+        all_nopruned_concepts = all_nopruned_concepts_set
+
+        all_pruned_concepts_set=set()
+        for lis in all_pruned_concepts.values():
+            for l in lis:
+                all_pruned_concepts_set.add(l)
+        all_pruned_concepts = all_pruned_concepts_set
        
     
         return record_global.record_lost_concepts(all_nopruned_concepts, all_pruned_concepts, fname, as_percent)
@@ -109,9 +131,24 @@ def pipe_relearned_concepts(filenames :list, task='global', get_concepts_func = 
     all_nopruned_concepts = get_concepts_func(dfs_og)
     all_pruned_wo_retrain_concepts = get_concepts_func(dfs_pruned_beforeRT)
     if task == 'global':
-        all_nopruned_concepts = set(list(all_nopruned_concepts.values())[0])
-        all_pruned_concepts = set(list(all_pruned_concepts.values())[0])
-        all_pruned_wo_retrain_concepts = set(list(all_pruned_wo_retrain_concepts.values())[0])
+        all_nopruned_concepts_set=set()
+        for lis in all_nopruned_concepts.values():
+            for l in lis:
+                all_nopruned_concepts_set.add(l)
+        all_nopruned_concepts = all_nopruned_concepts_set
+
+        all_pruned_concepts_set=set()
+        for lis in all_pruned_concepts.values():
+            for l in lis:
+                all_pruned_concepts_set.add(l)
+        all_pruned_concepts = all_pruned_concepts_set
+        
+        all_pruned_wo_retrain_concepts_set=set()
+        for lis in all_pruned_wo_retrain_concepts.values():
+            for l in lis:
+                all_pruned_wo_retrain_concepts_set.add(l)
+        all_pruned_wo_retrain_concepts = all_pruned_wo_retrain_concepts
+        
         return record_global.record_across_concepts(all_nopruned_concepts, all_pruned_concepts, all_pruned_wo_retrain_concepts, task='relearned', fname=fname)
     elif task == 'local':
         return record_local.record_across_concepts(all_nopruned_concepts, all_pruned_concepts, all_pruned_wo_retrain_concepts, task='relearned', fname=fname)

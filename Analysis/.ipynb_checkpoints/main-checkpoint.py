@@ -23,9 +23,26 @@ def main():
 
         #ANALYSIS measure local consistency and global consistency
         prunedAfterRT_expls = {'prunedAfter': expls[i+1]}
-
-        globally_lost = pipelines.pipe_percent_lost([files.initial_expls,prunedAfterRT_expls], get_concepts_func='indiv', task='global', fname=f"Results/LocallyLost{0.5*prune_iter}%Pruned.csv", as_percent=True)
-        print(f"Globally lost: {globally_lost}")
+        
+        locally_lost_concepts=pipelines.pipe_percent_lost([files.initial_expls,prunedAfterRT_expls], get_concepts_func='indiv', task='local', fname=f"Results/LocallyLostConcepts{0.5*prune_iter}%Pruned.csv")
+        
+        globally_lost_percent = pipelines.pipe_percent_lost([files.initial_expls,prunedAfterRT_expls], get_concepts_func='indiv', task='global', as_percent=True)
+        
+        print(f"Globally lost: {globally_lost_percent}")
+        
+        
+        globally_lost_cncps = pipelines.pipe_percent_lost([files.initial_expls,prunedAfterRT_expls], get_concepts_func='indiv', task='global')
+        
+        locally_lost_concepts_set=set()
+        for lis in locally_lost_concepts.values():
+            for l in lis:
+                locally_lost_concepts_set.add(l)
+        for cluster in locally_lost_concepts.keys():
+            for i in globally_lost_cncps['lost_concepts']:
+                assert i in locally_lost_concepts_set
+            print(record_global.record_common_concepts([globally_lost_cncps['lost_concepts'], locally_lost_concepts[cluster]]))
+            
+            
         percent_of_cps_preserved_globally = pipelines.pipe_explanation_similiarity(
             [files.initial_expls,prunedAfterRT_expls], 
             task='global', 
@@ -39,6 +56,7 @@ def main():
             get_concepts_func = 'indiv',
             fname = f"Results/LocallyPreserved{0.5*prune_iter}%Pruned.csv"
         )
+    
 
         percent_relearned_through_finetuning_g = pipelines.pipe_relearned_concepts(
             [files.initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
@@ -54,8 +72,11 @@ def main():
             get_concepts_func = 'indiv',
             fname = f"Results/LocallyRelearned{0.5*prune_iter}%Pruned.csv"
         )
-        fileio.log_to_csv("results_xai.csv", [0.5*prune_iter, percent_relearned_through_finetuning_g, percent_of_cps_preserved_globally, globally_lost], ['% pruned', '% relearned', '% preserved', 'lost'])
-        pipelines.pipe_avg_ious([files.initial_expls,prunedAfterRT_expls], prune_iter)
+        fileio.log_to_csv("results_xai.csv", [0.5*prune_iter, percent_relearned_through_finetuning_g, percent_of_cps_preserved_globally, globally_lost_percent], ['% pruned', '% relearned', '% preserved', 'lost'])
+       # pipelines.pipe_avg_ious([files.initial_expls,prunedAfterRT_expls], prune_iter)
+        
+        #Get globally lost concepts and compare that set with each cluster col for each pruning %
+	#find % of concepts per cluster that the concept is not in the globally lost (this means it just shipped around
         
     
         

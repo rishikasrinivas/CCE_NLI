@@ -60,8 +60,8 @@ def record_lost_concepts(nonpruned_dict: dict, pruned_dict : dict, fname=None, a
             lost_cps[f'Cluster{i}'] = len(lost_from_orig) / len(np)
         else:
             lost_cps[f'Cluster{i}'] = lost_from_orig 
+            
     if fname != None:
-        print(fname)
         utils.save_to_csv(lost_cps, fname)
     return lost_cps
 
@@ -116,7 +116,22 @@ def record_common_concepts(concepts : list, fname=None):
         common[f'Cluster{cluster}'] = concept_analysis.calculate_similarity_across_explanations(pruned, original).to_dict()
         
     if fname != None:
-        combined_df = pd.DataFrame({key: df for key, df in common.items()}).to_csv(fname)
+        dfs = []
+        for cluster in common.keys():
+        # Create a DataFrame from the dictionary
+            df1 = pd.DataFrame(common[cluster])
+
+            # Add a column for the cluster
+            df1['cluster'] = cluster
+            dfs.append(df1)
+
+        # Concatenate the DataFrames
+        df = pd.concat(dfs)
+
+        # Pivot the DataFrame to get the desired format
+        pivot_df = df.pivot_table(index='unit', columns='cluster', values='sim', aggfunc='sum')
+
+        pivot_df.to_csv(fname)
     return common
 
 
