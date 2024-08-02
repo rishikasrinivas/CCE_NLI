@@ -784,20 +784,20 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
     activations= torch.from_numpy(np.array(states)).t() #1024x10000
     #1st  time run this, after that dont
     print("activs shaoe ", activations.shape)
-    if not masks_saved:
-        print("creating masks storing in ",save_masks_dir )#check how many ones per row here
-        activation_ranges, dead_neur = create_clusters(activations,num_clusters)
-        pckl_file = open(f"{save_masks_dir}/ActivationRanges.pkl", "wb")
-       
-        pickle.dump(activation_ranges, pckl_file)
-        pckl_file.close()
-        
-        pckl_file = open(f"{save_masks_dir}/DeadNeurons.pkl", "wb")
-       
-        pickle.dump(dead_neur, pckl_file)
-        pckl_file.close()
-        
-        build_masks(activations, activation_ranges, num_clusters, save_masks_dir) #how many ones per mask
+    #if not masks_saved:
+    print("creating masks storing in ",save_masks_dir )#check how many ones per row here
+    activation_ranges, dead_neur = create_clusters(activations,num_clusters)
+    pckl_file = open(f"{save_masks_dir}/ActivationRanges.pkl", "wb")
+
+    pickle.dump(activation_ranges, pckl_file)
+    pckl_file.close()
+
+    pckl_file = open(f"{save_masks_dir}/DeadNeurons.pkl", "wb")
+
+    pickle.dump(dead_neur, pckl_file)
+    pckl_file.close()
+
+    build_masks(activations, activation_ranges, num_clusters, save_masks_dir) #how many ones per mask
     masks_saved = True
     for cluster_num in range(1,num_clusters+1): 
         if masks_saved:
@@ -885,14 +885,21 @@ def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path=settings.MOD
     
     if q_ret==1:
         return states, final_weights
+    
+    with open("code/TestRun/OrigActivations.pkl",'wb') as f:
+        pickle.dump(states,f)
+    
    
     print("Extracting sentence token features")
     
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
     
-    for i in range(2,4):
+    for i in range(2,5):
         save_exp_dir = f"code/TestRun/{i}Clusters/Expls"
-        save_exp_dir = f"code/TestRun/{i}Clusters/Masks"
+        os.makedirs(f"code/TestRun/{i}Clusters/", exist_ok=True)
+        os.makedirs(f"code/TestRun/{i}Clusters/Expls", exist_ok=True)
+        save_masks_dir = f"code/TestRun/{i}Clusters/Masks"
+        os.makedirs(f"code/TestRun/{i}Clusters/Masks", exist_ok=True)
         acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, classification_weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved, num_clusters=i)
     return acts, final_weights
 from data.snli import SNLI

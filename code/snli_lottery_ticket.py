@@ -192,7 +192,7 @@ def main(args):
             model = model.cuda()
         #run after pruning before finetuning
         _,final_layer_weights =initiate_exp_run(
-                    save_exp_dir = expls_after_finetuning_flder, 
+                    save_exp_dir = exp_after_finetuning_flder, 
                     save_masks_dir= masks_after_finetuning_flder, 
                     masks_saved=False, 
                     model_=model,
@@ -209,7 +209,24 @@ def main(args):
         fileio.log_to_csv(os.path.join(prune_metrics_dir,"pruned_status.csv"), str(total_pruned_amt / (1024*2048)), f"{prune_iter}: % PRUNED")
 
 
+        ckpt = torch.load(settings.MODEL)
+        val = SNLI(
+            "data/snli_1.0/",
+            "dev",
+            vocab=(ckpt["stoi"], ckpt["itos"]),
+            unknowns=True,
+        )
+        val_loader = DataLoader(
+            val,
+            batch_size=100,
+            shuffle=False,
+            pin_memory=True,
+            num_workers=0,
+            collate_fn=data.snli.pad_collate,
         
+        )
+        
+        print(f"Accuracy: {run_eval(model, val_loader)}")
         '''prunedAfterRT_expls = {'prunedAfter': [
             f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/AfterFT/Cluster1IOUS1024N.csv",
             f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/AfterFT/Cluster2IOUS1024N.csv",

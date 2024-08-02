@@ -7,8 +7,88 @@ import torch
 import shutil
 import os
 import json
+import fileio
+import sys
+# Define the path to the module you want to import
+analysis_path = os.path.abspath("Analysis/pipelines.py")
+
+# Load the module dynamically
+import importlib
+spec = importlib.util.spec_from_file_location("pipelines", analysis_path)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+sys.path.append("Analysis/")
+import pipelines as pipelines
+
+def record_stats(prune_metrics_dir, identifier, files, marker):
+    prunedBeforeRT_expls =files[0]
+    prunedAfterRT_expls = files[1]
+    initial_expls = files[2]
+  
+
+    percent_concepts_lost_to_pruning_local = pipelines.pipe_percent_lost(
+        [initial_expls,prunedBeforeRT_expls],
+        task = 'local',
+        fname = f"Analysis/IncExpls/Expls{identifier}{marker}Pruned/LocalLostTo{identifier}{marker}Pruned_PruningBeforeFinetune.csv",
+
+    )
+
+    percent_concepts_lost_to_pruning_globally = pipelines.pipe_percent_lost(
+        [initial_expls,prunedBeforeRT_expls],
+        task = 'global',
+        fname = f"Analysis/IncExpls/Expls{identifier}{marker}Pruned/GlobalLostTo{identifier}{marker}Pruned_PruningBeforeFinetune.csv",
+     
+    )
+    
+    prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{identifier}%Pruned")
+    weights=torch.load(f"{prune_metrics_dir}/model_best.pth")['state_dict']['mlp.0.weight']
+    fileio.log_to_csv(os.path.join(prune_metrics_dir,"pruned_status.csv"), [(torch.where(weights==0,1,0).sum() / (1024*2048)).item()], f"{identifier}: % PRUNED")
+    
+    
+    percent_of_cps_preserved_globally = pipelines.pipe_explanation_similiarity(
+        [initial_expls,prunedAfterRT_expls], 
+        task='global', 
+        get_concepts_func = 'indiv',
+    )
+    fileio.log_to_csv(os.path.join(prune_metrics_dir,"global_exp_sim_indiv.csv"), percent_of_cps_preserved_globally, "Explanation similarity individual concept level globally")
+
+    percent_of_comp_cps_preserved_globally = pipelines.pipe_explanation_similiarity(
+        [initial_expls,prunedAfterRT_expls], 
+        task='global', 
+        get_concepts_func = 'group',
+    )
+        
+    fileio.log_to_csv(os.path.join(prune_metrics_dir,"global_exp_sim_compos.csv"), percent_of_comp_cps_preserved_globally, "Explanation similarity compositional concept level globally")
 
 
+    percent_of_cps_preserved_locally = pipelines.pipe_explanation_similiarity(
+        [initial_expls,prunedAfterRT_expls],
+        task='local', 
+        get_concepts_func = 'indiv',
+        fname = f"Analysis/IncExpls/Expls{identifier}{marker}Pruned/LocallyPreserved{identifier}{marker}Pruned.csv"
+    )
+
+    percent_relearned_through_finetuning_g = pipelines.pipe_relearned_concepts(
+        [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
+        task='global', 
+        get_concepts_func = 'indiv'
+    )
+    fileio.log_to_csv(os.path.join(prune_metrics_dir,"indiv_after_finetune_glob.csv"), percent_relearned_through_finetuning_g, "% of indiv concepts relearned after finetuning globally")
+    
+    percent_relearned_through_finetuning_g_group = pipelines.pipe_relearned_concepts(
+        [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
+        task='global', 
+        get_concepts_func = 'group'
+    )
+    fileio.log_to_csv(os.path.join(prune_metrics_dir,"comp_relearned_glob.csv"), percent_relearned_through_finetuning_g_group, "% of compositions relearned after finetuning globally")
+
+    percent_relearned_through_finetuning_l = pipelines.pipe_relearned_concepts(
+        [initial_expls,prunedBeforeRT_expls,prunedAfterRT_expls], 
+        task='local', 
+        get_concepts_func = 'indiv',
+        fname = f"Analysis/IncExpls/Expls{identifier}{marker}Pruned/LocallyRelearned{identifier}{marker}Pruned.csv"
+    )
 class FakePool:
     def __init__(self, *args, **kwargs):
         pass

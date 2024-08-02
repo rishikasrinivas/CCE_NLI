@@ -132,7 +132,7 @@ def main(args):
         embedding_dim=args.embedding_dim,
         hidden_dim=args.hidden_dim,
     )
-    model.load_state_dict(torch.load("models/snli/Inc/prune_metrics/2.0%Pruned/LotTick9.pth")['state_dict'])
+    #model.load_state_dict(torch.load("models/snli/Inc/prune_metrics/2.0%Pruned/LotTick9.pth")['state_dict'])
 
     if args.cuda:
         model = model.cuda()
@@ -171,12 +171,12 @@ def main(args):
             metrics["best_val_acc"] = val_metrics["acc"]
             metrics["best_val_loss"] = val_metrics["loss"]
 
-        '''util.save_metrics(metrics, args.exp_dir)
+        util.save_metrics(metrics, args.exp_dir)
         util.save_checkpoint(serialize(model, train), is_best, args.exp_dir)
         if epoch % args.save_every == 0:
             util.save_checkpoint(
                 serialize(model, train), False, args.exp_dir, filename=f"{epoch}.pth"
-            )'''
+            )
 
 
 def parse_args():

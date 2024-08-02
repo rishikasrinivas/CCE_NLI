@@ -1,0 +1,466 @@
+neuron,cluster,formula,pair_num,pre,hyp
+1023,1,((((oth:overlap:overlap25 OR pre:tok:in) OR pre:tok:with) AND (NOT hyp:tok:outside)) OR pre:tok:to),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+1023,1,((((oth:overlap:overlap25 OR pre:tok:in) OR pre:tok:with) AND (NOT hyp:tok:outside)) OR pre:tok:to),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+1023,2,((((hyp:tok:is OR pre:tok:in) OR pre:tok:on) AND (NOT oth:overlap:overlap50)) OR hyp:tok:to),738,"A group is gathered outside holding flowers .
+","The flowers are all red
+"
+1023,2,((((hyp:tok:is OR pre:tok:in) OR pre:tok:on) AND (NOT oth:overlap:overlap50)) OR hyp:tok:to),765,"A girl in a pink tank top and her boyfriend sitting on stone steps .
+","A girl is sitting on stone steps in a pink tank top with her boyfriend .
+"
+1023,3,((((hyp:tok:for OR hyp:tok:to) OR hyp:tok:at) OR hyp:tok:his) AND (NOT oth:overlap:overlap75)),392,"A dog reaches to catch a ball with its mouth .
+","The dog is playing with a rope .
+"
+1023,3,((((hyp:tok:for OR hyp:tok:to) OR hyp:tok:at) OR hyp:tok:his) AND (NOT oth:overlap:overlap75)),473,"A dog leaps into the air in a grassy field surrounded by trees .
+","A dog is sleeping in a grassy field surrounded by trees .
+"
+1023,4,((((hyp:tok:for OR hyp:tok:home) OR hyp:tok:tall) OR hyp:tok:party) AND (NOT oth:overlap:overlap75)),270,"A couple bows their head as a man in a decorative robe reads from a scroll in Asia with a black late model station wagon in the background .
+","A black late model station wagon is in the background .
+"
+1023,4,((((hyp:tok:for OR hyp:tok:home) OR hyp:tok:tall) OR hyp:tok:party) AND (NOT oth:overlap:overlap75)),1000,"Guy in a dark suit , with a cigarette in his right hand while talking on the phone .
+","The guy in the suit smoking the cig is on his lunch break .
+"
+133,1,((((hyp:tok:coffee OR hyp:tok:sleeping) OR pre:tok:grassy) OR pre:tok:trunks) OR hyp:tok:hotel),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+133,1,((((hyp:tok:coffee OR hyp:tok:sleeping) OR pre:tok:grassy) OR pre:tok:trunks) OR hyp:tok:hotel),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+133,2,((((hyp:tok:inside OR hyp:tok:tv) OR hyp:tok:bed) OR hyp:tok:chair) AND (NOT oth:overlap:overlap50)),129,"A group of people prepare hot air balloons for takeoff .
+","A group of people are outside .
+"
+133,2,((((hyp:tok:inside OR hyp:tok:tv) OR hyp:tok:bed) OR hyp:tok:chair) AND (NOT oth:overlap:overlap50)),533,"A man with a hat , boots , and brown pants , is playing the violin outside in front of a black structure .
+","A homeless man has stolen a child 's violin in order to fulfill his fantasy of joining the London Symphony Orchestra .
+"
+133,3,(((((NOT pre:tok:with) AND hyp:tok:inside) OR hyp:tok:couch) AND (NOT hyp:tok:are)) OR hyp:tok:indoors),15,"Under a blue sky with white clouds , a child reaches up to touch the propeller of a plane standing parked on a field of grass .
+","A child is reaching to touch the propeller of a plane .
+"
+133,3,(((((NOT pre:tok:with) AND hyp:tok:inside) OR hyp:tok:couch) AND (NOT hyp:tok:are)) OR hyp:tok:indoors),203,"A white - haired man with a mustache and glasses in a business suit stands outside at a podium marked with the seal of the US House of Representatives , surrounded by many people , with a columned building behind him .
+","The man is sitting in a chair inside .
+"
+133,4,((((hyp:tok:inside AND pre:tok:and) OR hyp:tok:bedroom) AND (NOT pre:tok:at)) AND (NOT pre:tok:his)),782,"A man wearing a red and white Canadian uniform is riding a racing bike in an arena .
+","A man wearing a helmet is cycling .
+"
+738,1,((((oth:overlap:overlap25 OR pre:tok:in) OR hyp:tok:are) AND (NOT hyp:tok:sleeping)) AND (NOT hyp:tok:person)),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+738,1,((((oth:overlap:overlap25 OR pre:tok:in) OR hyp:tok:are) AND (NOT hyp:tok:sleeping)) AND (NOT hyp:tok:person)),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+738,2,((((hyp:tok:for OR oth:overlap:overlap25) OR hyp:tok:outside) AND (NOT pre:tok:some)) AND (NOT hyp:tok:sleeping)),557,"A girl with brown hair and a brown shirt is building a gingerbread house .
+","The girl has brown hair .
+"
+738,2,((((hyp:tok:for OR oth:overlap:overlap25) OR hyp:tok:outside) AND (NOT pre:tok:some)) AND (NOT hyp:tok:sleeping)),1021,"Two people are looking at something in New York City .
+","A woman looking outside .
+"
+738,3,((((NOT hyp:tok:girl) AND (hyp:tok:person OR oth:overlap:overlap25)) OR hyp:tok:there) AND (NOT pre:tok:up)),265,"A man is a safety suit walking outside while another man in a dark suit walks into a building .
+","Men are walking in different directions .
+"
+738,3,((((NOT hyp:tok:girl) AND (hyp:tok:person OR oth:overlap:overlap25)) OR hyp:tok:there) AND (NOT pre:tok:up)),575,"A man and a woman sit on a deck under a blue sky that is about to be overtaken by tumultuous clouds .
+","The man and woman are sitting at home .
+"
+738,4,((((NOT hyp:tok:man) AND (hyp:tok:there OR oth:overlap:overlap75)) OR hyp:tok:person) OR hyp:tok:human),473,"A dog leaps into the air in a grassy field surrounded by trees .
+","A dog is sleeping in a grassy field surrounded by trees .
+"
+738,4,((((NOT hyp:tok:man) AND (hyp:tok:there OR oth:overlap:overlap75)) OR hyp:tok:person) OR hyp:tok:human),738,"A group is gathered outside holding flowers .
+","The flowers are all red
+"
+410,1,((((NOT oth:overlap:overlap50) AND (hyp:tok:is OR hyp:tok:woman)) OR hyp:tok:cat) AND (NOT hyp:tok:there)),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+410,1,((((NOT oth:overlap:overlap50) AND (hyp:tok:is OR hyp:tok:woman)) OR hyp:tok:cat) AND (NOT hyp:tok:there)),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+410,2,((((NOT oth:overlap:overlap50) AND (hyp:tok:dog OR hyp:tok:in)) OR hyp:tok:inside) AND (NOT pre:tok:are)),284,"Two male police officers on patrol , wearing the normal gear and bright green reflective shirts .
+","The officers have shot an unarmed black man and will not go to prison for it .
+"
+410,2,((((NOT oth:overlap:overlap50) AND (hyp:tok:dog OR hyp:tok:in)) OR hyp:tok:inside) AND (NOT pre:tok:are)),375,"A child is looking out of a door .
+","The child is asleep .
+"
+410,3,((((hyp:tok:cat OR hyp:tok:swimming) OR hyp:tok:sleeps) OR hyp:tok:sleeping) OR hyp:tok:parked),16,"Under a blue sky with white clouds , a child reaches up to touch the propeller of a plane standing parked on a field of grass .
+","A child is reaching to touch the propeller out of curiosity .
+"
+410,3,((((hyp:tok:cat OR hyp:tok:swimming) OR hyp:tok:sleeps) OR hyp:tok:sleeping) OR hyp:tok:parked),392,"A dog reaches to catch a ball with its mouth .
+","The dog is playing with a rope .
+"
+410,4,((((hyp:tok:basketball OR hyp:tok:swimming) OR hyp:tok:kitchen) AND (NOT oth:overlap:overlap75)) AND (NOT pre:tok:water)),457,"A black and brown dog walks in the shallows of a large body of water .
+","The dog is in the water .
+"
+410,4,((((hyp:tok:basketball OR hyp:tok:swimming) OR hyp:tok:kitchen) AND (NOT oth:overlap:overlap75)) AND (NOT pre:tok:water)),738,"A group is gathered outside holding flowers .
+","The flowers are all red
+"
+392,1,((((hyp:tok:is OR oth:overlap:overlap25) OR hyp:tok:are) AND (NOT hyp:tok:for)) AND (NOT hyp:tok:at)),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+392,1,((((hyp:tok:is OR oth:overlap:overlap25) OR hyp:tok:are) AND (NOT hyp:tok:for)) AND (NOT hyp:tok:at)),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+392,2,((((hyp:tok:outside OR oth:overlap:overlap50) OR hyp:tok:wearing) OR hyp:tok:has) AND (NOT hyp:tok:to)),990,"Three people are kayaking in dark waters .
+","Three people are learning to use pogo sticks .
+"
+392,2,((((hyp:tok:outside OR oth:overlap:overlap50) OR hyp:tok:wearing) OR hyp:tok:has) AND (NOT hyp:tok:to)),1000,"Guy in a dark suit , with a cigarette in his right hand while talking on the phone .
+","The guy in the suit smoking the cig is on his lunch break .
+"
+392,3,((((hyp:tok:there OR oth:overlap:overlap75) OR hyp:tok:outside) OR hyp:tok:near) OR hyp:tok:outdoors),473,"A dog leaps into the air in a grassy field surrounded by trees .
+","A dog is sleeping in a grassy field surrounded by trees .
+"
+392,3,((((hyp:tok:there OR oth:overlap:overlap75) OR hyp:tok:outside) OR hyp:tok:near) OR hyp:tok:outdoors),512,"Masked actors perform traditional Japanese theater .
+","They are in Japan .
+"
+392,4,((((NOT hyp:tok:man) AND (hyp:tok:there OR oth:overlap:overlap75)) OR hyp:tok:humans) AND (NOT pre:tok:running)),270,"A couple bows their head as a man in a decorative robe reads from a scroll in Asia with a black late model station wagon in the background .
+","A black late model station wagon is in the background .
+"
+16,1,((((oth:overlap:overlap25 OR pre:tok:wearing) OR hyp:tok:to) AND (NOT hyp:tok:wearing)) AND (NOT hyp:tok:red)),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+16,1,((((oth:overlap:overlap25 OR pre:tok:wearing) OR hyp:tok:to) AND (NOT hyp:tok:wearing)) AND (NOT hyp:tok:red)),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+16,2,(((((NOT pre:tok:young) AND oth:overlap:overlap25) OR pre:tok:by) OR pre:tok:two) AND (NOT hyp:tok:sitting)),8,"A man selling donuts to a customer during a world exhibition event held in the city of Angeles
+","A man selling donuts to a customer .
+"
+16,2,(((((NOT pre:tok:young) AND oth:overlap:overlap25) OR pre:tok:by) OR pre:tok:two) AND (NOT hyp:tok:sitting)),362,"Two boys stand in an ocean as the sun sets .
+","The boys are surfing
+"
+16,3,((((hyp:tok:outside OR hyp:tok:to) OR hyp:tok:for) OR hyp:tok:outdoors) OR hyp:tok:tall),390,"A dog reaches to catch a ball with its mouth .
+","The dog is playing with a ball .
+"
+16,3,((((hyp:tok:outside OR hyp:tok:to) OR hyp:tok:for) OR hyp:tok:outdoors) OR hyp:tok:tall),473,"A dog leaps into the air in a grassy field surrounded by trees .
+","A dog is sleeping in a grassy field surrounded by trees .
+"
+16,4,((((NOT pre:tok:people) AND (hyp:tok:for OR hyp:tok:win)) OR hyp:tok:something) OR hyp:tok:good),16,"Under a blue sky with white clouds , a child reaches up to touch the propeller of a plane standing parked on a field of grass .
+","A child is reaching to touch the propeller out of curiosity .
+"
+16,4,((((NOT pre:tok:people) AND (hyp:tok:for OR hyp:tok:win)) OR hyp:tok:something) OR hyp:tok:good),382,"A man is sitting in on the side of the street with brass pots .
+","A man is sitting .
+"
+1020,1,((((oth:overlap:overlap25 OR pre:tok:with) OR pre:tok:black) AND (NOT pre:tok:behind)) AND (NOT hyp:tok:sleeping)),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+1020,1,((((oth:overlap:overlap25 OR pre:tok:with) OR pre:tok:black) AND (NOT pre:tok:behind)) AND (NOT hyp:tok:sleeping)),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+1020,2,((((hyp:tok:for OR oth:overlap:overlap25) OR hyp:tok:person) OR pre:tok:two) AND (NOT hyp:tok:sleeping)),134,"Men stand on steps leading out of a body of water
+","Men are standing by a docked boat .
+"
+1020,2,((((hyp:tok:for OR oth:overlap:overlap25) OR hyp:tok:person) OR pre:tok:two) AND (NOT hyp:tok:sleeping)),533,"A man with a hat , boots , and brown pants , is playing the violin outside in front of a black structure .
+","A homeless man has stolen a child 's violin in order to fulfill his fantasy of joining the London Symphony Orchestra .
+"
+1020,3,((((hyp:tok:are OR oth:overlap:overlap25) OR hyp:tok:is) AND (NOT hyp:tok:sitting)) AND (NOT hyp:tok:standing)),386,"A man in a blue windbreaker jacket , laying face down on a park bench , with a liquor bottle nestled by one of the bench 's legs .
+","A man is dancing at the club popping bottles .
+"
+1020,3,((((hyp:tok:are OR oth:overlap:overlap25) OR hyp:tok:is) AND (NOT hyp:tok:sitting)) AND (NOT hyp:tok:standing)),390,"A dog reaches to catch a ball with its mouth .
+","The dog is playing with a ball .
+"
+1020,4,((((hyp:tok:tall OR pre:tok:are) OR hyp:tok:outside) OR hyp:tok:something) OR hyp:tok:outdoors),577,"Two women stand on a beach and perform stretches or yoga together , facing towards the water and away from the camera .
+","One lady is teaching another lady how to do a downward dog pose .
+"
+362,1,((((hyp:tok:outdoors OR hyp:tok:outside) OR hyp:tok:near) OR hyp:tok:has) OR hyp:tok:have),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+362,1,((((hyp:tok:outdoors OR hyp:tok:outside) OR hyp:tok:near) OR hyp:tok:has) OR hyp:tok:have),2,"Two women are embracing while holding to go packages .
+","The men are fighting outside a deli .
+"
+362,2,((((hyp:tok:outdoors OR hyp:tok:outside) OR hyp:tok:vehicle) AND (NOT pre:tok:wearing)) OR hyp:tok:close),71,"A taxi SUV drives past an urban construction site , as a man walks down the street in the other direction .
+","A taxi SUV races to pick up some clients while a man walks peacefully in the other direction .
+"
+362,2,((((hyp:tok:outdoors OR hyp:tok:outside) OR hyp:tok:vehicle) AND (NOT pre:tok:wearing)) OR hyp:tok:close),173,"A man and a woman are looking at produce on display .
+","A man and woman are looking at produce .
+"
+362,3,((((hyp:tok:moving OR hyp:tok:outdoors) OR hyp:tok:not) OR hyp:tok:animal) OR hyp:tok:animals),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+362,3,((((hyp:tok:moving OR hyp:tok:outdoors) OR hyp:tok:not) OR hyp:tok:animal) OR hyp:tok:animals),128,"A brown a dog and a black dog in the edge of the ocean with a wave under them boats are on the water in the background .
+","The dogs are swimming among the boats .
+"
+362,4,((((hyp:tok:there AND hyp:tok:this) OR hyp:tok:activity) OR hyp:tok:than) OR hyp:tok:least),270,"A couple bows their head as a man in a decorative robe reads from a scroll in Asia with a black late model station wagon in the background .
+","A black late model station wagon is in the background .
+"
+362,4,((((hyp:tok:there AND hyp:tok:this) OR hyp:tok:activity) OR hyp:tok:than) OR hyp:tok:least),533,"A man with a hat , boots , and brown pants , is playing the violin outside in front of a black structure .
+","A homeless man has stolen a child 's violin in order to fulfill his fantasy of joining the London Symphony Orchestra .
+"
+265,1,(((((NOT hyp:tok:in) AND oth:overlap:overlap25) OR hyp:tok:people) AND (NOT hyp:tok:to)) AND (NOT hyp:tok:for)),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+265,1,(((((NOT hyp:tok:in) AND oth:overlap:overlap25) OR hyp:tok:people) AND (NOT hyp:tok:to)) AND (NOT hyp:tok:for)),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+265,2,((((hyp:tok:outside OR oth:overlap:overlap75) OR hyp:tok:wearing) OR hyp:tok:outdoors) OR hyp:tok:riding),392,"A dog reaches to catch a ball with its mouth .
+","The dog is playing with a rope .
+"
+265,2,((((hyp:tok:outside OR oth:overlap:overlap75) OR hyp:tok:wearing) OR hyp:tok:outdoors) OR hyp:tok:riding),457,"A black and brown dog walks in the shallows of a large body of water .
+","The dog is in the water .
+"
+265,3,((((hyp:tok:outside OR hyp:tok:there) OR hyp:tok:outdoors) OR hyp:tok:person) AND (NOT hyp:tok:on)),134,"Men stand on steps leading out of a body of water
+","Men are standing by a docked boat .
+"
+265,3,((((hyp:tok:outside OR hyp:tok:there) OR hyp:tok:outdoors) OR hyp:tok:person) AND (NOT hyp:tok:on)),620,"A man is holding a both a sleeping toddler and a sleeping baby on his lap .
+","A man holds two sleeping children .
+"
+265,4,(((((NOT pre:tok:in) AND hyp:tok:there) OR hyp:tok:human) OR hyp:tok:outdoors) AND (NOT hyp:tok:on)),16,"Under a blue sky with white clouds , a child reaches up to touch the propeller of a plane standing parked on a field of grass .
+","A child is reaching to touch the propeller out of curiosity .
+"
+265,4,(((((NOT pre:tok:in) AND hyp:tok:there) OR hyp:tok:human) OR hyp:tok:outdoors) AND (NOT hyp:tok:on)),497,"A couple sitting in white lawn chairs are smiling at the camera .
+","A woman is standing alone .
+"
+257,1,(((((NOT pre:tok:to) AND oth:overlap:overlap75) OR hyp:tok:friend) OR hyp:tok:walked) AND (NOT hyp:tok:young)),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+257,1,(((((NOT pre:tok:to) AND oth:overlap:overlap75) OR hyp:tok:friend) OR hyp:tok:walked) AND (NOT hyp:tok:young)),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+257,2,((((NOT pre:tok:front) AND (hyp:tok:because OR oth:overlap:overlap75)) AND (NOT pre:tok:wearing)) AND (NOT pre:tok:young)),8,"A man selling donuts to a customer during a world exhibition event held in the city of Angeles
+","A man selling donuts to a customer .
+"
+257,2,((((NOT pre:tok:front) AND (hyp:tok:because OR oth:overlap:overlap75)) AND (NOT pre:tok:wearing)) AND (NOT pre:tok:young)),16,"Under a blue sky with white clouds , a child reaches up to touch the propeller of a plane standing parked on a field of grass .
+","A child is reaching to touch the propeller out of curiosity .
+"
+257,3,((((hyp:tok:hot OR hyp:tok:while) AND oth:overlap:overlap50) OR hyp:tok:brother) OR hyp:tok:what),738,"A group is gathered outside holding flowers .
+","The flowers are all red
+"
+257,3,((((hyp:tok:hot OR hyp:tok:while) AND oth:overlap:overlap50) OR hyp:tok:brother) OR hyp:tok:what),744,"A man dressed in bright colored clothing is sitting on a chair on the sidewalk playing an instrument for cash .
+","The man is dancing in the park .
+"
+257,4,((((hyp:tok:pick OR hyp:tok:sad) OR hyp:tok:papers) AND oth:overlap:overlap50) OR hyp:tok:stone),382,"A man is sitting in on the side of the street with brass pots .
+","A man is sitting .
+"
+257,4,((((hyp:tok:pick OR hyp:tok:sad) OR hyp:tok:papers) AND oth:overlap:overlap50) OR hyp:tok:stone),782,"A man wearing a red and white Canadian uniform is riding a racing bike in an arena .
+","A man wearing a helmet is cycling .
+"
+16,1,((((oth:overlap:overlap25 OR pre:tok:wearing) OR hyp:tok:to) AND (NOT hyp:tok:wearing)) AND (NOT hyp:tok:red)),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+16,1,((((oth:overlap:overlap25 OR pre:tok:wearing) OR hyp:tok:to) AND (NOT hyp:tok:wearing)) AND (NOT hyp:tok:red)),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+16,2,(((((NOT pre:tok:young) AND oth:overlap:overlap25) OR pre:tok:by) OR pre:tok:two) AND (NOT hyp:tok:sitting)),8,"A man selling donuts to a customer during a world exhibition event held in the city of Angeles
+","A man selling donuts to a customer .
+"
+16,2,(((((NOT pre:tok:young) AND oth:overlap:overlap25) OR pre:tok:by) OR pre:tok:two) AND (NOT hyp:tok:sitting)),280,"A man is reading a newspaper in a car dealership .
+","The man is waiting for his car to be serviced .
+"
+16,3,((((hyp:tok:outside OR hyp:tok:to) OR hyp:tok:for) OR hyp:tok:outdoors) OR hyp:tok:tall),390,"A dog reaches to catch a ball with its mouth .
+","The dog is playing with a ball .
+"
+16,3,((((hyp:tok:outside OR hyp:tok:to) OR hyp:tok:for) OR hyp:tok:outdoors) OR hyp:tok:tall),392,"A dog reaches to catch a ball with its mouth .
+","The dog is playing with a rope .
+"
+16,4,((((NOT pre:tok:people) AND (hyp:tok:for OR hyp:tok:win)) OR hyp:tok:something) OR hyp:tok:good),16,"Under a blue sky with white clouds , a child reaches up to touch the propeller of a plane standing parked on a field of grass .
+","A child is reaching to touch the propeller out of curiosity .
+"
+16,4,((((NOT pre:tok:people) AND (hyp:tok:for OR hyp:tok:win)) OR hyp:tok:something) OR hyp:tok:good),382,"A man is sitting in on the side of the street with brass pots .
+","A man is sitting .
+"
+1023,1,((((oth:overlap:overlap25 OR pre:tok:in) OR pre:tok:with) AND (NOT hyp:tok:outside)) OR pre:tok:to),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+1023,1,((((oth:overlap:overlap25 OR pre:tok:in) OR pre:tok:with) AND (NOT hyp:tok:outside)) OR pre:tok:to),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+1023,2,((((hyp:tok:is OR pre:tok:in) OR pre:tok:on) AND (NOT oth:overlap:overlap50)) OR hyp:tok:to),392,"A dog reaches to catch a ball with its mouth .
+","The dog is playing with a rope .
+"
+1023,2,((((hyp:tok:is OR pre:tok:in) OR pre:tok:on) AND (NOT oth:overlap:overlap50)) OR hyp:tok:to),765,"A girl in a pink tank top and her boyfriend sitting on stone steps .
+","A girl is sitting on stone steps in a pink tank top with her boyfriend .
+"
+1023,3,((((hyp:tok:for OR hyp:tok:to) OR hyp:tok:at) OR hyp:tok:his) AND (NOT oth:overlap:overlap75)),270,"A couple bows their head as a man in a decorative robe reads from a scroll in Asia with a black late model station wagon in the background .
+","A black late model station wagon is in the background .
+"
+1023,3,((((hyp:tok:for OR hyp:tok:to) OR hyp:tok:at) OR hyp:tok:his) AND (NOT oth:overlap:overlap75)),557,"A girl with brown hair and a brown shirt is building a gingerbread house .
+","The girl has brown hair .
+"
+1023,4,((((hyp:tok:for OR hyp:tok:home) OR hyp:tok:tall) OR hyp:tok:party) AND (NOT oth:overlap:overlap75)),473,"A dog leaps into the air in a grassy field surrounded by trees .
+","A dog is sleeping in a grassy field surrounded by trees .
+"
+1023,4,((((hyp:tok:for OR hyp:tok:home) OR hyp:tok:tall) OR hyp:tok:party) AND (NOT oth:overlap:overlap75)),1020,"A surfer is surfing catches a wave .
+","A surfer is riding a tsunami wave .
+"
+473,1,((((NOT hyp:tok:sitting) AND (oth:overlap:overlap25 OR pre:tok:with)) OR hyp:tok:to) OR hyp:tok:two),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+473,1,((((NOT hyp:tok:sitting) AND (oth:overlap:overlap25 OR pre:tok:with)) OR hyp:tok:to) OR hyp:tok:two),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+473,2,((((oth:overlap:overlap25 OR pre:tok:in) OR pre:tok:while) AND (NOT hyp:tok:sleeping)) AND (NOT hyp:tok:not)),15,"Under a blue sky with white clouds , a child reaches up to touch the propeller of a plane standing parked on a field of grass .
+","A child is reaching to touch the propeller of a plane .
+"
+473,2,((((oth:overlap:overlap25 OR pre:tok:in) OR pre:tok:while) AND (NOT hyp:tok:sleeping)) AND (NOT hyp:tok:not)),257,"An older gentleman speaking at a podium .
+","The college dean giving the graduation speech
+"
+473,3,(((((NOT pre:tok:walking) AND oth:overlap:overlap25) OR hyp:tok:person) OR hyp:tok:for) AND (NOT pre:tok:up)),70,"A taxi SUV drives past an urban construction site , as a man walks down the street in the other direction .
+","An SUV and a man are going in opposite directions .
+"
+473,3,(((((NOT pre:tok:walking) AND oth:overlap:overlap25) OR hyp:tok:person) OR hyp:tok:for) AND (NOT pre:tok:up)),71,"A taxi SUV drives past an urban construction site , as a man walks down the street in the other direction .
+","A taxi SUV races to pick up some clients while a man walks peacefully in the other direction .
+"
+473,4,((((NOT hyp:tok:man) AND (hyp:tok:person OR oth:overlap:overlap75)) OR hyp:tok:some) OR hyp:tok:human),623,"People on a concrete area taking pictures .
+","people posting pics on facebook
+"
+89,1,((((NOT oth:overlap:overlap50) AND (hyp:tok:man OR pre:tok:and)) OR pre:tok:sitting) AND (NOT hyp:tok:sitting)),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+89,1,((((NOT oth:overlap:overlap50) AND (hyp:tok:man OR pre:tok:and)) OR pre:tok:sitting) AND (NOT hyp:tok:sitting)),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+89,2,((((NOT oth:overlap:overlap50) AND (hyp:tok:for OR pre:tok:woman)) OR pre:tok:sitting) AND (NOT hyp:tok:sitting)),70,"A taxi SUV drives past an urban construction site , as a man walks down the street in the other direction .
+","An SUV and a man are going in opposite directions .
+"
+89,2,((((NOT oth:overlap:overlap50) AND (hyp:tok:for OR pre:tok:woman)) OR pre:tok:sitting) AND (NOT hyp:tok:sitting)),98,"A baby at the end of a slip and slide at a party
+","There is a party
+"
+89,3,(((((NOT hyp:tok:sitting) AND pre:tok:sitting) OR hyp:tok:tall) OR hyp:tok:son) AND (NOT pre:tok:pants)),270,"A couple bows their head as a man in a decorative robe reads from a scroll in Asia with a black late model station wagon in the background .
+","A black late model station wagon is in the background .
+"
+89,3,(((((NOT hyp:tok:sitting) AND pre:tok:sitting) OR hyp:tok:tall) OR hyp:tok:son) AND (NOT pre:tok:pants)),990,"Three people are kayaking in dark waters .
+","Three people are learning to use pogo sticks .
+"
+89,4,((((hyp:tok:for AND pre:tok:sitting) OR pre:tok:bench) AND (NOT hyp:tok:on)) OR hyp:tok:tall),533,"A man with a hat , boots , and brown pants , is playing the violin outside in front of a black structure .
+","A homeless man has stolen a child 's violin in order to fulfill his fantasy of joining the London Symphony Orchestra .
+"
+89,4,((((hyp:tok:for AND pre:tok:sitting) OR pre:tok:bench) AND (NOT hyp:tok:on)) OR hyp:tok:tall),782,"A man wearing a red and white Canadian uniform is riding a racing bike in an arena .
+","A man wearing a helmet is cycling .
+"
+265,1,(((((NOT hyp:tok:in) AND oth:overlap:overlap25) OR hyp:tok:people) AND (NOT hyp:tok:to)) AND (NOT hyp:tok:for)),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+265,1,(((((NOT hyp:tok:in) AND oth:overlap:overlap25) OR hyp:tok:people) AND (NOT hyp:tok:to)) AND (NOT hyp:tok:for)),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+265,2,((((hyp:tok:outside OR oth:overlap:overlap75) OR hyp:tok:wearing) OR hyp:tok:outdoors) OR hyp:tok:riding),480,"Three children dressed in winter clothes are walking through the woods while pushing cargo along .
+","Three children are dressed in warm winter clothes .
+"
+265,2,((((hyp:tok:outside OR oth:overlap:overlap75) OR hyp:tok:wearing) OR hyp:tok:outdoors) OR hyp:tok:riding),620,"A man is holding a both a sleeping toddler and a sleeping baby on his lap .
+","A man holds two sleeping children .
+"
+265,3,((((hyp:tok:outside OR hyp:tok:there) OR hyp:tok:outdoors) OR hyp:tok:person) AND (NOT hyp:tok:on)),133,"Men stand on steps leading out of a body of water
+","Men are sitting outside near a golf course .
+"
+265,3,((((hyp:tok:outside OR hyp:tok:there) OR hyp:tok:outdoors) OR hyp:tok:person) AND (NOT hyp:tok:on)),473,"A dog leaps into the air in a grassy field surrounded by trees .
+","A dog is sleeping in a grassy field surrounded by trees .
+"
+265,4,(((((NOT pre:tok:in) AND hyp:tok:there) OR hyp:tok:human) OR hyp:tok:outdoors) AND (NOT hyp:tok:on)),982,"The man is walking the bride down the aisle .
+","A guy is participating in a wedding .
+"
+265,4,(((((NOT pre:tok:in) AND hyp:tok:there) OR hyp:tok:human) OR hyp:tok:outdoors) AND (NOT hyp:tok:on)),1020,"A surfer is surfing catches a wave .
+","A surfer is riding a tsunami wave .
+"
+133,1,((((hyp:tok:coffee OR hyp:tok:sleeping) OR pre:tok:grassy) OR pre:tok:trunks) OR hyp:tok:hotel),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+133,1,((((hyp:tok:coffee OR hyp:tok:sleeping) OR pre:tok:grassy) OR pre:tok:trunks) OR hyp:tok:hotel),2,"Two women are embracing while holding to go packages .
+","The men are fighting outside a deli .
+"
+133,2,((((hyp:tok:inside OR hyp:tok:tv) OR hyp:tok:bed) OR hyp:tok:chair) AND (NOT oth:overlap:overlap50)),129,"A group of people prepare hot air balloons for takeoff .
+","A group of people are outside .
+"
+133,2,((((hyp:tok:inside OR hyp:tok:tv) OR hyp:tok:bed) OR hyp:tok:chair) AND (NOT oth:overlap:overlap50)),480,"Three children dressed in winter clothes are walking through the woods while pushing cargo along .
+","Three children are dressed in warm winter clothes .
+"
+133,3,(((((NOT pre:tok:with) AND hyp:tok:inside) OR hyp:tok:couch) AND (NOT hyp:tok:are)) OR hyp:tok:indoors),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+133,3,(((((NOT pre:tok:with) AND hyp:tok:inside) OR hyp:tok:couch) AND (NOT hyp:tok:are)) OR hyp:tok:indoors),270,"A couple bows their head as a man in a decorative robe reads from a scroll in Asia with a black late model station wagon in the background .
+","A black late model station wagon is in the background .
+"
+133,4,((((hyp:tok:inside AND pre:tok:and) OR hyp:tok:bedroom) AND (NOT pre:tok:at)) AND (NOT pre:tok:his)),15,"Under a blue sky with white clouds , a child reaches up to touch the propeller of a plane standing parked on a field of grass .
+","A child is reaching to touch the propeller of a plane .
+"
+133,4,((((hyp:tok:inside AND pre:tok:and) OR hyp:tok:bedroom) AND (NOT pre:tok:at)) AND (NOT pre:tok:his)),71,"A taxi SUV drives past an urban construction site , as a man walks down the street in the other direction .
+","A taxi SUV races to pick up some clients while a man walks peacefully in the other direction .
+"
+386,1,(((((NOT hyp:tok:woman) AND oth:overlap:overlap75) AND (NOT pre:tok:and)) OR hyp:tok:cake) AND (NOT pre:tok:young)),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+386,1,(((((NOT hyp:tok:woman) AND oth:overlap:overlap75) AND (NOT pre:tok:and)) OR hyp:tok:cake) AND (NOT pre:tok:young)),2,"Two women are embracing while holding to go packages .
+","The men are fighting outside a deli .
+"
+386,2,((((hyp:tok:man AND oth:overlap:overlap75) OR hyp:tok:not) OR hyp:tok:no) OR hyp:tok:cats),71,"A taxi SUV drives past an urban construction site , as a man walks down the street in the other direction .
+","A taxi SUV races to pick up some clients while a man walks peacefully in the other direction .
+"
+386,2,((((hyp:tok:man AND oth:overlap:overlap75) OR hyp:tok:not) OR hyp:tok:no) OR hyp:tok:cats),134,"Men stand on steps leading out of a body of water
+","Men are standing by a docked boat .
+"
+386,3,((((hyp:tok:chef OR pre:tok:desks) OR hyp:tok:appears) OR hyp:tok:families) OR hyp:tok:wave),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+386,3,((((hyp:tok:chef OR pre:tok:desks) OR hyp:tok:appears) OR hyp:tok:families) OR hyp:tok:wave),466,"A teenage girl in winter clothes slides down a decline in a red sled .
+","A girl is sliding on a red sled .
+"
+386,4,((((hyp:tok:empty OR hyp:tok:falls) OR hyp:tok:place) AND oth:overlap:overlap50) OR hyp:tok:includes),89,"The two farmers are working on a piece of John Deere equipment .
+","2 Men are making a pool together
+"
+386,4,((((hyp:tok:empty OR hyp:tok:falls) OR hyp:tok:place) AND oth:overlap:overlap50) OR hyp:tok:includes),173,"A man and a woman are looking at produce on display .
+","A man and woman are looking at produce .
+"
+796,1,((((pre:tok:black OR pre:tok:stage) OR hyp:tok:not) OR pre:tok:throwing) OR hyp:tok:swimming),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+796,1,((((pre:tok:black OR pre:tok:stage) OR hyp:tok:not) OR pre:tok:throwing) OR hyp:tok:swimming),2,"Two women are embracing while holding to go packages .
+","The men are fighting outside a deli .
+"
+796,2,((((hyp:tok:bench OR hyp:tok:not) OR hyp:tok:no) OR hyp:tok:jet) OR pre:tok:candy),382,"A man is sitting in on the side of the street with brass pots .
+","A man is sitting .
+"
+796,2,((((hyp:tok:bench OR hyp:tok:not) OR hyp:tok:no) OR hyp:tok:jet) OR pre:tok:candy),606,"Two basketball players in black and white outfits are standing on a basketball court , talking .
+","The two basketball players are talking about an upcoming strategy .
+"
+796,3,((((hyp:tok:swimming OR pre:tok:cook) OR hyp:tok:sofa) AND (NOT oth:overlap:overlap75)) OR pre:tok:exercising),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+796,3,((((hyp:tok:swimming OR pre:tok:cook) OR hyp:tok:sofa) AND (NOT oth:overlap:overlap75)) OR pre:tok:exercising),270,"A couple bows their head as a man in a decorative robe reads from a scroll in Asia with a black late model station wagon in the background .
+","A black late model station wagon is in the background .
+"
+796,4,(((((NOT pre:tok:blue) AND hyp:tok:blue) AND pre:tok:with) OR pre:tok:unicycle) OR hyp:tok:tattoo),89,"The two farmers are working on a piece of John Deere equipment .
+","2 Men are making a pool together
+"
+796,4,(((((NOT pre:tok:blue) AND hyp:tok:blue) AND pre:tok:with) OR pre:tok:unicycle) OR hyp:tok:tattoo),744,"A man dressed in bright colored clothing is sitting on a chair on the sidewalk playing an instrument for cash .
+","The man is dancing in the park .
+"
+798,1,((((NOT oth:overlap:overlap50) AND (hyp:tok:is OR pre:tok:in)) OR hyp:tok:to) OR hyp:tok:for),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+798,1,((((NOT oth:overlap:overlap50) AND (hyp:tok:is OR pre:tok:in)) OR hyp:tok:to) OR hyp:tok:for),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+798,2,((((hyp:tok:for OR hyp:tok:to) OR hyp:tok:day) OR hyp:tok:he) AND (NOT hyp:tok:next)),71,"A taxi SUV drives past an urban construction site , as a man walks down the street in the other direction .
+","A taxi SUV races to pick up some clients while a man walks peacefully in the other direction .
+"
+798,2,((((hyp:tok:for OR hyp:tok:to) OR hyp:tok:day) OR hyp:tok:he) AND (NOT hyp:tok:next)),919,"A man and a woman are jumping in midair and holding hands , a cloudy sky in the background .
+","The man and woman are physically touching each other .
+"
+798,3,((((NOT pre:tok:to) AND (hyp:tok:for OR hyp:tok:to)) OR hyp:tok:tall) OR hyp:tok:friends),533,"A man with a hat , boots , and brown pants , is playing the violin outside in front of a black structure .
+","A homeless man has stolen a child 's violin in order to fulfill his fantasy of joining the London Symphony Orchestra .
+"
+798,3,((((NOT pre:tok:to) AND (hyp:tok:for OR hyp:tok:to)) OR hyp:tok:tall) OR hyp:tok:friends),685,"a couple is walking down the sidewalk with their dog .
+","A couple is outside with their dog .
+"
+798,4,((((hyp:tok:professional OR hyp:tok:tall) OR hyp:tok:trip) OR hyp:tok:championship) OR hyp:tok:way),270,"A couple bows their head as a man in a decorative robe reads from a scroll in Asia with a black late model station wagon in the background .
+","A black late model station wagon is in the background .
+"
+6,1,((((NOT oth:overlap:overlap25) AND (hyp:tok:is OR pre:tok:one)) OR hyp:tok:they) OR pre:tok:stage),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+6,1,((((NOT oth:overlap:overlap25) AND (hyp:tok:is OR pre:tok:one)) OR hyp:tok:they) OR pre:tok:stage),2,"Two women are embracing while holding to go packages .
+","The men are fighting outside a deli .
+"
+6,2,(((((NOT oth:overlap:overlap25) AND hyp:tok:is) AND (NOT pre:tok:by)) OR hyp:tok:tall) OR hyp:tok:they),133,"Men stand on steps leading out of a body of water
+","Men are sitting outside near a golf course .
+"
+6,2,(((((NOT oth:overlap:overlap25) AND hyp:tok:is) AND (NOT pre:tok:by)) OR hyp:tok:tall) OR hyp:tok:they),213,"A man waterskies with a life jacket .
+","Hitler rides a jetski in this Kawasaki advertisement .
+"
+6,3,((((hyp:tok:best OR hyp:tok:tall) OR pre:tok:groom) OR pre:tok:mother) OR pre:tok:match),71,"A taxi SUV drives past an urban construction site , as a man walks down the street in the other direction .
+","A taxi SUV races to pick up some clients while a man walks peacefully in the other direction .
+"
+6,3,((((hyp:tok:best OR hyp:tok:tall) OR pre:tok:groom) OR pre:tok:mother) OR pre:tok:match),261,"Four guys with guns and army gear .
+","The four guys are in the army .
+"
+6,4,((((hyp:tok:halloween OR hyp:tok:tall) OR pre:tok:cherry) AND (NOT pre:tok:to)) OR hyp:tok:poor),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+6,4,((((hyp:tok:halloween OR hyp:tok:tall) OR pre:tok:cherry) AND (NOT pre:tok:to)) OR hyp:tok:poor),70,"A taxi SUV drives past an urban construction site , as a man walks down the street in the other direction .
+","An SUV and a man are going in opposite directions .
+"

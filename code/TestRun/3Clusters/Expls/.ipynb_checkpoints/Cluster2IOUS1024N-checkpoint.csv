@@ -1,0 +1,11 @@
+unit,best_name,best_iou
+0,((((NOT oth:overlap:overlap50) AND (hyp:tok:is OR pre:tok:in)) AND (NOT hyp:tok:to)) AND (NOT hyp:tok:outside)),0.12981274984220492
+6,(((((NOT oth:overlap:overlap25) AND hyp:tok:is) AND (NOT hyp:tok:to)) OR hyp:tok:tall) OR hyp:tok:they),0.10594795539033457
+8,((((NOT pre:tok:for) AND (hyp:tok:after OR hyp:tok:for)) OR hyp:tok:first) OR hyp:tok:sister),0.15989159891598917
+15,((((NOT pre:tok:on) AND (hyp:tok:sits OR hyp:tok:sitting)) OR hyp:tok:cat) AND (NOT oth:overlap:overlap75)),0.17403314917127072
+16,((((hyp:tok:to OR oth:overlap:overlap25) OR pre:tok:wearing) AND (NOT hyp:tok:wearing)) AND (NOT hyp:tok:sitting)),0.14219927435110244
+70,((((hyp:tok:asleep OR hyp:tok:swimming) OR hyp:tok:nobody) OR hyp:tok:cat) OR hyp:tok:beach),0.13036565977742448
+71,((((hyp:tok:in OR hyp:tok:on) OR pre:tok:is) AND (NOT oth:overlap:overlap75)) AND (NOT hyp:tok:to)),0.1308500477554919
+89,((((NOT oth:overlap:overlap25) AND (hyp:tok:to OR pre:tok:sitting)) OR hyp:tok:for) AND (NOT oth:overlap:overlap50)),0.11707680835197613
+98,((((hyp:tok:running OR hyp:tok:swimming) OR hyp:tok:bicycle) AND (NOT pre:tok:running)) OR hyp:tok:tag),0.10319410319410319
+99,((((pre:tok:blue AND pre:tok:green) OR pre:tok:jersey) OR pre:tok:pair) OR hyp:tok:store),0.06872852233676977

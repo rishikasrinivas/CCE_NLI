@@ -108,7 +108,7 @@ def main(args):
     }
 
     # ==== BUILD MODEL ====
-    resume_from_ckpt = True
+    resume_from_ckpt = False
     if resume_from_ckpt:
         path_to_ckpt= f"models/snli/Inc/prune_metrics/1.0%Pruned/model_best.pth"
     else:
@@ -150,14 +150,14 @@ def main(args):
 
     # ==== TRAIN ====
     
-    for prune_iter in tqdm(range(2,args.prune_iters+1)):
+    for prune_iter in tqdm(range(1,args.prune_iters+1)):
         ckpt_orig=torch.load(settings.MODEL, map_location="cpu")
         model=clf(enc)
         model.load_state_dict(ckpt_orig["state_dict"])
         optimizer = optim.Adam(model.parameters())
         
         #identifier to track pruning amount'
-        identifier = 0.005*prune_iter*100
+        identifier = 0.05*prune_iter*100
         
         #masks and explanation storing paths before finetuning
         masks_before_finetuning_flder = f"code/IncMasks/Masks{identifier}%Pruned/BeforeFT"
@@ -189,25 +189,26 @@ def main(args):
 
         #finetuning
     
-        if prune_iter != 2:
-            #run after pruning before finetuning
-            print("Pruning ", identifier, "%")
-            model.prune(amount=identifier/100) #0.5,1.0,...2.5% prune
-            if settings.CUDA:
-                device = 'cuda'
-                model = model.cuda()
-            assert model.check_pruned()
-
-            initiate_exp_run(
-                save_exp_dir = expls_before_finetuning_flder, 
-                save_masks_dir= masks_before_finetuning_flder, 
-                masks_saved=False, 
-                model_=model,
-                dataset=dataset,
-            )
+        
+        #run after pruning before finetuning
+        print("Pruning ", identifier, "%")
+        model.prune(amount=identifier/100) #0.5,1.0,...2.5% prune
+        if settings.CUDA:
+            device = 'cuda'
+            model = model.cuda()
+        assert model.check_pruned()
+        
+        
+        initiate_exp_run(
+            save_exp_dir = expls_before_finetuning_flder, 
+            save_masks_dir= masks_before_finetuning_flder, 
+            masks_saved=False, 
+            model_=model,
+            dataset=dataset,
+        )
             
 
-            path_to_ckpt, metrics, model = finetune_pruned_model(model,optimizer,criterion,dataloaders, train, val, args.finetune_epochs, prune_metrics_dir, metrics, device)
+        path_to_ckpt, metrics, model = finetune_pruned_model(model,optimizer,criterion,dataloaders, train, val, args.finetune_epochs, prune_metrics_dir, metrics, device)
      
         assert model.check_pruned() == False
         model.load_state_dict(torch.load(path_to_ckpt, map_location="cpu")["state_dict"])

@@ -28,7 +28,7 @@ def sort_dict(activation_range):
     return ranges
 
 def find_explaining_neurons(cluster):
-    df = pd.read_csv(f"code/TestRun/Cluster{cluster}IOUS1024N.csv")
+    df = pd.read_csv(f"code/TestRun/{cluster}Clusters/Expls/Cluster1IOUS1024N.csv")
     return df['unit'].tolist()
 
 def get_samples_for_neuron(num_clusters, final_activations, neuron, ranges):
@@ -41,8 +41,8 @@ def get_samples_for_neuron(num_clusters, final_activations, neuron, ranges):
         pairs.append(pairs_)
     return pairs
 
-def get_formula_for_neuron(cluster, neuron):
-    df = pd.read_csv(f"code/TestRun/Cluster{cluster}IOUS1024N.csv")
+def get_formula_for_neuron(num_cluster,cluster, neuron):
+    df = pd.read_csv(f"code/TestRun/{num_cluster}Clusters/Expls/Cluster{cluster}IOUS1024N.csv")
     return df[df['unit']==neuron].best_name.item()
 
 def get_sentences(pairs_indices, sentences):
@@ -62,16 +62,15 @@ def write_file(file,fields,data):
             writer.writerows(data)
 import random        
 def main():
-    with open("code/TestRun/OriginalActivations.pkl", 'rb') as f:
+    with open("code/TestRun/OrigActivations.pkl", 'rb') as f:
         final_activs=pickle.load(f)
     with open("code/Sentences.pkl", 'rb') as f:
         sents=pickle.load(f)
 
-    num_clusters=[3,4,5,10]
-   
-    neurons=find_explaining_neurons(cluster=1)
-    neurons=random.sample(neurons, k=10)
+    num_clusters=[2,4]
+    neurons=[16,1023,473,89,265,133,386,796,798,6]
     for num_cluster in num_clusters:
+        
         print(f"Working on {num_cluster} clusters")
         for neuron in neurons:
             print("Neuron: ", neuron)
@@ -80,6 +79,6 @@ def main():
             field=['neuron','cluster','formula', 'pair_num', 'pre', 'hyp']
             file=f'Results{num_cluster}Cluster.csv'
             for cluster, pair_num, p, h in get_sentences(pairs_indices, sents):
-                formula = get_formula_for_neuron(cluster, neuron)
+                formula = get_formula_for_neuron(num_cluster, cluster, neuron)
                 write_file(file,field,[[neuron, cluster, formula, pair_num, p, h]])
 main()
