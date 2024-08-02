@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import sklearn.cluster as scikit_cluster
 import os
-
+import settings
 count=0
 def build_act_mask(states, activ_ranges, cluster_num):
     shape=states.shape
@@ -43,7 +43,7 @@ def compute_activ_ranges(activations, clusters, num_clusters):
     
     return sorted(activation_ranges, key=lambda x:x[0])
 
-def create_clusters(activations, num_clusters, thresh=100):
+def create_clusters(activations, num_clusters):
     if activations.requires_grad:
         activations=activations.detach()
     # ensure activations is the right shape 
@@ -57,10 +57,11 @@ def create_clusters(activations, num_clusters, thresh=100):
     for i,neurons_acts in enumerate(activations):
         nonzero_activs_num= torch.nonzero(neurons_acts).size(0)
         
-        if nonzero_activs_num <= thresh:
+        if nonzero_activs_num < settings.MIN_ACTS:
             dead_neurons.append(i)
             activation_ranges.append([])
             continue
+            
         neurons_acts = neurons_acts[neurons_acts>0]
         neurons_acts  = neurons_acts.reshape(1,-1).t()
         

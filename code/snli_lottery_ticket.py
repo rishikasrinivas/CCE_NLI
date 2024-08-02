@@ -158,26 +158,13 @@ def main(args):
     
 
     # ==== TRAIN ====
-    final_weights=model.mlp[0].weight.t().detach().cpu().numpy()
+    final_weights=model.mlp[0].weight.detach().cpu().numpy()
     prune_mask = torch.ones(final_weights.shape)
     
     for prune_iter in tqdm(range(1,args.prune_iters+1)):
         
         #identifier to track pruning amount'
         
-        #masks and explanation storing paths before finetuning
-        masks_before_finetuning_flder = f"code/LHMasks/Masks{prune_iter}_Pruning_Iter/BeforeFT"
-        if not os.path.exists(masks_before_finetuning_flder):
-            os.makedirs(f"code/LHMasks/", exist_ok=True)
-            os.makedirs(f"code/LHMasks/Masks{prune_iter}Pruning_Iter", exist_ok=True)
-            os.makedirs(masks_before_finetuning_flder,exist_ok=True)
-
-
-        expls_before_finetuning_flder = f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/BeforeFT"
-        if not os.path.exists(expls_before_finetuning_flder):
-            os.makedirs(f"Analysis/LHExpls/", exist_ok=True)
-            os.makedirs(f"Analysis/Expls{prune_iter}Pruning_Iter",exist_ok=True)
-            os.makedirs(expls_before_finetuning_flder,exist_ok=True) 
 
         #location to store metrics
         prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{prune_iter}_Pruning_Iter")
@@ -196,67 +183,41 @@ def main(args):
             os.mkdir(masks_after_finetuning_flder)
 
         print("Prune amt", settings.PRUNE_AMT)
-        if prune_iter != 1:
-            model, prune_mask, new_weights = model.prune(amount=settings.PRUNE_AMT,final_weights=new_weights, mask=prune_mask)
-            assert  torch.equal(model.mlp[:-1][0].weight.t().detach().cpu(), new_weights)
-            if settings.CUDA:
-                device = 'cuda'
-                model = model.cuda()
-            #run after pruning before finetuning
-            _,final_weights =initiate_exp_run(
-                        save_exp_dir = expls_before_finetuning_flder, 
-                        save_masks_dir= masks_before_finetuning_flder, 
-                        masks_saved=False, 
-                        model_=model,
-                        dataset=dataset,
-                    )
-            assert  torch.equal(torch.tensor(final_weights), new_weights)
-            path_to_ckpt, metrics, model = finetune_pruned_model(model,optimizer,criterion,dataloaders, train, val, args.finetune_epochs, args.prune_metrics_dir, metrics, device)
+        model, prune_mask, final_weights = model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, mask=prune_mask)
+        print("After pruning: Final_wegihts shape is: ", final_weights.shape)
+        assert  torch.equal(model.mlp[:-1][0].weight.detach().cpu(), final_weights)
+        
+        if settings.CUDA:
+            device = 'cuda'
+            model = model.cuda()
+        #run after pruning before finetuning
+        _,final_layer_weights =initiate_exp_run(
+                    save_exp_dir = expls_after_finetuning_flder, 
+                    save_masks_dir= masks_after_finetuning_flder, 
+                    masks_saved=False, 
+                    model_=model,
+                    dataset=dataset,
+                )
+        assert  torch.equal(torch.tensor(final_layer_weights), final_weights)
+        
+        path_to_ckpt, metrics, model = finetune_pruned_model(model,optimizer,criterion,dataloaders, train, val, args.finetune_epochs, args.prune_metrics_dir, metrics, device)
 
 
-            prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{prune_iter}_Pruning_Iter")
-            weights=torch.load(f"{args.prune_metrics_dir}/model_best.pth")['state_dict']['mlp.0.weight']
-            total_pruned_amt=torch.where(weights==0,1,0).sum()
-            fileio.log_to_csv(os.path.join(prune_metrics_dir,"pruned_status.csv"), str(total_pruned_amt / (1024*2048)), f"{prune_iter}: % PRUNED")
+        prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{prune_iter}_Pruning_Iter")
+        weights=torch.load(f"{args.prune_metrics_dir}/model_best.pth")['state_dict']['mlp.0.weight']
+        total_pruned_amt=torch.where(weights==0,1,0).sum()
+        fileio.log_to_csv(os.path.join(prune_metrics_dir,"pruned_status.csv"), str(total_pruned_amt / (1024*2048)), f"{prune_iter}: % PRUNED")
 
-
-
-            if settings.CUDA:
-                device = 'cuda'
-                model = model.cuda()
-            else:
-                device = 'cpu'
-
-
-            #run after pruning and finetuning
-            _,final_weights=initiate_exp_run(
-                save_exp_dir = exp_after_finetuning_flder, 
-                save_masks_dir= masks_after_finetuning_flder, 
-                masks_saved=False, 
-                model_=model,
-                dataset=dataset,
-
-            ) 
-        else:
-            model, prune_mask, new_weights = model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, mask=prune_mask)
-            assert  torch.equal(model.mlp[:-1][0].weight.t().detach().cpu(), new_weights)
-    
-            
 
         
-        prunedAfterRT_expls = {'prunedAfter': [
+        '''prunedAfterRT_expls = {'prunedAfter': [
             f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/AfterFT/Cluster1IOUS1024N.csv",
             f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/AfterFT/Cluster2IOUS1024N.csv",
             f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/AfterFT/Cluster3IOUS1024N.csv",
             f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/AfterFT/Cluster4IOUS1024N.csv",
         ]}
         
-        prunedBeforeRT_expls = {'prunedBefore': [
-            f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/BeforeFT/Cluster1IOUS1024N.csv",
-            f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/BeforeFT/Cluster2IOUS1024N.csv",
-            f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/BeforeFT/Cluster3IOUS1024N.csv",
-            f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/BeforeFT/Cluster4IOUS1024N.csv",
-        ]}
+    
         initial_expls = {'original': 
                          [f"Analysis/LHExpls/Expls0_Pruning_Iter/AfterFT/Cluster1IOUS1024N.csv",
                           f"Analysis/LHExpls/Expls0_Pruning_Iter/AfterFT/Cluster2IOUS1024N.csv",
@@ -266,8 +227,8 @@ def main(args):
                          ]
                         }
         
-        files=[prunedBeforeRT_expls, prunedAfterRT_expls, initial_expls]
-        util.record_stats(args.prune_metrics_dir, prune_iter, files, '_')
+        files=[prunedAfterRT_expls, initial_expls]
+        util.record_stats(args.prune_metrics_dir, prune_iter, files, '_')'''
 
 
 def parse_args():

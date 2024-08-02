@@ -249,10 +249,9 @@ def write_to_file(unit, file, col_names, col_vals):
         with open(file, "w") as fp:
             wr = csv.writer(fp, dialect='excel')
             wr.writerow(col_names)
-    else:
-        with open(file, "a") as fp:
-            wr = csv.writer(fp, dialect='excel')
-            wr.writerow(col_vals)
+    with open(file, "a") as fp:
+        wr = csv.writer(fp, dialect='excel')
+        wr.writerow(col_vals)
             
 def calculate_act_mask_align_index(unit, formula, cluster, acts, masks):
     #masks = masks.reshape(-1,1)
@@ -547,23 +546,23 @@ def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =No
                 tqdm.write(f"{unit:02d}\t{best_name}\t{best_iou:.3f}")
                 write_to_file(unit, f"{save_dir}/Cluster{cluster}IOUS1024N.csv", ["unit", "best_name", "best_iou"], [unit, best_name, best_iou])
             
-            r = {
-                "cluster": cluster,
-                "neuron": unit,
-                "feature": best_name,
-                "category": best_cat,
-                "category_fine": best_cat_fine,
-                "iou": best_iou,
-                "feature_length": len(best_lab),
-                "w_entail": entail_weight,
-                "w_neutral": neutral_weight,
-                "w_contra": contra_weight,
-            }
-            records.append(r)
+                r = {
+                    "cluster": cluster,
+                    "neuron": unit,
+                    "feature": best_name,
+                    "category": best_cat,
+                    "category_fine": best_cat_fine,
+                    "iou": best_iou,
+                    "feature_length": len(best_lab),
+                    "w_entail": entail_weight,
+                    "w_neutral": neutral_weight,
+                    "w_contra": contra_weight,
+                }
+                records.append(r)
             pbar.update()
             n_done += 1
-            #if n_done % settings.SAVE_EVERY == 0:
-            pd.DataFrame(records).to_csv(rfile, index=False)
+            if n_done % settings.SAVE_EVERY == 0:
+                pd.DataFrame(records).to_csv(rfile, index=False)
 
         # Save progress
         if len(records) % 32 == 0:
@@ -760,17 +759,26 @@ def searching_dead_neurons(states, threshold, model, weights, val_loader):
     acc=snli_eval.run_eval(model, val_loader)
     accs.append(acc)
     print(f"defult: {acc}")
+    
     for thresh in threshold:
-        activation_ranges, dead_neurons = create_clusters(activations,4)
-        
-        weights=model.mlp[0].weight.t().detach()
-        weights[dead_neurons]= torch.zeros((1,1024)).cuda()
-        model.mlp[:-1][0].weight.t().detach().copy_(weights)
-        assert torch.equal(model.mlp[:-1][0].weight.t().detach()[dead_neurons],torch.zeros((len(dead_neurons),1024)).cuda())
+        dead_neurons =[]
+        for i,a in enumerate(activations):
+            if a.sum() < thresh or a.sum() == 0:
+                dead_neurons.append(i)
+
+        weights=model.mlp[0].weight.detach()
+
+        assert weights.shape[0] == 1024 and weights.shape[1] == 2048
+        weights[dead_neurons]= torch.zeros((1,2048)).cuda()
+        model.mlp[:-1][0].weight.detach().copy_(weights)
+
+        assert torch.equal(model.mlp[:-1][0].weight.detach()[dead_neurons],torch.zeros((len(dead_neurons),2048)).cuda())
+
+
         acc=snli_eval.run_eval(model, val_loader)
         accs.append(acc)
-        print(f"{thresh}: {acc}")
-    
+        print(f"{thresh}: {acc}\nNum dead: {len(dead_neurons)}")
+
     
 def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved):
     activations= torch.from_numpy(np.array(states)).t() #1024x10000
@@ -779,7 +787,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
     if not masks_saved:
         print("creating masks storing in ",save_masks_dir )#check how many ones per row here
         activation_ranges, dead_neur = create_clusters(activations,4)
-        pckl_file = open(f"{save_masks_dir}/Masks.pkl", "wb")
+        pckl_file = open(f"{save_masks_dir}/ActivationRanges.pkl", "wb")
        
         pickle.dump(activation_ranges, pckl_file)
         pckl_file.close()
@@ -865,8 +873,8 @@ def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path=settings.MOD
     if settings.MODEL_TYPE == "minimal":
         weights = model.mlp.weight.t().detach().cpu().numpy()
     else:
-        weights = model.mlp[-1].weight.t().detach().cpu().numpy()
-        final_weights = model.mlp[0].weight.t().detach().cpu().numpy()
+        classification_weights = model.mlp[-1].weight.t().detach().cpu().numpy()
+        final_weights = model.mlp[0].weight.detach().cpu().numpy()
 
     print("Extracting features")
     
@@ -882,10 +890,15 @@ def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path=settings.MOD
     
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
     
-    acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved)
+    acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, classification_weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved)
     return acts, final_weights
 from data.snli import SNLI
 def main():
+    sents=load_sents("data/analysis/snli_1.0_dev.tok")
+    with open("code/Sentences.pkl", 'wb') as f:
+        pickle.dump(sents, f)
+    pickle.close()
+    return
     os.makedirs(settings.RESULT, exist_ok=True)
     model, dataset = data.snli.load_for_analysis(
             settings.MODEL,
@@ -896,8 +909,11 @@ def main():
     
     weights= model.mlp[0].weight.t().detach().cpu().numpy()
     
-    states, weights = initiate_exp_run(save_exp_dir='code/', save_masks_dir='code/',masks_saved=False, q_ret=1)
-    
+    states, weights = initiate_exp_run(save_exp_dir='code/TestRun/', save_masks_dir='code/TestRun/',masks_saved=True, q_ret=1)
+    with open("code/TestRun/OriginalActivations.pkl", 'wb') as f:
+        pickle.dump(states, f)
+    pickle.close()
+    return
     ckpt = torch.load(settings.MODEL)
     val = SNLI(
         "data/snli_1.0/",
@@ -913,7 +929,7 @@ def main():
         num_workers=0,
         collate_fn=data.snli.pad_collate,
     )
-    searching_dead_neurons(states, [i for i in range(0,100)], model, weights, val_loader)
+    searching_dead_neurons(states, [i for i in range(0,500,5)], model, weights, val_loader)
     
     
     print("Load predictions")
