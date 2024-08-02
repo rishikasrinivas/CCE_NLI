@@ -780,13 +780,13 @@ def searching_dead_neurons(states, threshold, model, weights, val_loader):
         print(f"{thresh}: {acc}\nNum dead: {len(dead_neurons)}")
 
     
-def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved):
+def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved, num_clusters=4):
     activations= torch.from_numpy(np.array(states)).t() #1024x10000
     #1st  time run this, after that dont
     print("activs shaoe ", activations.shape)
     if not masks_saved:
         print("creating masks storing in ",save_masks_dir )#check how many ones per row here
-        activation_ranges, dead_neur = create_clusters(activations,4)
+        activation_ranges, dead_neur = create_clusters(activations,num_clusters)
         pckl_file = open(f"{save_masks_dir}/ActivationRanges.pkl", "wb")
        
         pickle.dump(activation_ranges, pckl_file)
@@ -797,9 +797,9 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
         pickle.dump(dead_neur, pckl_file)
         pckl_file.close()
         
-        build_masks(activations, activation_ranges, 4, save_masks_dir) #how many ones per mask
+        build_masks(activations, activation_ranges, num_clusters, save_masks_dir) #how many ones per mask
     masks_saved = True
-    for cluster_num in range(1,5): 
+    for cluster_num in range(1,num_clusters+1): 
         if masks_saved:
             print(f"{cluster_num} found : {f'Cluster{cluster_num}masks.pt' in os.listdir(save_masks_dir)}")
             if f"Cluster{cluster_num}masks.pt" in os.listdir(save_masks_dir):
@@ -871,7 +871,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path=settings.MOD
  
     # Last model weight
     if settings.MODEL_TYPE == "minimal":
-        weights = model.mlp.weight.t().detach().cpu().numpy()
+        classification_weights = model.mlp.weight.t().detach().cpu().numpy()
     else:
         classification_weights = model.mlp[-1].weight.t().detach().cpu().numpy()
         final_weights = model.mlp[0].weight.detach().cpu().numpy()
@@ -890,15 +890,13 @@ def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path=settings.MOD
     
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
     
-    acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, classification_weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved)
+    for i in range(2,4):
+        save_exp_dir = f"code/TestRun/{i}Clusters/Expls"
+        save_exp_dir = f"code/TestRun/{i}Clusters/Masks"
+        acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, classification_weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved, num_clusters=i)
     return acts, final_weights
 from data.snli import SNLI
 def main():
-    sents=load_sents("data/analysis/snli_1.0_dev.tok")
-    with open("code/Sentences.pkl", 'wb') as f:
-        pickle.dump(sents, f)
-    pickle.close()
-    return
     os.makedirs(settings.RESULT, exist_ok=True)
     model, dataset = data.snli.load_for_analysis(
             settings.MODEL,
@@ -907,13 +905,9 @@ def main():
             cuda=settings.CUDA
         )
     
-    weights= model.mlp[0].weight.t().detach().cpu().numpy()
     
-    states, weights = initiate_exp_run(save_exp_dir='code/TestRun/', save_masks_dir='code/TestRun/',masks_saved=True, q_ret=1)
-    with open("code/TestRun/OriginalActivations.pkl", 'wb') as f:
-        pickle.dump(states, f)
-    pickle.close()
-    return
+    states, weights = initiate_exp_run(save_exp_dir='code/TestRun/', save_masks_dir='code/TestRun/',masks_saved=False)
+    return 
     ckpt = torch.load(settings.MODEL)
     val = SNLI(
         "data/snli_1.0/",

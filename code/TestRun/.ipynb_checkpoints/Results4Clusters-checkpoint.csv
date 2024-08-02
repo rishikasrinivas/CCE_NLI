@@ -1,0 +1,25 @@
+cluster,formula,pair_num,pre,hyp
+1,((((NOT oth:overlap:overlap25) AND (hyp:tok:is OR pre:tok:one)) OR hyp:tok:they) OR pre:tok:stage),0,"Two women are embracing while holding to go packages .
+","The sisters are hugging goodbye while holding to go packages after just eating lunch .
+"
+1,((((NOT oth:overlap:overlap25) AND (hyp:tok:is OR pre:tok:one)) OR hyp:tok:they) OR pre:tok:stage),1,"Two women are embracing while holding to go packages .
+","Two woman are holding packages .
+"
+2,(((((NOT oth:overlap:overlap25) AND hyp:tok:is) AND (NOT pre:tok:by)) OR hyp:tok:tall) OR hyp:tok:they),2,"Two women are embracing while holding to go packages .
+","The men are fighting outside a deli .
+"
+2,(((((NOT oth:overlap:overlap25) AND hyp:tok:is) AND (NOT pre:tok:by)) OR hyp:tok:tall) OR hyp:tok:they),5,"Two young children in blue jerseys , one with the number 9 and one with the number 2 are standing on wooden steps in a bathroom and washing their hands in a sink .
+","Two kids in jackets walk to school .
+"
+3,((((hyp:tok:best OR hyp:tok:tall) OR pre:tok:groom) OR pre:tok:mother) OR pre:tok:match),34,"Man in a black suit , white shirt and black bowtie playing an instrument with the rest of his symphony surrounding him .
+","Nobody has a suit
+"
+3,((((hyp:tok:best OR hyp:tok:tall) OR pre:tok:groom) OR pre:tok:mother) OR pre:tok:match),42,"Two doctors perform surgery on patient .
+","Two surgeons are having lunch .
+"
+4,((((hyp:tok:halloween OR hyp:tok:tall) OR pre:tok:cherry) AND (NOT pre:tok:to)) OR hyp:tok:poor),27,"Families waiting in line at an amusement park for their turn to ride .
+","The restaurant is very bad .
+"
+4,((((hyp:tok:halloween OR hyp:tok:tall) OR pre:tok:cherry) AND (NOT pre:tok:to)) OR hyp:tok:poor),35,"Man in a black suit , white shirt and black bowtie playing an instrument with the rest of his symphony surrounding him .
+","A tall person in a suit
+"
