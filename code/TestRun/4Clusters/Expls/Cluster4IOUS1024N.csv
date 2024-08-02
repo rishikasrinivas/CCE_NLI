@@ -100,3 +100,19 @@ unit,best_name,best_iou
 302,((((hyp:tok:stick OR hyp:tok:walks) OR hyp:tok:winning) AND (NOT pre:tok:in)) OR hyp:tok:bone),0.10434782608695652
 362,((((hyp:tok:least OR hyp:tok:this) AND hyp:tok:there) OR hyp:tok:activity) AND hyp:tok:in),0.28
 375,((((hyp:tok:no OR hyp:tok:nobody) OR hyp:tok:anything) AND (NOT pre:tok:woman)) AND (NOT pre:tok:sitting)),0.224
+382,((((NOT pre:tok:to) AND (hyp:tok:for OR hyp:tok:to)) AND (NOT pre:tok:at)) AND (NOT pre:tok:for)),0.11530612244897959
+386,((((hyp:tok:headphones OR hyp:tok:no) OR hyp:tok:sale) AND (NOT pre:tok:in)) AND (NOT hyp:tok:are)),0.12903225806451613
+390,((((NOT pre:tok:to) AND (hyp:tok:for OR hyp:tok:to)) OR hyp:tok:because) AND (NOT pre:tok:for)),0.11625874125874126
+392,((((NOT hyp:tok:man) AND (hyp:tok:there OR oth:overlap:overlap75)) AND (NOT pre:tok:black)) OR hyp:tok:instruments),0.10918114143920596
+410,((((hyp:tok:court OR hyp:tok:swimming) OR hyp:tok:laying) OR pre:tok:european) AND (NOT pre:tok:water)),0.11009174311926606
+413,((((hyp:tok:chases OR hyp:tok:driving) OR hyp:tok:skiing) AND (NOT hyp:tok:people)) AND (NOT pre:tok:wearing)),0.12745098039215685
+416,((((hyp:tok:tv AND hyp:tok:watching) OR hyp:tok:napping) OR hyp:tok:clock) AND (NOT pre:tok:people)),0.24444444444444444
+457,(((((NOT hyp:tok:man) AND oth:overlap:overlap75) OR hyp:tok:there) OR hyp:tok:holding) AND (NOT hyp:tok:are)),0.08327691266079891
+473,((((hyp:tok:person OR oth:overlap:overlap75) OR hyp:tok:human) AND (NOT hyp:tok:man)) OR hyp:tok:some),0.09863636363636363
+502,((((hyp:tok:heels OR hyp:tok:stroller) AND hyp:tok:walking) OR hyp:tok:buggy) AND (NOT pre:tok:over)),0.3333333333333333
+512,((((hyp:tok:alone OR hyp:tok:empty) OR hyp:tok:slide) OR hyp:tok:clown) AND (NOT pre:tok:is)),0.09090909090909091
+523,((((hyp:tok:mirror OR hyp:tok:moon) OR hyp:tok:free) OR hyp:tok:london) OR hyp:tok:tea),0.10619469026548672
+533,((((hyp:tok:alone OR hyp:tok:swimming) OR hyp:tok:naked) OR hyp:tok:empty) OR hyp:tok:asleep),0.1423670668953688
+536,((((hyp:tok:championship OR hyp:tok:first) OR hyp:tok:favorite) OR hyp:tok:golden) OR hyp:tok:pick),0.10526315789473684
+537,((((hyp:tok:sleeping AND pre:tok:water) OR pre:tok:else) AND hyp:tok:sleeping) AND (NOT pre:tok:people)),0.23809523809523808
+549,((((pre:tok:giving OR pre:tok:younger) AND hyp:tok:at) OR hyp:tok:opponent) OR pre:tok:given),0.125
