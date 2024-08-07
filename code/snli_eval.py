@@ -85,8 +85,9 @@ def main(args):
     ckpt = torch.load(args.model)
     stoi = ckpt["stoi"]
     
+    vocab_stats = torch.load(settings.VOCAB_CKPT_PATH)
     # ==== BUILD MODEL ====
-    model = train_utils.build_model(len(ckpt["stoi"]), args.model_type)
+    model = train_utils.build_model(len(vocab_stats['stoi']), args.model_type)
     
     model.load_state_dict(ckpt["state_dict"])
     weights=model.mlp[0].weight.detach()
@@ -97,24 +98,25 @@ def main(args):
         model = model.cuda()
 
     # ==== EVAL ON VAL SET ====
-    val = SNLI(
+    test = SNLI(
         args.eval_data_path,
-        "dev",
-        max_data=5000,
-        vocab=(ckpt["stoi"], ckpt["itos"]),
+        "test",
+        vocab=(vocab_stats['stoi'], vocab_stats['itos']),
         unknowns=True,
     )
-    val_loader = DataLoader(
-        val,
+    
+    test_loader = DataLoader(
+        test,
         batch_size=100,
         shuffle=False,
         pin_memory=True,
         num_workers=0,
         collate_fn=data.snli.pad_collate,
     )
+    
     all_preds = []
     all_targets = []
-    for (s1, s1len, s2, s2len, targets) in val_loader:
+    for (s1, s1len, s2, s2len, targets) in test_loader:
         if settings.CUDA:
             s1 = s1.cuda()
             s1len = s1len.cuda()
@@ -164,7 +166,7 @@ def parse_args():
         default="test.txt",
         help="Data to eval interactively (pairs of sentences); use - for stdin",
     )
-    parser.add_argument("--model", default="models/snli/model_best.pth")
+    parser.add_argument("--model", default="models/snli/train3.pth")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "snli"])
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--eval_data_path", default="data/snli_1.0/")
