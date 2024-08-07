@@ -20,7 +20,7 @@ import pandas as pd
 import settings
 import models
 import util
-from snli_train import build_model, run
+import train_utils
 import data.snli
 
 
@@ -86,9 +86,11 @@ def main(args):
     stoi = ckpt["stoi"]
     
     # ==== BUILD MODEL ====
-    model = build_model(len(ckpt["stoi"]), args.model_type)
+    model = train_utils.build_model(len(ckpt["stoi"]), args.model_type)
+    
     model.load_state_dict(ckpt["state_dict"])
     weights=model.mlp[0].weight.detach()
+    
     model.eval()
 
     if settings.CUDA:
@@ -98,6 +100,7 @@ def main(args):
     val = SNLI(
         args.eval_data_path,
         "dev",
+        max_data=5000,
         vocab=(ckpt["stoi"], ckpt["itos"]),
         unknowns=True,
     )
@@ -112,7 +115,7 @@ def main(args):
     all_preds = []
     all_targets = []
     for (s1, s1len, s2, s2len, targets) in val_loader:
-        if args.cuda:
+        if settings.CUDA:
             s1 = s1.cuda()
             s1len = s1len.cuda()
             s2 = s2.cuda()
@@ -161,7 +164,7 @@ def parse_args():
         default="test.txt",
         help="Data to eval interactively (pairs of sentences); use - for stdin",
     )
-    parser.add_argument("--model", default="models/bowman_snli/6.pth")
+    parser.add_argument("--model", default="models/snli/model_best.pth")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "snli"])
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--eval_data_path", default="data/snli_1.0/")

@@ -16,7 +16,7 @@ from contextlib import nullcontext
 from tqdm import tqdm
 import numpy as np
 from collections import defaultdict
-
+import settings
 import torch.nn.utils.prune as prune
 import train_utils
 import models
@@ -31,11 +31,21 @@ def main(args):
     if args.debug:
         max_data = 1000
     else:
-        max_data = None
-    train = SNLI("data/snli_1.0/", "train", max_data=max_data)
-    val = SNLI(
-        "data/snli_1.0/", "dev", max_data=max_data, vocab=(train.stoi, train.itos)
-    )
+        max_data = 7000
+        
+    if args.finetune:
+        ckpt = torch.load("models/snli/6.pth")
+        train = SNLI("data/snli_1.0/", "train", max_data=max_data)
+        val = SNLI(
+            "data/snli_1.0/", "dev", max_data=max_data, vocab=(ckpt["stoi"], ckpt["itos"]),
+        )
+        vocab_size=len(ckpt['stoi'])
+    else:
+        train = SNLI("data/snli_1.0/", "train", max_data=max_data)
+        val = SNLI(
+            "data/snli_1.0/", "dev", max_data=max_data, vocab=(train.stoi, train.itos)
+        )
+        vocab_size=len(train.stoi)
 
     dataloaders = {
         "train": DataLoader(
@@ -58,12 +68,12 @@ def main(args):
 
     # ==== BUILD MODEL ====
     model = train_utils.build_model(
-        len(train.stoi),
+        vocab_size,
         args.model_type,
         embedding_dim=args.embedding_dim,
         hidden_dim=args.hidden_dim,
     )
-    #model.load_state_dict(torch.load("models/snli/Inc/prune_metrics/2.0%Pruned/LotTick9.pth")['state_dict'])
+    #model.load_state_dict(torch.load("models/snli/6.pth")['state_dict'])
 
     if settings.CUDA:
         model = model.cuda()
@@ -125,6 +135,7 @@ def parse_args():
     parser.add_argument("--hidden_dim", default=512, type=int)
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--cuda", action="store_true")
+    parser.add_argument("--finetune", action="store_true")
     return parser.parse_args()
 
 
