@@ -226,26 +226,7 @@ def main(args):
         
         )
         
-        print(f"Accuracy: {run_eval(model, val_loader)}")
-        '''prunedAfterRT_expls = {'prunedAfter': [
-            f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/AfterFT/Cluster1IOUS1024N.csv",
-            f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/AfterFT/Cluster2IOUS1024N.csv",
-            f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/AfterFT/Cluster3IOUS1024N.csv",
-            f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/AfterFT/Cluster4IOUS1024N.csv",
-        ]}
         
-    
-        initial_expls = {'original': 
-                         [f"Analysis/LHExpls/Expls0_Pruning_Iter/AfterFT/Cluster1IOUS1024N.csv",
-                          f"Analysis/LHExpls/Expls0_Pruning_Iter/AfterFT/Cluster2IOUS1024N.csv",
-                          f"Analysis/LHExpls/Expls0_Pruning_Iter/AfterFT/Cluster3IOUS1024N.csv",
-                          f"Analysis/LHExpls/Expls0_Pruning_Iter/AfterFT/Cluster4IOUS1024N.csv",
-
-                         ]
-                        }
-        
-        files=[prunedAfterRT_expls, initial_expls]
-        util.record_stats(args.prune_metrics_dir, prune_iter, files, '_')'''
 
 
 def parse_args():

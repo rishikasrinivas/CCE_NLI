@@ -1,4 +1,0 @@
-sentences,cluster,neuron,feature,iou
-4,15,(((((NOT oth:overlap:overlap50) AND hyp:tok:sitting) AND (NOT pre:tok:on)) AND (NOT pre:tag:rb)) AND (NOT hyp:tag:cd)),0.14893617021276595,-0.083393574,0.086006,-0.05854521
-4,1000,((((NOT oth:overlap:overlap50) AND (hyp:tok:running OR hyp:tok:soccer)) AND hyp:tag:.) OR hyp:tok:jogging),0.09363295880149813,-0.04671789,0.07593021,0.012701052
-4,1023,(((((NOT oth:overlap:overlap50) AND hyp:tag:nn) AND (NOT hyp:tok:there)) AND (NOT pre:tok:white)) OR hyp:tok:for),0.15765383963383625,-0.054077625,0.0110306665,0.034481212

@@ -1,3 +1,0 @@
-1,15,((((hyp:tok:eating OR pre:tok:lone) OR hyp:tok:cat) AND hyp:tag:in) OR hyp:tok:sleep),0.07659574468085106,-0.083393574,0.086006,-0.05854521
-1,1000,(((((NOT pre:tag:cc) AND hyp:tag:.) AND (NOT oth:overlap:overlap50)) AND (NOT pre:tag:nns)) AND (NOT pre:tok:black)),0.05888767720828789,-0.04671789,0.07593021,0.012701052
-1,1023,(((((NOT hyp:tag:jj) AND pre:tag:nns) OR pre:tok:to) AND (NOT hyp:tag:prp$)) AND (NOT hyp:tok:there)),0.06786703601108034,-0.054077625,0.0110306665,0.034481212

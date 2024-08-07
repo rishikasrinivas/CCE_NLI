@@ -171,7 +171,7 @@ class BowmanEntailmentClassifier(nn.Module):
             assert final_weights.shape[0] == 1024
             mask, weights = self.prune_masks(amount, mask, final_weights) 
             self.mlp[:-1][0].weight.detach().copy_(weights)
-            return self, mask, weights
+            return self, mask
         elif settings.PRUNE_METHOD == 'incremental':
             print("Pruning by: ",amount)
             if not self.check_pruned() :

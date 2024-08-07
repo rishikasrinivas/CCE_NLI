@@ -1,3 +1,0 @@
-5,15,((((hyp:tok:sitting AND pre:tok:walking) OR hyp:tok:lying) AND (NOT oth:overlap:overlap50)) OR hyp:tok:underneath),0.225,-0.083393574,0.086006,-0.05854521
-5,1000,((((hyp:tok:with AND pre:tok:pose) OR hyp:tok:free) OR hyp:tok:sides) OR hyp:tok:smaller),0.125,-0.04671789,0.07593021,0.012701052
-5,1023,((((NOT oth:overlap:overlap50) AND (hyp:tok:for OR hyp:tok:to)) OR hyp:tok:tall) OR hyp:tok:because),0.15985130111524162,-0.054077625,0.0110306665,0.034481212

@@ -9,8 +9,6 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 import spacy
-import sys
-sys.path.append('code/')
 import en_core_web_sm
 nlp = en_core_web_sm.load()
 from torch.utils.data import DataLoader
@@ -26,18 +24,62 @@ import models
 import util
 from data import analysis
 import importlib.util
-import train_utils
+import sys
+import fileio
+# Define the path to the module you want to import
+analysis_path = os.path.abspath("Analysis/pipelines.py")
+
+# Load the module dynamically
+spec = importlib.util.spec_from_file_location("pipelines", analysis_path)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
 sys.path.append("Analysis/")
 import pipelines as pipelines
-import wandb_utils
+
+def finetune_pruned_model(model,optimizer,criterion, dataloaders, train, val, finetune_epochs, prune_metrics_dir, metrics,device):
+    for epoch in range(finetune_epochs):
+        train_metrics = run(
+            "train", epoch, model, optimizer, criterion, dataloaders, args,device
+        )
+
+        val_metrics = run(
+            "val", epoch, model, optimizer, criterion, dataloaders, args,device
+        )
+
+        for name, val in train_metrics.items():
+            metrics[f"train_{name}"].append(val)
+
+        for name, val in val_metrics.items():
+            metrics[f"val_{name}"].append(val)
+
+        is_best = val_metrics["acc"] > metrics["best_val_acc"]
+
+        if is_best:
+            metrics["best_val_epoch"] = epoch
+            metrics["best_val_acc"] = val_metrics["acc"]
+            metrics["best_val_loss"] = val_metrics["loss"]
+            fileio.log_to_csv(os.path.join(prune_metrics_dir,"pruned_status.csv"), [epoch, val_metrics["acc"], val_metrics["loss"]], ["EPOCH", "ACCURACY", "LOSS"])
+        
+
+
+        util.save_metrics(metrics, prune_metrics_dir)
+        util.save_checkpoint(serialize(model, train), is_best, prune_metrics_dir)
+        if epoch % args.save_every == 0:
+
+            util.save_checkpoint(
+                serialize(model, train), False, prune_metrics_dir, filename=f"LotTick{epoch}.pth"
+            )
+    path_to_ckpt = os.path.join(prune_metrics_dir, f"LotTick{finetune_epochs-1}.pth")
+    return path_to_ckpt, metrics, model
 
 def verify_pruning(model, prev_total_pruned_amt): # does this:
     num_zeros_in_final_weights=torch.where(model.mlp[0].weight.t()==0,1,0).sum()
     new_zeros=num_zeros_in_final_weights-prev_total_pruned_amt
     assert np.round((new_zeros/(1024*2048)),1) == 0.5
+
     
-    
-    
+
 
 #running the expls using the already finetuned and precreated masks from before
 def main(args):
@@ -107,57 +149,67 @@ def main(args):
     optimizer = optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
 
+    metrics = defaultdict(list)
+    metrics["best_val_epoch"] = 0
+    metrics["best_val_acc"] = 0
+    metrics["best_val_loss"] = np.inf
+
     # Save model with 0 training
     
 
     # ==== TRAIN ====
-    
-    #initial val accuracy
-     val = SNLI(
-        "data/snli_1.0/",
-        "dev",
-        vocab=(ckpt["stoi"], ckpt["itos"]),
-        unknowns=True,
-    )
-    val_loader = DataLoader(
-        val,
-        batch_size=100,
-        shuffle=False,
-        pin_memory=True,
-        num_workers=0,
-        collate_fn=data.snli.pad_collate,
-
-    )
-
-    print(f"Accuracy: {train_utils.run_eval(model, val_loader)}")
-    
-    # setting up pruning mask and weights
-    final_weights=model.mlp[:-1][0].weight.detach().cpu().numpy()
-
+    final_weights=model.mlp[0].weight.detach().cpu().numpy()
     prune_mask = torch.ones(final_weights.shape)
     
-    #pruning
     for prune_iter in tqdm(range(1,args.prune_iters+1)):
+        
+        #identifier to track pruning amount'
+        
+
         #location to store metrics
         prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{prune_iter}_Pruning_Iter")
         if not os.path.exists(prune_metrics_dir):
             os.makedirs(args.prune_metrics_dir,exist_ok=True)
             os.makedirs(prune_metrics_dir,exist_ok=True)
 
-        # prune 
+        #masks and explanation storing paths after finetuning
+        exp_after_finetuning_flder = f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/AfterFT"
+        if not os.path.exists(exp_after_finetuning_flder):
+            os.mkdir(f"Analysis/LHExpls/Expls{prune_iter}Pruning_Iter/")
+            os.mkdir(exp_after_finetuning_flder) 
+
+        masks_after_finetuning_flder = f"code/LHMasks/Masks{prune_iter}_Pruning_Iter/AfterFT"
+        if not os.path.exists(masks_after_finetuning_flder):
+            os.mkdir(masks_after_finetuning_flder)
+
         print("Prune amt", settings.PRUNE_AMT)
-        model, prune_mask = model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, mask=prune_mask)
+        model, prune_mask, final_weights = model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, mask=prune_mask)
         print("After pruning: Final_wegihts shape is: ", final_weights.shape)
+        assert  torch.equal(model.mlp[:-1][0].weight.detach().cpu(), final_weights)
         
         if settings.CUDA:
             device = 'cuda'
             model = model.cuda()
-       
-        #finetuning
-        model, final_weights, ckpt= train_utils.finetune_pruned_model(model,optimizer,criterion,dataloaders, train, val, args.finetune_epochs, args.prune_metrics_dir, device)
+        #run after pruning before finetuning
+        _,final_layer_weights =initiate_exp_run(
+                    save_exp_dir = exp_after_finetuning_flder, 
+                    save_masks_dir= masks_after_finetuning_flder, 
+                    masks_saved=False, 
+                    model_=model,
+                    dataset=dataset,
+                )
+        assert  torch.equal(torch.tensor(final_layer_weights), final_weights)
+        
+        path_to_ckpt, metrics, model = finetune_pruned_model(model,optimizer,criterion,dataloaders, train, val, args.finetune_epochs, args.prune_metrics_dir, metrics, device)
 
 
-        #accuracy after finetuning 
+        prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{prune_iter}_Pruning_Iter")
+        weights=torch.load(f"{args.prune_metrics_dir}/model_best.pth")['state_dict']['mlp.0.weight']
+        total_pruned_amt=torch.where(weights==0,1,0).sum()
+        fileio.log_to_csv(os.path.join(prune_metrics_dir,"pruned_status.csv"), str(total_pruned_amt / (1024*2048)), f"{prune_iter}: % PRUNED")
+
+
+        ckpt = torch.load(settings.MODEL)
         val = SNLI(
             "data/snli_1.0/",
             "dev",
@@ -174,7 +226,26 @@ def main(args):
         
         )
         
-        print(f"Accuracy: {train_utils.run_eval(model, val_loader)}")
+        print(f"Accuracy: {run_eval(model, val_loader)}")
+        '''prunedAfterRT_expls = {'prunedAfter': [
+            f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/AfterFT/Cluster1IOUS1024N.csv",
+            f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/AfterFT/Cluster2IOUS1024N.csv",
+            f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/AfterFT/Cluster3IOUS1024N.csv",
+            f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/AfterFT/Cluster4IOUS1024N.csv",
+        ]}
+        
+    
+        initial_expls = {'original': 
+                         [f"Analysis/LHExpls/Expls0_Pruning_Iter/AfterFT/Cluster1IOUS1024N.csv",
+                          f"Analysis/LHExpls/Expls0_Pruning_Iter/AfterFT/Cluster2IOUS1024N.csv",
+                          f"Analysis/LHExpls/Expls0_Pruning_Iter/AfterFT/Cluster3IOUS1024N.csv",
+                          f"Analysis/LHExpls/Expls0_Pruning_Iter/AfterFT/Cluster4IOUS1024N.csv",
+
+                         ]
+                        }
+        
+        files=[prunedAfterRT_expls, initial_expls]
+        util.record_stats(args.prune_metrics_dir, prune_iter, files, '_')'''
 
 
 def parse_args():

@@ -78,29 +78,7 @@ def from_file(fpath):
         hyp_raw = lines[i + 1]
         yield pre_raw, hyp_raw
 
-def run_eval(model, val_loader):
-    
-    all_preds = []
-    all_targets = []
-    for (s1, s1len, s2, s2len, targets) in val_loader:
-        if settings.CUDA:
-            s1 = s1.cuda()
-            s1len = s1len.cuda()
-            s2 = s2.cuda()
-            s2len = s2len.cuda()
 
-        with torch.no_grad():
-            logits = model(s1, s1len, s2, s2len)
-
-        preds = logits.argmax(1)
-
-        all_preds.append(preds.cpu().numpy())
-        all_targets.append(targets.cpu().numpy())
-
-    all_preds = np.concatenate(all_preds, 0)
-    all_targets = np.concatenate(all_targets, 0)
-    acc = (all_preds == all_targets).mean()
-    return acc
     
 def main(args):
     nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger", "ner"])
@@ -110,14 +88,10 @@ def main(args):
     # ==== BUILD MODEL ====
     model = build_model(len(ckpt["stoi"]), args.model_type)
     model.load_state_dict(ckpt["state_dict"])
-    weights=model.mlp[0].weight.t().detach()
-    with open("code/DeadNeurons.pkl", 'rb') as f:
-        dead_neurons=pickle.load(f)
-    weights[dead_neurons]= torch.zeros((1,1024))
-    model.mlp[:-1][0].weight.t().detach().copy_(weights)
+    weights=model.mlp[0].weight.detach()
     model.eval()
 
-    if args.cuda:
+    if settings.CUDA:
         model = model.cuda()
 
     # ==== EVAL ON VAL SET ====

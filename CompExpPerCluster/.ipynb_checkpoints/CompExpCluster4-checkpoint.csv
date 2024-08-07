@@ -1,3 +1,0 @@
-4,15,(((((NOT oth:overlap:overlap25) AND hyp:tok:sitting) AND (NOT pre:tok:on)) AND (NOT pre:tok:at)) AND (NOT hyp:tag:rb)),0.17391304347826086,-0.083393574,0.086006,-0.05854521
-4,1000,((((hyp:tok:chasing OR hyp:tok:soccer) OR hyp:tok:hide) OR hyp:tok:jogging) OR hyp:tok:desert),0.08461538461538462,-0.04671789,0.07593021,0.012701052
-4,1023,(((((NOT oth:overlap:overlap25) AND hyp:tag:dt) OR hyp:tag:prp$) OR hyp:tok:for) OR hyp:tag:vb),0.14973375931842386,-0.054077625,0.0110306665,0.034481212
