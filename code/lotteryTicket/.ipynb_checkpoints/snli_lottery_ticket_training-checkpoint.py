@@ -19,8 +19,7 @@ from contextlib import nullcontext
 from tqdm import tqdm
 import numpy as np
 from collections import defaultdict
-from analyze import initiate_exp_run
-from snli_train import run, build_model, serialize 
+from analyze import initiate_exp_run 
 import settings
 import models
 import util
@@ -50,43 +49,12 @@ def main(args):
     if args.debug:
         max_data = 1000
     else:
-        max_data = None
-    train = SNLI("data/snli_1.0/", "train", max_data=max_data)
-    val = SNLI(
-        "data/snli_1.0/", "dev", max_data=max_data, vocab=(train.stoi, train.itos)
-    )
+        max_data = 10000
    
-    dataloaders = {
-        "train": DataLoader(
-            train,
-            batch_size=100,
-            shuffle=True,
-            pin_memory=False,
-            num_workers=0,
-            collate_fn=pad_collate,
-        ),
-        "val": DataLoader(
-            val,
-            batch_size=100,
-            shuffle=False,
-            pin_memory=True,
-            num_workers=0,
-            collate_fn=pad_collate,
-        ),
-    }
-
     # ==== BUILD MODEL ====
-    resume_from_ckpt = False
-    if resume_from_ckpt:
-        path_to_ckpt= f"models/snli/prune_metrics/0.5%/model_best.pth"
-    else:
-        path_to_ckpt=settings.MODEL
-        
+    path_to_ckpt="models/snli/6.pth"
     ckpt = torch.load(path_to_ckpt, map_location="cpu")
-    ckpt_orig=torch.load(settings.MODEL, map_location="cpu")
-    clf = models.BowmanEntailmentClassifier
-    enc = models.TextEncoder(len(ckpt_orig["stoi"])).cuda()
-    model=clf(enc)
+    model = train_utils.build_model(vocab_size=len(ckpt["stoi"]), model_type='bowman', embedding_dim=300, hidden_dim=512)
     model.load_state_dict(ckpt["state_dict"])
 
     if settings.CUDA:
@@ -94,50 +62,81 @@ def main(args):
         model = model.cuda()
     else:
         device = 'cpu'
+        
+    optimizer = optim.Adam(model.parameters())
+    criterion = nn.CrossEntropyLoss()
     
-    vocab = {"itos": ckpt_orig["itos"], "stoi": ckpt_orig["stoi"]}
+    # ==== BUILD VOCAB ====
+    vocab = {"itos": ckpt["itos"], "stoi": ckpt["stoi"]}
 
     with open(settings.DATA, "r") as f:
         lines = f.readlines()
     
     dataset = analysis.AnalysisDataset(lines, vocab)
 
-
-
-    optimizer = optim.Adam(model.parameters())
-    criterion = nn.CrossEntropyLoss()
-
-    # Save model with 0 training
-    
-
-    # ==== TRAIN ====
+    # ==== Data ====
     
     #initial val accuracy
-     val = SNLI(
-        "data/snli_1.0/",
-        "dev",
-        vocab=(ckpt["stoi"], ckpt["itos"]),
-        unknowns=True,
+    
+    train = SNLI(
+        "data/snli_1.0",
+        "train",
+        max_data=max_data,
     )
-    val_loader = DataLoader(
-        val,
+    
+    train_loader = DataLoader(
+        train,
+        batch_size=100,
+        shuffle=True,
+        pin_memory=False,
+        num_workers=0,
+        collate_fn=pad_collate,
+    )
+    
+    val_test = SNLI(
+        "data/snli_1.0",
+        "dev",
+        max_data=max_data,
+        vocab=(vocab['stoi'], vocab['itos']),
+        unknowns=True
+    )
+    
+    val_test_loader = DataLoader(
+        val_test,
         batch_size=100,
         shuffle=False,
         pin_memory=True,
         num_workers=0,
-        collate_fn=data.snli.pad_collate,
-
+        collate_fn=pad_collate,
     )
-
-    print(f"Accuracy: {train_utils.run_eval(model, val_loader)}")
+    
+    
+    print(f"Accuracy: {train_utils.run_eval(model, val_test_loader)}")
+ 
+    val_train = SNLI(
+        "data/snli_1.0",
+        "dev",
+        max_data=max_data,
+        vocab=(vocab['stoi'], vocab['itos']),
+        unknowns=False
+    )
+    
+    val_train_loader = DataLoader(
+        val_train,
+        batch_size=100,
+        shuffle=False,
+        pin_memory=True,
+        num_workers=0,
+        collate_fn=pad_collate,
+    )
     
     # setting up pruning mask and weights
     final_weights=model.mlp[:-1][0].weight.detach().cpu().numpy()
-
     prune_mask = torch.ones(final_weights.shape)
     
     #pruning
     for prune_iter in tqdm(range(1,args.prune_iters+1)):
+        print(f"==== PRUNING ITERATION {prune_iter} ====")
         #location to store metrics
         prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{prune_iter}_Pruning_Iter")
         if not os.path.exists(prune_metrics_dir):
@@ -147,22 +146,29 @@ def main(args):
         # prune 
         print("Prune amt", settings.PRUNE_AMT)
         model, prune_mask = model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, mask=prune_mask)
-        print("After pruning: Final_wegihts shape is: ", final_weights.shape)
+        print("After pruning: Final_wegihts prune% is: ", torch.where(model.mlp[0].weight.detach() == 0,1,0).sum()/(1024*2048))
         
         if settings.CUDA:
             device = 'cuda'
             model = model.cuda()
        
         #finetuning
-        model, final_weights, ckpt= train_utils.finetune_pruned_model(model,optimizer,criterion,dataloaders, train, val, args.finetune_epochs, args.prune_metrics_dir, device)
-
+        dataloaders = {
+            'train': train_loader,
+            'val':val_train_loader,
+        }
+        
+        model, final_weights, ckpt= train_utils.finetune_pruned_model(model,optimizer,criterion, train, val_train, dataloaders, args.finetune_epochs, args.prune_metrics_dir, device)
+        assert(torch.equal(model.mlp[0].weight.detach().cpu(), torch.tensor(final_weights)))
+        print("After fting: Final_wegihts prune% is: ", torch.where(model.mlp[0].weight.detach() == 0,1,0).sum()/(1024*2048))
+        
 
         #accuracy after finetuning 
-        val = SNLI(
+        '''val = SNLI(
             "data/snli_1.0/",
             "dev",
             vocab=(ckpt["stoi"], ckpt["itos"]),
-            unknowns=True,
+            max_data=max_data,
         )
         val_loader = DataLoader(
             val,
@@ -170,11 +176,11 @@ def main(args):
             shuffle=False,
             pin_memory=True,
             num_workers=0,
-            collate_fn=data.snli.pad_collate,
+            collate_fn=pad_collate,
         
-        )
+        )'''
         
-        print(f"Accuracy: {train_utils.run_eval(model, val_loader)}")
+        print(f"Accuracy: {train_utils.run_eval(model, val_test_loader)}")
 
 
 def parse_args():

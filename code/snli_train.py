@@ -31,7 +31,7 @@ def main(args):
     if args.debug:
         max_data = 1000
     else:
-        max_data = 7000
+        max_data = 10000
         
     if args.finetune:
         ckpt = torch.load("models/snli/6.pth")
@@ -45,8 +45,11 @@ def main(args):
         val = SNLI(
             "data/snli_1.0/", "dev", max_data=max_data, vocab=(train.stoi, train.itos)
         )
+        
         vocab_size=len(train.stoi)
-
+        print(f"Vocab size: {vocab_size}")
+        
+        
     dataloaders = {
         "train": DataLoader(
             train,
@@ -73,7 +76,7 @@ def main(args):
         embedding_dim=args.embedding_dim,
         hidden_dim=args.hidden_dim,
     )
-    #model.load_state_dict(torch.load("models/snli/6.pth")['state_dict'])
+    model.load_state_dict(torch.load("models/snli/6.pth")['state_dict'])
 
     if settings.CUDA:
         model = model.cuda()
@@ -94,10 +97,10 @@ def main(args):
     # ==== TRAIN ====
     for epoch in range(args.epochs):
         train_metrics = train_utils.run(
-            "train", epoch, model, optimizer, criterion, dataloaders, args
+            "train", epoch, model, optimizer, criterion, dataloaders
         )
         
-        val_metrics = train_utils.run("val", epoch, model, optimizer, criterion, dataloaders, args)
+        val_metrics = train_utils.run("val", epoch, model, optimizer, criterion, dataloaders)
 
         for name, val in train_metrics.items():
             metrics[f"train_{name}"].append(val)
