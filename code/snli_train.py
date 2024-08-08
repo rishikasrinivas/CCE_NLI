@@ -76,8 +76,14 @@ def main(args):
         embedding_dim=args.embedding_dim,
         hidden_dim=args.hidden_dim,
     )
+    
+   
     model.load_state_dict(torch.load("models/snli/6.pth")['state_dict'])
-
+    final_weights=model.mlp[:-1][0].weight.detach().cpu().numpy()
+    prune_mask = torch.ones(final_weights.shape)
+    settings.PRUNE_METHOD='lottery_ticket'
+    model, mask=model.prune(amount=0.2, final_weights=final_weights, mask=prune_mask)
+    
     if settings.CUDA:
         model = model.cuda()
 
@@ -97,10 +103,10 @@ def main(args):
     # ==== TRAIN ====
     for epoch in range(args.epochs):
         train_metrics = train_utils.run(
-            "train", epoch, model, optimizer, criterion, dataloaders
+            "train", epoch, model, optimizer, criterion, dataloaders['train']
         )
         
-        val_metrics = train_utils.run("val", epoch, model, optimizer, criterion, dataloaders)
+        val_metrics = train_utils.run("val", epoch, model, optimizer, criterion, dataloaders['val'])
 
         for name, val in train_metrics.items():
             metrics[f"train_{name}"].append(val)

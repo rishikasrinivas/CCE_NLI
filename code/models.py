@@ -46,6 +46,7 @@ class EntailmentClassifier(nn.Module):
     An NLI entailment classifier where the hidden rep features are much
     "closer" to the actual feature decision
     """
+    #look into how vocab size affects the model. rnn weights are the same beforea fter pruing but vocab size differs. before its 33587 after is 5784 something
 
     def __init__(self, encoder):
         super().__init__()
@@ -153,8 +154,11 @@ class BowmanEntailmentClassifier(nn.Module):
             cutoff_index = np.round(percent * sorted_weights.size).astype(int)
             cutoff = sorted_weights[cutoff_index - 1] 
             # Prune all weights below the cutoff.
+            print("number of non zero weights ", torch.where(torch.tensor(final_weight)==0,1,0).sum()/(2048*1024))
             new_mask= torch.where(torch.abs(torch.tensor(final_weight)) <= cutoff, torch.zeros(mask.shape), mask)
-            new_weights= torch.where(torch.abs(torch.tensor(final_weight)) <= cutoff, torch.zeros(mask.shape), torch.tensor(final_weight))
+            print("Old mask has: ", torch.where(mask==0,1,0).sum()/(2048*1024), "% zeros\nNew has ", torch.where(new_mask==0,1,0).sum()/(2048*1024))
+            new_weights= torch.where(torch.abs(torch.tensor(final_weight)) <= cutoff, torch.zeros(final_weight.shape), torch.tensor(final_weight))
+            print("new number of non zero weights ", torch.where(torch.tensor(new_weights)==0,1,0).sum()/(2048*1024))
             return new_mask, new_weights
 
         
@@ -170,7 +174,8 @@ class BowmanEntailmentClassifier(nn.Module):
                 final_weights=final_weights.numpy()
             assert final_weights.shape[0] == 1024
             mask, weights = self.prune_masks(amount, mask, final_weights) 
-            self.mlp[:-1][0].weight.detach().copy_(weights)
+            old_model = self.mlp 
+            self.mlp[:-1][0].weight.detach().copy_(weights) 
             return self, mask
         elif settings.PRUNE_METHOD == 'incremental':
             print("Pruning by: ",amount)

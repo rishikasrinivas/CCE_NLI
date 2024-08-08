@@ -96,12 +96,16 @@ def main(args):
 
     if settings.CUDA:
         model = model.cuda()
-
+    if args.debug:
+        max_data=1000
+    else:
+        max_data=10000
     # ==== EVAL ON VAL SET ====
     test = SNLI(
         args.eval_data_path,
         "test",
         vocab=(vocab_stats['stoi'], vocab_stats['itos']),
+        max_data=max_data,
         unknowns=True,
     )
     
@@ -113,6 +117,12 @@ def main(args):
         num_workers=0,
         collate_fn=data.snli.pad_collate,
     )
+    
+    model.load_state_dict(torch.load("models/snli/6.pth")['state_dict'])
+    final_weights=model.mlp[:-1][0].weight.detach().cpu().numpy()
+    prune_mask = torch.ones(final_weights.shape)
+    settings.PRUNE_METHOD='lottery_ticket'
+    model, mask=model.prune(amount=1.0, final_weights=final_weights, mask=prune_mask)
     
     all_preds = []
     all_targets = []
@@ -166,11 +176,12 @@ def parse_args():
         default="test.txt",
         help="Data to eval interactively (pairs of sentences); use - for stdin",
     )
-    parser.add_argument("--model", default="models/snli/train3.pth")
+    parser.add_argument("--model", default="models/snli/6.pth")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "snli"])
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--eval_data_path", default="data/snli_1.0/")
     parser.add_argument("--cuda", action="store_true")
+    parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
 
 
