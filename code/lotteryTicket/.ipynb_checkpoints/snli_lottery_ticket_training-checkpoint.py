@@ -34,9 +34,48 @@ def verify_pruning(model, prev_total_pruned_amt): # does this:
     num_zeros_in_final_weights=torch.where(model.mlp[0].weight.t()==0,1,0).sum()
     new_zeros=num_zeros_in_final_weights-prev_total_pruned_amt
     assert np.round((new_zeros/(1024*2048)),1) == 0.5
+def create_dataloaders(max_data, ckpt):
+    train = SNLI("data/snli_1.0", "train", max_data=max_data)
     
+    train_loader = DataLoader(
+        train,
+        batch_size=100,
+        shuffle=True,
+        pin_memory=False,
+        num_workers=0,
+        collate_fn=pad_collate,
+    )
+    val = SNLI("data/snli_1.0","dev",max_data=max_data,vocab=(ckpt["stoi"], ckpt["itos"]),unknowns=False)
     
+    val_loader = DataLoader(val, batch_size=100, shuffle=False,pin_memory=True, num_workers=0, collate_fn=pad_collate)
+    test = SNLI("data/snli_1.0", "test", max_data=max_data, vocab=(ckpt["stoi"], ckpt["itos"]), unknowns=True)
+
+    test_loader = DataLoader(
+        test,
+        batch_size=100,
+        shuffle=False,
+        pin_memory=True,
+        num_workers=0,
+        collate_fn=pad_collate,
+    )
     
+    dataloaders = {
+        'train': train_loader,
+        'val':val_loader,
+        'test': test_loader
+    }
+    return train, val, test, dataloaders
+
+def load_model(max_data, path_to_ckpt ="models/snli/6.pth", device='cuda'):
+    path_to_ckpt="models/snli/6.pth"
+    ckpt = torch.load(path_to_ckpt, map_location="cpu")
+    model = train_utils.build_model(vocab_size=len(ckpt["stoi"]), model_type='bowman', embedding_dim=300, hidden_dim=512)
+    model.load_state_dict(ckpt["state_dict"])
+    
+    train,val,test,dataloaders=create_dataloaders(max_data=max_data, ckpt=ckpt)
+    
+    return model, train, val, dataloaders, ckpt
+
 
 #running the expls using the already finetuned and precreated masks from before
 def main(args):
@@ -52,19 +91,16 @@ def main(args):
         max_data = 10000
    
     # ==== BUILD MODEL ====
-    path_to_ckpt="models/snli/6.pth"
-    ckpt = torch.load(path_to_ckpt, map_location="cpu")
-    model = train_utils.build_model(vocab_size=len(ckpt["stoi"]), model_type='bowman', embedding_dim=300, hidden_dim=512)
-    model.load_state_dict(ckpt["state_dict"])
-
+    
+    model, train, val, dataloaders, ckpt = load_model(max_data=max_data)
     if settings.CUDA:
         device = 'cuda'
         model = model.cuda()
     else:
         device = 'cpu'
-        
     optimizer = optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
+    
     
     # ==== BUILD VOCAB ====
     vocab = {"itos": ckpt["itos"], "stoi": ckpt["stoi"]}
@@ -74,61 +110,9 @@ def main(args):
     
     dataset = analysis.AnalysisDataset(lines, vocab)
 
-    # ==== Data ====
-    
-    #initial val accuracy
-    
-    train = SNLI(
-        "data/snli_1.0",
-        "train",
-        max_data=max_data,
-    )
-    
-    train_loader = DataLoader(
-        train,
-        batch_size=100,
-        shuffle=True,
-        pin_memory=False,
-        num_workers=0,
-        collate_fn=pad_collate,
-    )
-    
-    val_test = SNLI(
-        "data/snli_1.0",
-        "dev",
-        max_data=max_data,
-        vocab=(vocab['stoi'], vocab['itos']),
-        unknowns=True
-    )
-    
-    val_test_loader = DataLoader(
-        val_test,
-        batch_size=100,
-        shuffle=False,
-        pin_memory=True,
-        num_workers=0,
-        collate_fn=pad_collate,
-    )
-    
-    
-    print(f"Accuracy: {train_utils.run_eval(model, val_test_loader)}")
+    print(f"Accuracy: {train_utils.run_eval(model, dataloaders['test'])}")
  
-    val_train = SNLI(
-        "data/snli_1.0",
-        "dev",
-        max_data=max_data,
-        vocab=(vocab['stoi'], vocab['itos']),
-        unknowns=False
-    )
     
-    val_train_loader = DataLoader(
-        val_train,
-        batch_size=100,
-        shuffle=False,
-        pin_memory=True,
-        num_workers=0,
-        collate_fn=pad_collate,
-    )
     
     # setting up pruning mask and weights
     final_weights=model.mlp[:-1][0].weight.detach().cpu().numpy()
@@ -143,45 +127,36 @@ def main(args):
             os.makedirs(args.prune_metrics_dir,exist_ok=True)
             os.makedirs(prune_metrics_dir,exist_ok=True)
 
-        # prune 
-        print("Prune amt", settings.PRUNE_AMT)
-        model, prune_mask = model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, mask=prune_mask)
-        print("After pruning: Final_wegihts prune% is: ", torch.where(model.mlp[0].weight.detach() == 0,1,0).sum()/(1024*2048))
-        
+        model, train, val, dataloaders, ckpt = load_model(max_data=max_data)
         if settings.CUDA:
             device = 'cuda'
             model = model.cuda()
-       
-        #finetuning
-        dataloaders = {
-            'train': train_loader,
-            'val':val_train_loader,
-        }
+        else:
+            device = 'cpu'
+        optimizer = optim.Adam(model.parameters())
+        criterion = nn.CrossEntropyLoss()
+        optimizer = optim.Adam(model.parameters())
+        criterion = nn.CrossEntropyLoss()
         
-        model, final_weights, ckpt= train_utils.finetune_pruned_model(model,optimizer,criterion, train, val_train, dataloaders, args.finetune_epochs, args.prune_metrics_dir, device)
+        if prune_iter > 1:
+            model.load_state_dict(torch.load(os.path.join(args.prune_metrics_dir,f"{prune_iter-1}_Pruning_Iter","model_best.pth"))['state_dict'])
+        
+        model.cuda()
+    
+        print("Prune amt", settings.PRUNE_AMT)
+        model, prune_mask = model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, mask=prune_mask, reverse=args.reverse)
+        print("After pruning: Final_wegihts prune% is: ", torch.where(model.mlp[0].weight.detach() == 0,1,0).sum()/(1024*2048))
+        
+        
+        
+        model, final_weights, _= train_utils.finetune_pruned_model(model,optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, device)
+        print("After fting: Final_wegihts prune% is: ", torch.where(torch.tensor(final_weights) == 0,1,0).sum()/(1024*2048))
+        
+
         assert(torch.equal(model.mlp[0].weight.detach().cpu(), torch.tensor(final_weights)))
-        print("After fting: Final_wegihts prune% is: ", torch.where(model.mlp[0].weight.detach() == 0,1,0).sum()/(1024*2048))
         
-
-        #accuracy after finetuning 
-        '''val = SNLI(
-            "data/snli_1.0/",
-            "dev",
-            vocab=(ckpt["stoi"], ckpt["itos"]),
-            max_data=max_data,
-        )
-        val_loader = DataLoader(
-            val,
-            batch_size=100,
-            shuffle=False,
-            pin_memory=True,
-            num_workers=0,
-            collate_fn=pad_collate,
-        
-        )'''
-        
-        print(f"Accuracy: {train_utils.run_eval(model, val_test_loader)}")
-
+        print("% pruned: ",torch.where(torch.tensor(final_weights)==0,1,0).sum()/(1024*2048))
+        print(f"Accuracy: {train_utils.run_eval(model, dataloaders['test'])}")
 
 def parse_args():
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -205,6 +180,7 @@ def parse_args():
     parser.add_argument("--hidden_dim", default=512, type=int)
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--cuda", action="store_true")
+    parser.add_argument("--reverse", action="store_true")
     return parser.parse_args()
 
 

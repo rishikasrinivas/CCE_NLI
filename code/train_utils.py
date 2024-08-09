@@ -10,8 +10,9 @@ import fileio
 import os
 import settings
 from tqdm import tqdm
+from collections import defaultdict
 def finetune_pruned_model(model,optimizer,criterion, train, val, dataloaders, finetune_epochs, prune_metrics_dir,device):
-    metrics={}
+    metrics = defaultdict(list)
     metrics["best_val_acc"]=0.0
     metrics["best_val_epoch"] = 0
     metrics["best_val_loss"] = np.inf
@@ -19,7 +20,6 @@ def finetune_pruned_model(model,optimizer,criterion, train, val, dataloaders, fi
     metrics[f"train_acc"]=[]
     metrics[f"val_loss"]=[]
     metrics[f"val_acc"]=[]
-    previous_acc=0
     for epoch in range(finetune_epochs):
         
         train_metrics = run(
@@ -44,10 +44,7 @@ def finetune_pruned_model(model,optimizer,criterion, train, val, dataloaders, fi
             metrics["best_val_loss"] = val_metrics["loss"]
             fileio.log_to_csv(os.path.join(prune_metrics_dir,"pruned_status.csv"), [epoch, val_metrics["acc"], val_metrics["loss"]], ["EPOCH", "ACCURACY", "LOSS"])
         
-        if val_metrics['acc'] < previous_acc:
-            break
-        previous_acc=val_metrics['acc'] 
-
+       
         util.save_metrics(metrics, prune_metrics_dir)
         util.save_checkpoint(serialize(model, train), is_best, prune_metrics_dir)
         if epoch % 1 == 0:
@@ -56,8 +53,10 @@ def finetune_pruned_model(model,optimizer,criterion, train, val, dataloaders, fi
                 serialize(model, train), False, prune_metrics_dir, filename=f"LotTick{epoch}.pth"
             )
         
-    path_to_ckpt = os.path.join(prune_metrics_dir, f"LotTick{finetune_epochs-1}.pth")
-    return model, model.mlp[:-1][0].weight.detach().cpu().numpy(), torch.load(path_to_ckpt)
+    path_to_ckpt = os.path.join(prune_metrics_dir, f"model_best.pth")
+    print(f"Loading best weights from {path_to_ckpt}")
+    model.load_state_dict(torch.load(path_to_ckpt)['state_dict'])
+    return model, model.mlp[0].weight.detach().cpu().numpy(), torch.load(path_to_ckpt)
 
 def run(split, epoch, model, optimizer, criterion, dataloader, device='cuda'):
     training = split == "train"
@@ -67,7 +66,7 @@ def run(split, epoch, model, optimizer, criterion, dataloader, device='cuda'):
     else:
         ctx = torch.no_grad
         model.eval()
-    print(split)
+
     ranger = tqdm(dataloader, desc=f"{split} epoch {epoch}")
 
     loss_meter = util.AverageMeter()

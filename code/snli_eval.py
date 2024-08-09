@@ -81,6 +81,7 @@ def from_file(fpath):
 
     
 def main(args):
+    print("using weights from ", args.model)
     nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger", "ner"])
     ckpt = torch.load(args.model)
     stoi = ckpt["stoi"]
@@ -89,8 +90,7 @@ def main(args):
     # ==== BUILD MODEL ====
     model = train_utils.build_model(len(vocab_stats['stoi']), args.model_type)
     
-    model.load_state_dict(ckpt["state_dict"])
-    weights=model.mlp[0].weight.detach()
+
     
     model.eval()
 
@@ -118,11 +118,7 @@ def main(args):
         collate_fn=data.snli.pad_collate,
     )
     
-    model.load_state_dict(torch.load("models/snli/6.pth")['state_dict'])
-    final_weights=model.mlp[:-1][0].weight.detach().cpu().numpy()
-    prune_mask = torch.ones(final_weights.shape)
-    settings.PRUNE_METHOD='lottery_ticket'
-    model, mask=model.prune(amount=1.0, final_weights=final_weights, mask=prune_mask)
+    model.load_state_dict(torch.load(args.model)['state_dict'])
     
     all_preds = []
     all_targets = []
@@ -176,7 +172,7 @@ def parse_args():
         default="test.txt",
         help="Data to eval interactively (pairs of sentences); use - for stdin",
     )
-    parser.add_argument("--model", default="models/snli/6.pth")
+    parser.add_argument("--model", default="models/snli/model_best.pth")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "snli"])
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--eval_data_path", default="data/snli_1.0/")

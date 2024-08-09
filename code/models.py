@@ -131,7 +131,7 @@ class BowmanEntailmentClassifier(nn.Module):
             layer = self.mlp[:-1]
         return prune.is_pruned(layer)
     
-    def prune_masks(self,percent, mask, final_weights):
+    def prune_masks(self,percent, mask, final_weights, reverse=False):
         """Return new masks that involve pruning the smallest of the final weights.
 
             Args:
@@ -145,27 +145,33 @@ class BowmanEntailmentClassifier(nn.Module):
             Returns:
                 A dictionary containing the newly-pruned masks.
         """
-        def prune_by_percent_once(percent, mask, final_weight):
+        def prune_by_percent_once(percent, mask, final_weight, reverse=False):
             # Put the weights that aren't masked out in sorted order.
-            sorted_weights = np.sort(np.abs(final_weight[mask == 1]))
+            if reverse:
+                sorted_weights = np.sort(np.abs(final_weight[mask == 1]))[::-1]
+            else:
+                sorted_weights = np.sort(np.abs(final_weight[mask == 1]))
 
             # Determine the cutoff for weights to be pruned.
 
             cutoff_index = np.round(percent * sorted_weights.size).astype(int)
             cutoff = sorted_weights[cutoff_index - 1] 
             # Prune all weights below the cutoff.
-            print("number of non zero weights ", torch.where(torch.tensor(final_weight)==0,1,0).sum()/(2048*1024))
-            new_mask= torch.where(torch.abs(torch.tensor(final_weight)) <= cutoff, torch.zeros(mask.shape), mask)
-            print("Old mask has: ", torch.where(mask==0,1,0).sum()/(2048*1024), "% zeros\nNew has ", torch.where(new_mask==0,1,0).sum()/(2048*1024))
-            new_weights= torch.where(torch.abs(torch.tensor(final_weight)) <= cutoff, torch.zeros(final_weight.shape), torch.tensor(final_weight))
-            print("new number of non zero weights ", torch.where(torch.tensor(new_weights)==0,1,0).sum()/(2048*1024))
+            
+            if reverse:
+                new_mask = torch.where(torch.abs(torch.tensor(final_weight)) >= cutoff, torch.zeros(mask.shape), mask)
+                new_weights= torch.where(torch.abs(torch.tensor(final_weight)) >= cutoff, torch.zeros(final_weight.shape), torch.tensor(final_weight))
+            else:
+                new_mask = torch.where(torch.abs(torch.tensor(final_weight)) <= cutoff, torch.zeros(mask.shape), mask)
+                new_weights= torch.where(torch.abs(torch.tensor(final_weight)) <= cutoff, torch.zeros(final_weight.shape), torch.tensor(final_weight))
+           
             return new_mask, new_weights
 
         
-        return prune_by_percent_once(percent, mask, final_weights)
+        return prune_by_percent_once(percent, mask, final_weights, reverse)
 
     
-    def prune(self, layer='default', amount=0.005, final_weights=None, mask=None):
+    def prune(self, layer='default', amount=0.005, final_weights=None, mask=None, reverse=False):
         
         if layer == 'default':
             layer = self.mlp[:-1][0]
@@ -173,7 +179,7 @@ class BowmanEntailmentClassifier(nn.Module):
             if type(final_weights) != np.ndarray :
                 final_weights=final_weights.numpy()
             assert final_weights.shape[0] == 1024
-            mask, weights = self.prune_masks(amount, mask, final_weights) 
+            mask, weights = self.prune_masks(amount, mask, final_weights, reverse) 
             old_model = self.mlp 
             self.mlp[:-1][0].weight.detach().copy_(weights) 
             return self, mask

@@ -76,20 +76,32 @@ def main(args):
         embedding_dim=args.embedding_dim,
         hidden_dim=args.hidden_dim,
     )
-    
-   
-    model.load_state_dict(torch.load("models/snli/6.pth")['state_dict'])
-    final_weights=model.mlp[:-1][0].weight.detach().cpu().numpy()
-    prune_mask = torch.ones(final_weights.shape)
+    if args.finetune:
+        args.model= 'models/snli/model_best.pth'
+        print("Loading model from ",args.model )
+        model.load_state_dict(torch.load(args.model)['state_dict'])
+        
+    final_weights=model.mlp[0].weight.detach().cpu().numpy()
+    if args.iter == 1:
+        prune_mask = torch.ones(final_weights.shape)
+    else:
+        prune_mask = torch.load(f"models/snli/mask/mask{args.iter-1}.pth")
     settings.PRUNE_METHOD='lottery_ticket'
-    model, mask=model.prune(amount=0.2, final_weights=final_weights, mask=prune_mask)
     
+    model, mask=model.prune(amount=0.2, final_weights=final_weights, mask=prune_mask)
+    torch.save(mask, f"models/snli/mask/mask{args.iter}.pth")
+    print("Weights pruned ", torch.where(model.mlp[0].weight.detach().cpu() == 0,1,0).sum()/(1024*2048))
+    
+
     if settings.CUDA:
         model = model.cuda()
 
     optimizer = optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
+    
+    model, final_weights, _= train_utils.finetune_pruned_model(model,optimizer,criterion, train, val, dataloaders, 10, 'models/snli', device='cuda')
 
+    '''
     metrics = defaultdict(list)
     metrics["best_val_epoch"] = 0
     metrics["best_val_acc"] = 0
@@ -99,9 +111,11 @@ def main(args):
 
     # Save model with 0 training
     #util.save_checkpoint(serialize(model, train), False, args.exp_dir, filename="0.pth")
-
+    print("init % pruned: ",torch.where(model.mlp[0].weight.detach().cpu()==0,1,0).sum()/(1024*2048))
+    
     # ==== TRAIN ====
     for epoch in range(args.epochs):
+        
         train_metrics = train_utils.run(
             "train", epoch, model, optimizer, criterion, dataloaders['train']
         )
@@ -127,6 +141,8 @@ def main(args):
             util.save_checkpoint(
                 train_utils.serialize(model, train), False, args.exp_dir, filename=f"train{epoch}.pth"
             )
+    '''
+    print("done training Weights pruned ", torch.where(model.mlp[0].weight.detach().cpu() == 0,1,0).sum()/(1024*2048))
 
 
 def parse_args():
@@ -135,12 +151,14 @@ def parse_args():
     parser = ArgumentParser(
         description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
     )
-
+    
+    parser.add_argument("--model", default="models/snli/6.pth")
     parser.add_argument("--exp_dir", default="models/snli/")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal"])
     parser.add_argument("--save_every", default=1, type=int)
     parser.add_argument("--epochs", default=50, type=int)
     parser.add_argument("--embedding_dim", default=300, type=int)
+    parser.add_argument("--iter", default=1, type=int)
     parser.add_argument("--hidden_dim", default=512, type=int)
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--cuda", action="store_true")
