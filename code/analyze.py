@@ -894,13 +894,8 @@ def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path=settings.MOD
     
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
     
-    for i in range(2,5):
-        save_exp_dir = f"code/TestRun/{i}Clusters/Expls"
-        os.makedirs(f"code/TestRun/{i}Clusters/", exist_ok=True)
-        os.makedirs(f"code/TestRun/{i}Clusters/Expls", exist_ok=True)
-        save_masks_dir = f"code/TestRun/{i}Clusters/Masks"
-        os.makedirs(f"code/TestRun/{i}Clusters/Masks", exist_ok=True)
-        acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, classification_weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved, num_clusters=i)
+    acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, classification_weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved, num_clusters=i)
+    
     return acts, final_weights
 from data.snli import SNLI
 def main():
@@ -914,24 +909,6 @@ def main():
     
     
     states, weights = initiate_exp_run(save_exp_dir='code/TestRun/', save_masks_dir='code/TestRun/',masks_saved=False)
-    return 
-    ckpt = torch.load(settings.MODEL)
-    val = SNLI(
-        "data/snli_1.0/",
-        "dev",
-        vocab=(ckpt["stoi"], ckpt["itos"]),
-        unknowns=True,
-    )
-    val_loader = DataLoader(
-        val,
-        batch_size=100,
-        shuffle=False,
-        pin_memory=True,
-        num_workers=0,
-        collate_fn=data.snli.pad_collate,
-    )
-    searching_dead_neurons(states, [i for i in range(0,500,5)], model, weights, val_loader)
-    
     
     print("Load predictions")
     mbase = os.path.splitext(os.path.basename(settings.MODEL))[0]

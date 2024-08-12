@@ -4,7 +4,7 @@ SNLI dataset
 
 
 import os
-import itertools
+
 import numpy as np
 import spacy
 from tqdm import tqdm
@@ -23,26 +23,22 @@ def load_for_analysis(
     cuda=False,
     **kwargs,
 ):
-    #ckpt_path="models/snli/nopruning.pth"
-    print(ckpt_path)
     ckpt = torch.load(ckpt_path, map_location="cpu")
-    
     enc = models.TextEncoder(len(ckpt["stoi"]), **kwargs)
     if model_type == "minimal":
         clf = models.EntailmentClassifier
-        model = clf(enc)
     elif model_type == "bowman":
         clf = models.BowmanEntailmentClassifier
-        model = clf(enc)
-    
-    
+    else:
+        raise NotImplementedError
+
+    model = clf(enc)
     model.load_state_dict(ckpt["state_dict"])
 
     vocab = {"itos": ckpt["itos"], "stoi": ckpt["stoi"]}
-
     with open(analysis_path, "r") as f:
         lines = f.readlines()
-    
+
     dataset = analysis.AnalysisDataset(lines, vocab)
 
     if cuda:
@@ -86,11 +82,7 @@ class SNLI:
             self.text_path = os.path.join(self.path, f"snli_1.0_{self.split}.txt")
         else:
             self.text_path = os.path.join(self.path, "csnli.tsv")
-        if max_data==None:
-            self.max_data = 10000
-        else:
-            self.max_data = max_data
-        print(self.max_data)
+        self.max_data = max_data
         self.label_stoi = LABEL_STOI
         self.label_itos = LABEL_ITOS
         self.spacy = spacy.load("en_core_web_sm", disable=["tagger", "parser", "ner"])
@@ -111,13 +103,8 @@ class SNLI:
         self.s1lens = []
         self.s2lens = []
         n_skipped = 0
-        
-        if self.split == 'dev':
-            start_line= self.max_data
-        else:
-            start_line=0
         with open(self.text_path, "r") as f:
-            for i, line in enumerate(tqdm(itertools.islice(f, start_line, None), desc=self.split)):
+            for i, line in enumerate(tqdm(f, desc=self.split)):
 
                 if i == 0:  # Header
                     continue
@@ -138,11 +125,8 @@ class SNLI:
                     label_i = self.label_stoi[label]
                 self.labels.append(label_i)
 
-                if self.max_data is not None:
-                    if self.split == 'train' and i >= self.max_data:
-                        break
-                    elif self.split == 'dev' and i >= 10000 - self.max_data:
-                        break
+                if self.max_data is not None and i >= self.max_data:
+                    break
 
                 s1_doc = self.spacy(s1)
                 s1_tok = [t.lower_ for t in s1_doc]

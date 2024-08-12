@@ -88,8 +88,9 @@ def run(split, epoch, model, optimizer, criterion, dataloader, device='cuda'):
         if training:
             optimizer.zero_grad()
             loss.backward()
+            model.mlp[0].weight.grad *= model.prune_mask
+            
             optimizer.step()
-
         preds = logits.argmax(1)
         acc = (preds == targets).float().mean()
         loss_meter.update(loss.item(), batch_size)
@@ -147,4 +148,4 @@ def run_eval(model, val_loader):
     all_preds = np.concatenate(all_preds, 0)
     all_targets = np.concatenate(all_targets, 0)
     acc = (all_preds == all_targets).mean()
-    return acc
+    return np.round(acc,2)

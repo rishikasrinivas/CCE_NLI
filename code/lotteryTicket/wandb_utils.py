@@ -1,6 +1,6 @@
 import wandb
 
-def wandb_init(proj_name, exp_name, x_axis):
+def wandb_init(proj_name, exp_name):
     wandb.login()
     wandb_=wandb.init(
       # Set the project where this run will be logged
@@ -17,7 +17,7 @@ def wandb_init(proj_name, exp_name, x_axis):
     )
     
     
-    wandb_.define_metric("prune iter")
+    wandb_.define_metric("prune_iter")
     # define which metrics will be plotted against it
-    wandb_.define_metric("accuracy_*", step_metric="prune iter")
+    wandb_.define_metric("accuracy_*", step_metric="prune_iter")
     return wandb_

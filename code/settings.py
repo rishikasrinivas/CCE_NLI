@@ -16,7 +16,7 @@ DEBUG = False
 METRIC = "iou"
 
 EMBEDDING_NEIGHBORHOOD_SIZE = 5
-
+VOCAB_CKPT_PATH="models/snli/6.pth"
 NEURONS = None
 PARALLEL = 1
 

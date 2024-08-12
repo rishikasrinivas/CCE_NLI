@@ -20,7 +20,7 @@ import pandas as pd
 import settings
 import models
 import util
-from snli_train import build_model, run
+import train_utils
 import data.snli
 
 
@@ -78,67 +78,52 @@ def from_file(fpath):
         hyp_raw = lines[i + 1]
         yield pre_raw, hyp_raw
 
-def run_eval(model, val_loader):
-    
-    all_preds = []
-    all_targets = []
-    for (s1, s1len, s2, s2len, targets) in val_loader:
-        if settings.CUDA:
-            s1 = s1.cuda()
-            s1len = s1len.cuda()
-            s2 = s2.cuda()
-            s2len = s2len.cuda()
 
-        with torch.no_grad():
-            logits = model(s1, s1len, s2, s2len)
-
-        preds = logits.argmax(1)
-
-        all_preds.append(preds.cpu().numpy())
-        all_targets.append(targets.cpu().numpy())
-
-    all_preds = np.concatenate(all_preds, 0)
-    all_targets = np.concatenate(all_targets, 0)
-    acc = (all_preds == all_targets).mean()
-    return acc
     
 def main(args):
+    print("using weights from ", args.model)
     nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger", "ner"])
     ckpt = torch.load(args.model)
     stoi = ckpt["stoi"]
     
+    vocab_stats = torch.load(settings.VOCAB_CKPT_PATH)
     # ==== BUILD MODEL ====
-    model = build_model(len(ckpt["stoi"]), args.model_type)
-    model.load_state_dict(ckpt["state_dict"])
-    weights=model.mlp[0].weight.t().detach()
-    with open("code/DeadNeurons.pkl", 'rb') as f:
-        dead_neurons=pickle.load(f)
-    weights[dead_neurons]= torch.zeros((1,1024))
-    model.mlp[:-1][0].weight.t().detach().copy_(weights)
+    model = train_utils.build_model(len(vocab_stats['stoi']), args.model_type)
+    
+
+    
     model.eval()
 
-    if args.cuda:
+    if settings.CUDA:
         model = model.cuda()
-
+    if args.debug:
+        max_data=1000
+    else:
+        max_data=10000
     # ==== EVAL ON VAL SET ====
-    val = SNLI(
+    test = SNLI(
         args.eval_data_path,
-        "dev",
-        vocab=(ckpt["stoi"], ckpt["itos"]),
+        "test",
+        vocab=(vocab_stats['stoi'], vocab_stats['itos']),
+        max_data=max_data,
         unknowns=True,
     )
-    val_loader = DataLoader(
-        val,
+    
+    test_loader = DataLoader(
+        test,
         batch_size=100,
         shuffle=False,
         pin_memory=True,
         num_workers=0,
         collate_fn=data.snli.pad_collate,
     )
+    
+    model.load_state_dict(torch.load(args.model)['state_dict'])
+    
     all_preds = []
     all_targets = []
-    for (s1, s1len, s2, s2len, targets) in val_loader:
-        if args.cuda:
+    for (s1, s1len, s2, s2len, targets) in test_loader:
+        if settings.CUDA:
             s1 = s1.cuda()
             s1len = s1len.cuda()
             s2 = s2.cuda()
@@ -187,11 +172,12 @@ def parse_args():
         default="test.txt",
         help="Data to eval interactively (pairs of sentences); use - for stdin",
     )
-    parser.add_argument("--model", default="models/bowman_snli/6.pth")
+    parser.add_argument("--model", default="models/snli/model_best.pth")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "snli"])
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--eval_data_path", default="data/snli_1.0/")
     parser.add_argument("--cuda", action="store_true")
+    parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
 
 

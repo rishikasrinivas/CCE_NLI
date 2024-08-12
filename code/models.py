@@ -98,7 +98,7 @@ class BowmanEntailmentClassifier(nn.Module):
         self.mlp_input_dim = self.encoder_dim * 4
         self.dropout = nn.Dropout(0.1)
         self.bn = nn.BatchNorm1d(self.mlp_input_dim)
-        
+        self.prune_mask= torch.ones(1024,self.mlp_input_dim)
         self.mlp = nn.Sequential(
             nn.Linear(self.mlp_input_dim, 1024),
             nn.ReLU(),
@@ -131,7 +131,7 @@ class BowmanEntailmentClassifier(nn.Module):
             layer = self.mlp[:-1]
         return prune.is_pruned(layer)
     
-    def prune_masks(self,percent, mask, final_weights, reverse=False):
+    def prune_masks(self,percent,final_weights, reverse=False):
         """Return new masks that involve pruning the smallest of the final weights.
 
             Args:
@@ -147,6 +147,7 @@ class BowmanEntailmentClassifier(nn.Module):
         """
         def prune_by_percent_once(percent, mask, final_weight, reverse=False):
             # Put the weights that aren't masked out in sorted order.
+            mask=mask.cpu()
             if reverse:
                 sorted_weights = np.sort(np.abs(final_weight[mask == 1]))[::-1]
             else:
@@ -168,7 +169,7 @@ class BowmanEntailmentClassifier(nn.Module):
             return new_mask, new_weights
 
         
-        return prune_by_percent_once(percent, mask, final_weights, reverse)
+        return prune_by_percent_once(percent, self.prune_mask, final_weights, reverse)
 
     
     def prune(self, layer='default', amount=0.005, final_weights=None, mask=None, reverse=False):
@@ -179,10 +180,9 @@ class BowmanEntailmentClassifier(nn.Module):
             if type(final_weights) != np.ndarray :
                 final_weights=final_weights.numpy()
             assert final_weights.shape[0] == 1024
-            mask, weights = self.prune_masks(amount, mask, final_weights, reverse) 
-            old_model = self.mlp 
-            self.mlp[:-1][0].weight.detach().copy_(weights) 
-            return self, mask
+            self.prune_mask, weights = self.prune_masks(amount, final_weights, reverse) 
+            self.prune_mask = self.prune_mask.to('cuda')
+            layer.weight.detach().copy_(weights) 
         elif settings.PRUNE_METHOD == 'incremental':
             print("Pruning by: ",amount)
             if not self.check_pruned() :
