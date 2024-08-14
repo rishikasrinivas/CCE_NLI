@@ -9,10 +9,10 @@ def wandb_init(proj_name, exp_name):
       name=exp_name, 
       # Track hyperparameters and run metadata
       config={
-          "learning_rate": 0.02,
-          "architecture": "CNN",
-          "dataset": "CIFAR-100",
+          "architecture": "LSTM",
+          "dataset": "SNLI",
           "epochs": 10,
+          "prune_iters": 20
         }
     )
     

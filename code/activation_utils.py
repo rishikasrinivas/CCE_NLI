@@ -36,7 +36,6 @@ def compute_activ_ranges(activations, clusters, num_clusters):
     activation_ranges=[]
     for label in range(num_clusters):
         inds = np.where(clusters == label)
-
         min_in_range = activations[inds].min()
         max_in_range = activations[inds].max()
         activation_ranges.append([min_in_range.item(),max_in_range.item()])
@@ -47,6 +46,7 @@ def create_clusters(activations, num_clusters):
     if activations.requires_grad:
         activations=activations.detach()
     # ensure activations is the right shape 
+    print(activations.shape)
     if activations.shape[0] == 10000 and activations.shape[1] == 1024:
         activations=activations.t()
     assert activations.shape[0] == 1024 and activations.shape[1] == 10000
@@ -61,8 +61,9 @@ def create_clusters(activations, num_clusters):
             dead_neurons.append(i)
             activation_ranges.append([])
             continue
-            
+           
         neurons_acts = neurons_acts[neurons_acts>0]
+        
         neurons_acts  = neurons_acts.reshape(1,-1).t()
         
         clusters = scikit_cluster.KMeans(n_clusters= num_clusters, random_state=0).fit(neurons_acts)

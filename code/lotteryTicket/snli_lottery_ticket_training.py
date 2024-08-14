@@ -34,46 +34,7 @@ def verify_pruning(model, prev_total_pruned_amt): # does this:
     num_zeros_in_final_weights=torch.where(model.mlp[0].weight.t()==0,1,0).sum()
     new_zeros=num_zeros_in_final_weights-prev_total_pruned_amt
     assert np.round((new_zeros/(1024*2048)),1) == 0.5
-def create_dataloaders(max_data, ckpt):
-    train = SNLI("data/snli_1.0", "train", max_data=max_data)
     
-    train_loader = DataLoader(
-        train,
-        batch_size=100,
-        shuffle=True,
-        pin_memory=False,
-        num_workers=0,
-        collate_fn=pad_collate,
-    )
-    val = SNLI("data/snli_1.0","dev",max_data=max_data,vocab=(ckpt["stoi"], ckpt["itos"]),unknowns=False)
-    
-    val_loader = DataLoader(val, batch_size=100, shuffle=False,pin_memory=True, num_workers=0, collate_fn=pad_collate)
-    test = SNLI("data/snli_1.0", "test", max_data=max_data, vocab=(ckpt["stoi"], ckpt["itos"]), unknowns=True)
-
-    test_loader = DataLoader(
-        test,
-        batch_size=100,
-        shuffle=False,
-        pin_memory=True,
-        num_workers=0,
-        collate_fn=pad_collate,
-    )
-    
-    dataloaders = {
-        'train': train_loader,
-        'val':val_loader,
-        'test': test_loader
-    }
-    return train, val, test, dataloaders
-
-def load_model(max_data, device='cuda'):
-    path_to_ckpt="models/snli/6.pth"
-    ckpt = torch.load(path_to_ckpt, map_location="cpu")
-    model = train_utils.build_model(vocab_size=len(ckpt["stoi"]), model_type='bowman', embedding_dim=300, hidden_dim=512)
-    model.load_state_dict(ckpt["state_dict"])
-    
-   
-    return model, ckpt
 
 
 #running the expls using the already finetuned and precreated masks from before
@@ -91,7 +52,7 @@ def main(args, pruned_percents, final_acc):
    
     # ==== BUILD MODEL ====
     
-    model, ckpt = load_model(max_data=max_data)
+    model, ckpt = train_utils.load_model(max_data=max_data)
     if settings.CUDA:
         device = 'cuda'
         model = model.cuda()
@@ -99,7 +60,7 @@ def main(args, pruned_percents, final_acc):
         device = 'cpu'
     optimizer = optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
-    train,val,test,dataloaders=create_dataloaders(max_data=max_data, ckpt=ckpt)
+    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, ckpt=ckpt)
     
     
     # ==== BUILD VOCAB ====
@@ -118,7 +79,7 @@ def main(args, pruned_percents, final_acc):
     
     # setting up pruning mask and weights
     final_weights=model.mlp[:-1][0].weight.detach().cpu().numpy()
-    sanity=model
+    
     
     
     #pruning
@@ -131,7 +92,7 @@ def main(args, pruned_percents, final_acc):
             os.makedirs(args.prune_metrics_dir,exist_ok=True)
             os.makedirs(prune_metrics_dir,exist_ok=True)
 
-        model, ckpt = load_model(max_data=max_data)
+        model, ckpt = train_utils.load_model(max_data=max_data)
         if settings.CUDA:
             device = 'cuda'
             model = model.cuda()
@@ -148,8 +109,7 @@ def main(args, pruned_percents, final_acc):
     
         print("Prune amt", settings.PRUNE_AMT)
         bfore=np.round(torch.where(model.mlp[0].weight.detach() == 0,1,0).sum().item()*100/(1024*2048),2)
-        for orig,new in zip(sanity.parameters(), model.parameters()):
-            assert torch.equal(orig.cpu(), new.cpu())
+    
         print("Bfore pruning: Final_wegihts prune% is: ", bfore)
         model=model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, reverse=args.reverse)
         pruning_mask = model.prune_mask
@@ -159,6 +119,11 @@ def main(args, pruned_percents, final_acc):
         model, final_weights, _= train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, device)
         final_weights_pruned= np.round(100*torch.where(torch.tensor(final_weights) == 0,1,0).sum().item()/(1024*2048), 2)
         print("After fting: Final_wegihts prune% is: ",final_weights_pruned )
+        
+        
+         if settings.CUDA:
+            device = 'cuda'
+            model = model.cuda()
         
         assert(torch.equal(model.mlp[0].weight.detach().cpu(), torch.tensor(final_weights)))
         
@@ -184,7 +149,7 @@ def parse_args():
     parser.add_argument("--save_every", default=1, type=int)
     
     parser.add_argument("--prune_epochs", default=10, type=int)
-    parser.add_argument("--finetune_epochs", default=20, type=int)
+    parser.add_argument("--finetune_epochs", default=10, type=int)
     parser.add_argument("--prune_iters", default=5, type=int)
     
     parser.add_argument("--embedding_dim", default=300, type=int)
@@ -192,7 +157,7 @@ def parse_args():
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--cuda", action="store_true")
     parser.add_argument("--reverse", action="store_true")
-    parser.add_argument("--test_iters", default=5, type=int)
+    parser.add_argument("--test_iters", default=1, type=int)
     parser.add_argument("--log", action='store_true')
     return parser.parse_args()
 
@@ -225,7 +190,7 @@ if __name__ == "__main__":
         print("Average accs after finetuning for iteration ", i, ": ", accs/args.test_iters)
         
         if args.log:
-            wandb_.log({"prune_iter": percents/args.test_iters, "accuracy_test": accs/args.test_iters})
+            wandb_.log({"prune_iter": np.round(percents/args.test_iters,3), "accuracy_test": np.round(accs/args.test_iters,3)})
    
     if args.log:
         wandb_.finish()

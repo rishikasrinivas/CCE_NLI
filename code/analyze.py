@@ -851,7 +851,7 @@ def per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dat
     return states
             
 
-def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path=settings.MODEL, model_=None, dataset=None, q_ret=0):
+def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path=settings.MODEL, model_=None, dataset=None, clusters=4, q_ret=0):
     
     if model_==None and dataset==None:
         model, dataset = data.snli.load_for_analysis(
@@ -893,8 +893,9 @@ def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path=settings.MOD
     print("Extracting sentence token features")
     
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
-    
-    acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, classification_weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved, num_clusters=i)
+
+    print(f"====RUNNING EXPLS ITERATION====")
+    acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, classification_weights, dataset, save_exp_dir, save_masks_dir, masks_saved=False, num_clusters=clusters)
     
     return acts, final_weights
 from data.snli import SNLI

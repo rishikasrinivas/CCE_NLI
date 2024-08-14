@@ -10,7 +10,86 @@ import fileio
 import os
 import settings
 from tqdm import tqdm
+from data.snli import SNLI, pad_collate
 from collections import defaultdict
+
+def create_dataloaders(max_data, ckpt):
+    train = SNLI("data/snli_1.0", "train", max_data=max_data)
+    
+    train_loader = DataLoader(
+        train,
+        batch_size=100,
+        shuffle=True,
+        pin_memory=False,
+        num_workers=0,
+        collate_fn=pad_collate,
+    )
+    val = SNLI("data/snli_1.0","dev",max_data=max_data,vocab=(ckpt["stoi"], ckpt["itos"]),unknowns=False)
+    
+    val_loader = DataLoader(val, batch_size=100, shuffle=False,pin_memory=True, num_workers=0, collate_fn=pad_collate)
+    test = SNLI("data/snli_1.0", "test", max_data=max_data, vocab=(ckpt["stoi"], ckpt["itos"]), unknowns=True)
+
+    test_loader = DataLoader(
+        test,
+        batch_size=100,
+        shuffle=False,
+        pin_memory=True,
+        num_workers=0,
+        collate_fn=pad_collate,
+    )
+    
+    dataloaders = {
+        'train': train_loader,
+        'val':val_loader,
+        'test': test_loader
+    }
+    return train, val, test, dataloaders
+
+
+def run(split, epoch, model, optimizer, criterion, dataloader, device='cuda'):
+    training = split == "train"
+    if training:
+        ctx = nullcontext
+        model.train()
+    else:
+        ctx = torch.no_grad
+        model.eval()
+
+    ranger = tqdm(dataloader, desc=f"{split} epoch {epoch}")
+
+    loss_meter = util.AverageMeter()
+    acc_meter = util.AverageMeter()
+    for (s1, s1len, s2, s2len, targets) in ranger:
+        if device == 'cuda':
+            s1 = s1.cuda()
+            s1len = s1len.cuda()
+            s2 = s2.cuda()
+            s2len = s2len.cuda()
+            targets = targets.cuda()
+
+        batch_size = targets.shape[0]
+        
+        with ctx():
+            logits = model(s1, s1len, s2, s2len)
+            loss = criterion(logits, targets)
+
+        if training:
+            optimizer.zero_grad()
+            loss.backward()
+            model.mlp[0].weight.grad *= model.prune_mask
+            
+            optimizer.step()
+        preds = logits.argmax(1)
+        acc = (preds == targets).float().mean()
+        loss_meter.update(loss.item(), batch_size)
+        acc_meter.update(acc.item(), batch_size)
+
+        ranger.set_description(
+            f"{split} epoch {epoch} loss {loss_meter.avg:.3f} acc {acc_meter.avg:.3f}"
+        )
+
+    return {"loss": loss_meter.avg, "acc": acc_meter.avg}
+
 def finetune_pruned_model(model,optimizer,criterion, train, val, dataloaders, finetune_epochs, prune_metrics_dir,device):
     metrics = defaultdict(list)
     metrics["best_val_acc"]=0.0
@@ -58,50 +137,6 @@ def finetune_pruned_model(model,optimizer,criterion, train, val, dataloaders, fi
     model.load_state_dict(torch.load(path_to_ckpt)['state_dict'])
     return model, model.mlp[0].weight.detach().cpu().numpy(), torch.load(path_to_ckpt)
 
-def run(split, epoch, model, optimizer, criterion, dataloader, device='cuda'):
-    training = split == "train"
-    if training:
-        ctx = nullcontext
-        model.train()
-    else:
-        ctx = torch.no_grad
-        model.eval()
-
-    ranger = tqdm(dataloader, desc=f"{split} epoch {epoch}")
-
-    loss_meter = util.AverageMeter()
-    acc_meter = util.AverageMeter()
-    for (s1, s1len, s2, s2len, targets) in ranger:
-        if device == 'cuda':
-            s1 = s1.cuda()
-            s1len = s1len.cuda()
-            s2 = s2.cuda()
-            s2len = s2len.cuda()
-            targets = targets.cuda()
-
-        batch_size = targets.shape[0]
-        
-        with ctx():
-            logits = model(s1, s1len, s2, s2len)
-            loss = criterion(logits, targets)
-
-        if training:
-            optimizer.zero_grad()
-            loss.backward()
-            model.mlp[0].weight.grad *= model.prune_mask
-            
-            optimizer.step()
-        preds = logits.argmax(1)
-        acc = (preds == targets).float().mean()
-        loss_meter.update(loss.item(), batch_size)
-        acc_meter.update(acc.item(), batch_size)
-
-        ranger.set_description(
-            f"{split} epoch {epoch} loss {loss_meter.avg:.3f} acc {acc_meter.avg:.3f}"
-        )
-
-    return {"loss": loss_meter.avg, "acc": acc_meter.avg}
-
 
 def build_model(vocab_size, model_type, embedding_dim=300, hidden_dim=512):
     """
@@ -115,6 +150,15 @@ def build_model(vocab_size, model_type, embedding_dim=300, hidden_dim=512):
     else:
         model = models.BowmanEntailmentClassifier(enc)
     return model
+
+def load_model(max_data, device='cuda'):
+    path_to_ckpt="models/snli/6.pth"
+    ckpt = torch.load(path_to_ckpt, map_location="cpu")
+    model = build_model(vocab_size=len(ckpt["stoi"]), model_type='bowman', embedding_dim=300, hidden_dim=512)
+    model.load_state_dict(ckpt["state_dict"])
+    
+   
+    return model, ckpt
 
 
 def serialize(model, dataset):
@@ -148,4 +192,4 @@ def run_eval(model, val_loader):
     all_preds = np.concatenate(all_preds, 0)
     all_targets = np.concatenate(all_targets, 0)
     acc = (all_preds == all_targets).mean()
-    return np.round(acc,2)
+    return np.round(acc,3)

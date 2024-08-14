@@ -151,6 +151,7 @@ class BowmanEntailmentClassifier(nn.Module):
             if reverse:
                 sorted_weights = np.sort(np.abs(final_weight[mask == 1]))[::-1]
             else:
+                print(mask)
                 sorted_weights = np.sort(np.abs(final_weight[mask == 1]))
 
             # Determine the cutoff for weights to be pruned.
@@ -177,6 +178,7 @@ class BowmanEntailmentClassifier(nn.Module):
         if layer == 'default':
             layer = self.mlp[:-1][0]
         if settings.PRUNE_METHOD == 'lottery_ticket':
+            print("in LT")
             if type(final_weights) != np.ndarray :
                 final_weights=final_weights.numpy()
             assert final_weights.shape[0] == 1024
