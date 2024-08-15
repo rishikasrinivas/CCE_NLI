@@ -136,7 +136,7 @@ def main(args, pruned_percents=[], final_acc=[]):
             _,final_layer_weights =initiate_exp_run(
                 save_exp_dir = exp_after_finetuning_flder_baseline, 
                 save_masks_dir= masks_after_finetuning_flder_baseline, 
-                masks_saved=False, 
+                masks_saved=True, 
                 model_=model,
                 dataset=dataset,
                 clusters=5,
@@ -163,18 +163,19 @@ def main(args, pruned_percents=[], final_acc=[]):
             device = 'cuda'
             model = model.cuda()
         
-        if final_weights_pruned == 100:
-            print(f"======Running Explanations for 100% pruned=======")
+        clusters = 1 if final_weights_pruned == 100 else 5
+        masks_saved= True if prune_iters==1 else False
+        print(f"======Running Explanations for {final_weights_pruned}% pruned=======")
         #run after pruning before finetuning
-            _,final_layer_weights =initiate_exp_run(
-                save_exp_dir = exp_after_finetuning_flder, 
-                save_masks_dir= masks_after_finetuning_flder, 
-                masks_saved=False, 
-                model_=model,
-                dataset=dataset,
-                clusters=1,
-            )
-        
+        _,final_layer_weights =initiate_exp_run(
+            save_exp_dir = exp_after_finetuning_flder, 
+            save_masks_dir= masks_after_finetuning_flder, 
+            masks_saved=masks_saved, 
+            model_=model,
+            dataset=dataset,
+            clusters=clusters,
+        )
+    
         assert(torch.equal(model.mlp[0].weight.detach().cpu(), torch.tensor(final_weights)))
         
         acc=train_utils.run_eval(model, dataloaders['test'])
