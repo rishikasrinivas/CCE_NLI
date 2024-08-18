@@ -262,10 +262,8 @@ def calculate_act_mask_align_index(unit, formula, cluster, acts, masks):
     sample_nums_commonTo_act_and_mask = np.intersect1d(samples_entailing_formula, samples_where_neuron_activs)
     
 
-    write_to_file(unit, f"Cluster{cluster}SamplesFiringPerConcept.csv",["formula", "samples_entailing_formula", "num_samples_entailing_formula"], [concept, formula, samples_entailing_formula, len(samples_entailing_formula[0])] )
-                 
-    
-   
+    write_to_file(unit, f"Cluster{cluster}SamplesFiringPerConcept.csv",["formula", "samples_entailing_formula", "num_samples_entailing_formula"], [formula, samples_entailing_formula, len(samples_entailing_formula[0])] )
+                
 
 
 def compute_iou(unit, cluster, formula, acts, feats, dataset, feat_type="word", sentence_num=None):
@@ -286,7 +284,8 @@ def compute_iou(unit, cluster, formula, acts, feats, dataset, feat_type="word", 
 
     if settings.METRIC == "iou":
         #if running w only 1 sentence iou would be.1 or 0, acts will be 1,1 (this is act for each neuron so 1 sentence and.1 neuon) mask is also 1x1
-        intersection, comp_iou = iou(masks, acts)
+        samples_entailing_formula=np.where(masks == 1)
+        comp_iou = iou(masks, acts)
         if comp_iou == 1:
             calculate_act_mask_align_index(unit,formula, cluster, acts, masks)
        # if (concept != -1):
@@ -299,7 +298,7 @@ def compute_iou(unit, cluster, formula, acts, feats, dataset, feat_type="word", 
         raise NotImplementedError(f"metric: {settings.METRIC}")
     comp_iou = (settings.COMPLEXITY_PENALTY ** (len(formula) - 1)) * comp_iou
     
-    return intersection, comp_iou
+    return samples_entailing_formula, comp_iou
 
 #call this for each activ range from search_feats
 def compute_best_sentence_iou(args):
@@ -323,7 +322,7 @@ def compute_best_sentence_iou(args):
 
     feats_to_search = list(range(feats.shape[1]))
     formulas = {}
-    intersections={}
+    samples_entailing_formulas={}
     for fval in feats_to_search:
         formula = FM.Leaf(fval)
         formulas[formula] = compute_iou(unit, cluster,
@@ -365,11 +364,11 @@ def compute_best_sentence_iou(args):
                     if negate:
                         new_formula = FM.Not(new_formula)
                     new_formula = op(formula, new_formula)
-                    intersect, new_iou = compute_iou(unit, cluster,
+                    samples_entailing_formula, new_iou = compute_iou(unit, cluster,
                         new_formula, acts, feats, dataset, feat_type="sentence"
                     )
                     new_formulas[new_formula] = new_iou
-                    intersections[new_formula]=intersect
+                    samples_entailing_formulas[new_formula]=samples_entailing_formula
 
         formulas.update(new_formulas)
         # Trim the beam
@@ -381,7 +380,7 @@ def compute_best_sentence_iou(args):
         "unit": unit,
         "best": best,
         "best_noncomp": best_noncomp,
-        "intersection": intersections,
+        "samples_entailing_formula": samples_entailing_formulas,
     }
 
 def pad_collate(batch, sort=True):
@@ -534,7 +533,7 @@ def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =No
             unit = res["unit"]
             
             best_lab, best_iou = res["best"]
-            intersect_val=res['intersection']
+            samples_entailing_formulas=res['samples_entailing_formulas']
             best_name = best_lab.to_str(namer, sort=True)
 
             best_cat = best_lab.to_str(cat_namer, sort=True) 
@@ -547,8 +546,8 @@ def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =No
 
             if best_iou > 0:
                 activated_samples= (np.transpose(acts)==1).sum().item()
-                tqdm.write(f"{unit:02d}\t{best_name}\t{best_iou:.3f}\n{intersect_val}\t{activated_samples}")
-                write_to_file(unit, f"{save_dir}/Cluster{cluster}IOUS1024N.csv", ["unit", "best_name", "best_iou", "intersection", "activated_samples"], [unit, best_name, best_iou, intersect_val, activated_samples])
+                tqdm.write(f"{unit:02d}\t{best_name}\t{best_iou:.3f}\n{intersect_val}\t{samples_entailing_formulas}")
+                write_to_file(unit, f"{save_dir}/Cluster{cluster}IOUS1024N.csv", ["unit", "best_name", "best_iou", "samples_entailing_formulas", "activated_samples"], [unit, best_name, best_iou, samples_entailing_formulas, activated_samples])
             
                 r = {
                     "cluster": cluster,
@@ -823,39 +822,9 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
         records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = 0, save_dir=save_exp_dir)
     return activations
 
-
-#added         
-def per_sent_single_neuron(tok_feats, tok_feats_vocab,states,feats, weights, dataset):
-    import csv
-    sents=load_sents("data/analysis/snli_1.0_dev.tok")
-    i=0
-    sent_num = 0
-    
-    with open("compExpCompareSent100.csv", "w") as fp:
-        wr = csv.writer(fp, dialect='excel')
-        wr.writerow(["sentences", 'cluster','neuron','feature','iou'])
-        for state in states[:100]:
-            sent_num += 1
-            sentences=[sents[i], sents[i+1]]
-            print(sentences)
-            i += 2
-            state = torch.tensor(np.array(state)).unsqueeze(1) 
-            best_exp=[]
-            activations= torch.from_numpy(state.numpy().reshape(state.shape[0]*state.shape[1], 1)) #flatten it
-            activation_ranges = create_clusters(activations, 5)
-            activations= torch.from_numpy(activations.numpy().reshape(1,1024)) #reform it
-            for cluster_num in range(1,6):
-                acts=build_act_mask(activations,activation_ranges, cluster_num)
-                records = search_feats(acts, state, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num,sentence_num = sent_num)
-               
-                for rec in records:
-                    if rec['iou'] > 0.0:
-                        print(rec['cluster'],rec['neuron'],rec['feature'],rec['iou'])
-                        wr.writerow([sentences, rec['cluster'],rec['neuron'],rec['feature'],rec['iou']])
-    return states
             
 
-def initiate_exp_run(save_exp_dir, save_masks_dir,masks_saved, path=settings.MODEL, model_=None, dataset=None, clusters=4, q_ret=0):
+def initiate_exp_run(save_exp_dir, save_masks_dir="code/TestRun/Run1",masks_saved="code/TestRun/Run1", path=settings.MODEL, model_=None, dataset=None, clusters=4, q_ret=0):
     
     if model_==None and dataset==None:
         model, dataset = data.snli.load_for_analysis(
