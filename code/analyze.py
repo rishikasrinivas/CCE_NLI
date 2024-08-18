@@ -193,7 +193,7 @@ def get_mask(feats, f, dataset, feat_type):
 def iou(a, b):
     intersection = (a & b).sum()
     union = (a | b).sum()
-    return intersection, intersection / (union + np.finfo(np.float32).tiny)
+    return intersection / (union + np.finfo(np.float32).tiny)
 
 
 def get_max_ofis(states, feats, dataset):
@@ -303,7 +303,6 @@ def compute_iou(unit, cluster, formula, acts, feats, dataset, feat_type="word", 
 #call this for each activ range from search_feats
 def compute_best_sentence_iou(args):
     (unit,cluster) = args
-
     print("Processsing neuron ", unit)
     acts = GLOBALS["acts"][:,unit]
     #acts reprseent states in activ range
@@ -311,8 +310,8 @@ def compute_best_sentence_iou(args):
     if acts.sum() == 0:
         return { #if the neuron is dead dont run expls on it
             "unit": unit,
-            "best": (FM.Leaf(0),0.0),
-            "best_noncomp": (FM.Leaf(0),0.0),
+            "best": (FM.Leaf(0),0),
+            "best_noncomp": (FM.Leaf(0),0),
         }
 
     feats = GLOBALS["feats"]
@@ -325,9 +324,10 @@ def compute_best_sentence_iou(args):
     samples_entailing_formulas={}
     for fval in feats_to_search:
         formula = FM.Leaf(fval)
-        formulas[formula] = compute_iou(unit, cluster,
+        _, new_iou=compute_iou(unit, cluster,
             formula, acts, feats, dataset, feat_type="sentence"
         )
+        formulas[formula] = new_iou
         
         for op, negate in OPS["lemma"]:
             # FIXME: Don't evaluate on neighbors if they don't exist
@@ -338,12 +338,10 @@ def compute_best_sentence_iou(args):
             #handling if neightbors dont exist --added
             new_formula = op(new_formula)
             
-            _,new_iou = compute_iou(unit, cluster,
+            _, new_iou = compute_iou(unit, cluster,
                 new_formula, acts, feats, dataset, feat_type="sentence"
             )
-            
-            formulas[new_formula] = new_iou
-            
+            formulas[new_formula] = new_iou    
     nonzero_iou = [k.val for k, v in formulas.items() if v > 0]
     formulas = dict(Counter(formulas).most_common(settings.BEAM_SIZE))
     best_noncomp = Counter(formulas).most_common(1)[0]
@@ -686,7 +684,7 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
         }
    
     # Binary mask - encoder/decoder
-    token_masks = np.zeros((len(toks), len(tok_feats_vocab["stoi"])), dtype=np.bool)
+    token_masks = np.zeros((len(toks), len(tok_feats_vocab["stoi"])), dtype=np.bool_)
     for i, (encu, decu, enctagu, dectagu, oth) in enumerate(
         zip(
             encoder_uniques,
