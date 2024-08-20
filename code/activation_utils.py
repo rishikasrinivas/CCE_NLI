@@ -91,10 +91,9 @@ def build_masks(activations, activation_ranges, num_clusters, save_dir):
     activations=torch.Tensor(activations)
     
             
-  
+    saved_masks=[]
     for cluster_num in range(1,num_clusters+1):
         act_masks=[]
-        os.makedirs(f"{save_dir}/Cluster{cluster_num}/", exist_ok=True)
         for i, activ_for_neuron in enumerate(activations):
             #if torch.all(activ_for_sample >= 0):
                 #activ_for_sample=activ_for_sample[activ_for_sample>0]
@@ -102,7 +101,8 @@ def build_masks(activations, activation_ranges, num_clusters, save_dir):
             act_masks.append(mask)
 
         masks = torch.stack(act_masks)
+        saved_masks.append(masks)
         act_tens=torch.save(masks, f"{save_dir}/Cluster{cluster_num}masks.pt")
-    return masks.numpy()
+    return np.array(saved_masks)
         
     

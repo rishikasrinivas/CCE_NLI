@@ -14,7 +14,9 @@ from data.snli import SNLI, pad_collate
 from collections import defaultdict
 
 def create_dataloaders(max_data, ckpt):
-    train = SNLI("data/snli_1.0", "train", max_data=max_data)
+
+    train = SNLI("data/snli_1.0", "train", max_data=max_data*7)
+
     
     train_loader = DataLoader(
         train,
@@ -66,6 +68,9 @@ def run(split, epoch, model, optimizer, criterion, dataloader, device='cuda'):
             s2 = s2.cuda()
             s2len = s2len.cuda()
             targets = targets.cuda()
+
+            model.prune_mask=model.prune_mask.cuda()
+
 
         batch_size = targets.shape[0]
         
@@ -151,14 +156,10 @@ def build_model(vocab_size, model_type, embedding_dim=300, hidden_dim=512):
         model = models.BowmanEntailmentClassifier(enc)
     return model
 
-def load_model(max_data, device='cuda'):
-    path_to_ckpt="models/snli/6.pth"
-    ckpt = torch.load(path_to_ckpt, map_location="cpu")
+def load_model(max_data, ckpt, device='cuda'):
     model = build_model(vocab_size=len(ckpt["stoi"]), model_type='bowman', embedding_dim=300, hidden_dim=512)
     model.load_state_dict(ckpt["state_dict"])
-    
-   
-    return model, ckpt
+    return model
 
 
 def serialize(model, dataset):
