@@ -36,6 +36,11 @@ def verify_pruning(model, prev_total_pruned_amt): # does this:
     assert np.round((new_zeros/(1024*2048)),1) == 0.5
     
 
+def save_load_ckpt(path, model):
+    ckpt=torch.load(path)
+    model.load_state_dict(ckpt['state_dict'])
+    return model, ckpt
+
 
 #running the expls using the already finetuned and precreated masks from before
 def main(args, pruned_percents, final_acc):
@@ -51,13 +56,16 @@ def main(args, pruned_percents, final_acc):
         max_data = 10000
    
     # ==== BUILD MODEL ====
-    
-    model, ckpt = train_utils.load_model(max_data=max_data)
+
+    ckpt=torch.load(settings.MODEL)
+    model = train_utils.load_model(max_data=max_data, ckpt=ckpt)
+
     if settings.CUDA:
         device = 'cuda'
         model = model.cuda()
     else:
         device = 'cpu'
+
     optimizer = optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
     train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, ckpt=ckpt)
@@ -70,15 +78,29 @@ def main(args, pruned_percents, final_acc):
         lines = f.readlines()
     
     dataset = analysis.AnalysisDataset(lines, vocab)
+
+
+    # == PREPARE MODEL ====
+    prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"default")
+    os.makedirs(prune_metrics_dir, exist_ok=True)
+    
+    
+    train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, device)
+    model, base_ckpt = save_load_ckpt(path=f"{prune_metrics_dir}/model_best.pth", model=model)
+
+    
+    final_weights=model.mlp[:-1][0].weight.detach().cpu().numpy()
+    
+    train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, device) #finish training
+    # setting up pruning mask and weights
+
     
     
     init_acc=train_utils.run_eval(model, dataloaders['test'])
     print(f"Accuracy: {init_acc}")
 
-    
-    
-    # setting up pruning mask and weights
-    final_weights=model.mlp[:-1][0].weight.detach().cpu().numpy()
+
+
     
     
     
@@ -92,7 +114,9 @@ def main(args, pruned_percents, final_acc):
             os.makedirs(args.prune_metrics_dir,exist_ok=True)
             os.makedirs(prune_metrics_dir,exist_ok=True)
 
-        model, ckpt = train_utils.load_model(max_data=max_data)
+
+        model.load_state_dict(base_ckpt['state_dict']) # trained for k iters
+        
         if settings.CUDA:
             device = 'cuda'
             model = model.cuda()
@@ -102,10 +126,15 @@ def main(args, pruned_percents, final_acc):
         criterion = nn.CrossEntropyLoss()
         
         if prune_iter > 1:
-            #model.load_state_dict(torch.load(os.path.join(args.prune_metrics_dir,f"{prune_iter-1}_Pruning_Iter","model_best.pth"))['state_dict'])
-            model.prune_mask = pruning_mask.cuda()
-        model.cuda()
-    
+          
+            model.prune_mask = pruning_mask
+        if settings.CUDA:
+            device = 'cuda'
+            model = model.cuda()
+            model.prune_mask.cuda()
+        else:
+            device = 'cpu'
+            
     
         print("Prune amt", settings.PRUNE_AMT)
         bfore=np.round(torch.where(model.mlp[0].weight.detach() == 0,1,0).sum().item()*100/(1024*2048),2)
@@ -113,10 +142,21 @@ def main(args, pruned_percents, final_acc):
         print("Bfore pruning: Final_wegihts prune% is: ", bfore)
         model=model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, reverse=args.reverse)
         pruning_mask = model.prune_mask
+
         bfore=np.round(torch.where(model.mlp[0].weight.detach() == 0,1,0).sum().item()*100/(1024*2048),2)
         print("After pruning: Final_wegihts prune% is: ", bfore)
         
         model, final_weights, _= train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, device)
+
+        final_weights_pruned = np.round(100*torch.where(torch.tensor(final_weights) == 0,1,0).sum().item()/(1024*2048), 2)
+        print("After fting: Final_wegihts prune% is: ",final_weights_pruned )
+        
+        
+        if settings.CUDA:
+            device = 'cuda'
+            model = model.cuda()
+            model.prune_mask.cuda()
+
         final_weights_pruned= np.round(100*torch.where(torch.tensor(final_weights) == 0,1,0).sum().item()/(1024*2048), 2)
         print("After fting: Final_wegihts prune% is: ",final_weights_pruned )
         
@@ -125,6 +165,7 @@ def main(args, pruned_percents, final_acc):
             device = 'cuda'
             model = model.cuda()
         
+
         assert(torch.equal(model.mlp[0].weight.detach().cpu(), torch.tensor(final_weights)))
         
         acc=train_utils.run_eval(model, dataloaders['test'])

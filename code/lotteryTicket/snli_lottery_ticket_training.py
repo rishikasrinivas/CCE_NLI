@@ -60,8 +60,6 @@ def main(args, pruned_percents, final_acc):
     ckpt=torch.load(settings.MODEL)
     model = train_utils.load_model(max_data=max_data, ckpt=ckpt)
 
-    
-    model, ckpt = train_utils.load_model(max_data=max_data)
     if settings.CUDA:
         device = 'cuda'
         model = model.cuda()
@@ -93,10 +91,7 @@ def main(args, pruned_percents, final_acc):
     
     final_weights=model.mlp[:-1][0].weight.detach().cpu().numpy()
     
-    train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, device) #finish trainin
-    init_acc=train_utils.run_eval(model.cuda(), dataloaders['test'])
-    print(f"Accuracy: {init_acc}") 
-    
+    train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, device) #finish training
     # setting up pruning mask and weights
 
     

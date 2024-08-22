@@ -80,7 +80,7 @@ def main(args):
         args.model= 'models/snli/model_best.pth'
         print("Loading model from ",args.model )
         model.load_state_dict(torch.load(args.model)['state_dict'])
-        
+    
     final_weights=model.mlp[0].weight.detach().cpu().numpy()
     if args.iter == 1:
         prune_mask = torch.ones(final_weights.shape)
