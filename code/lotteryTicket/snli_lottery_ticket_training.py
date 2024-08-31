@@ -43,7 +43,7 @@ def save_load_ckpt(path, model):
 
 
 #running the expls using the already finetuned and precreated masks from before
-def main(args, pruned_percents, final_acc):
+def main(args, pruned_percents, final_accs):
     
     settings.PRUNE_METHOD='lottery_ticket'
     settings.PRUNE_AMT=0.2
@@ -53,13 +53,18 @@ def main(args, pruned_percents, final_acc):
     if args.debug:
         max_data = 1000
     else:
-        max_data = 10000
+        max_data = None
+    
+    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data)
    
-    # ==== BUILD MODEL ====
+    # ==== BUILD MODEL LOAD DATALOADERS ====
 
-    ckpt=torch.load(settings.MODEL)
-    model = train_utils.load_model(max_data=max_data, ckpt=ckpt)
-
+    
+    model = train_utils.load_model(max_data=max_data, train=train)
+    print("Loading base_ckpt from ", settings.MODEL)
+    base_ckpt=torch.load(settings.MODEL) #randomly initialzied model
+    final_weights=model.mlp[:-1][0].weight.detach().cpu().numpy()
+    
     if settings.CUDA:
         device = 'cuda'
         model = model.cuda()
@@ -68,11 +73,10 @@ def main(args, pruned_percents, final_acc):
 
     optimizer = optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
-    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, ckpt=ckpt)
     
     
     # ==== BUILD VOCAB ====
-    vocab = {"itos": ckpt["itos"], "stoi": ckpt["stoi"]}
+    vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
 
     with open(settings.DATA, "r") as f:
         lines = f.readlines()
@@ -80,19 +84,14 @@ def main(args, pruned_percents, final_acc):
     dataset = analysis.AnalysisDataset(lines, vocab)
 
 
-    # == PREPARE MODEL ====
-    prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"default")
-    os.makedirs(prune_metrics_dir, exist_ok=True)
+    # == INITIAL FINETUNING ====
+    #prune_metrics_dir = os.path.join(settings.PRUNE_METRICS_DIR,f"default")
+    #os.makedirs(prune_metrics_dir, exist_ok=True)
     
     
-    train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, device)
-    model, base_ckpt = save_load_ckpt(path=f"{prune_metrics_dir}/model_best.pth", model=model)
-
+    #train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders, 50, settings.PRUNE_METRICS_DIR, device)
+    #model, base_ckpt = save_load_ckpt(path=f"{prune_metrics_dir}/model_best.pth", model=model)
     
-    final_weights=model.mlp[:-1][0].weight.detach().cpu().numpy()
-    
-    train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, device) #finish training
-    # setting up pruning mask and weights
 
     
     
@@ -100,22 +99,18 @@ def main(args, pruned_percents, final_acc):
     print(f"Accuracy: {init_acc}")
 
 
-
-    
-    
-    
     #pruning
     
     for prune_iter in tqdm(range(1,args.prune_iters+1)):
         print(f"==== PRUNING ITERATION {prune_iter} ====")
         #location to store metrics
-        prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{prune_iter}_Pruning_Iter")
+        prune_metrics_dir = os.path.join(settings.PRUNE_METRICS_DIR,f"{prune_iter}_Pruning_Iter")
         if not os.path.exists(prune_metrics_dir):
-            os.makedirs(args.prune_metrics_dir,exist_ok=True)
+            os.makedirs(settings.PRUNE_METRICS_DIR,exist_ok=True)
             os.makedirs(prune_metrics_dir,exist_ok=True)
 
 
-        model.load_state_dict(base_ckpt['state_dict']) # trained for k iters
+        model.load_state_dict(base_ckpt['state_dict']) # trained for k iters X(actually ranomd)
         
         if settings.CUDA:
             device = 'cuda'
@@ -126,8 +121,8 @@ def main(args, pruned_percents, final_acc):
         criterion = nn.CrossEntropyLoss()
         
         if prune_iter > 1:
-          
             model.prune_mask = pruning_mask
+            
         if settings.CUDA:
             device = 'cuda'
             model = model.cuda()
@@ -161,7 +156,7 @@ def main(args, pruned_percents, final_acc):
         print("After fting: Final_wegihts prune% is: ",final_weights_pruned )
         
         
-         if settings.CUDA:
+        if settings.CUDA:
             device = 'cuda'
             model = model.cuda()
         

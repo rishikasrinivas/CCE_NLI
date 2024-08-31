@@ -404,6 +404,7 @@ def extract_features(
     model,
     dataset,
 ):
+    model.eval()
     loader = DataLoader(
         dataset,
         shuffle=False,
@@ -527,10 +528,11 @@ def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =No
 
             if best_iou > 0:
                 activated_samples= np.where(acts[:,unit]==1)
-                detection_acc = metrics.detection_acc(acts[:,unit],best_lab.mask)
+                intersection, num_samples_active_for_form, samples_cvg = metrics.samples_coverage(acts[:,unit],best_lab.mask)
+                _, num_active_in_range, expl_cvg = metrics.explanation_coverage(acts[:,unit],best_lab.mask)
                 samples_entailing_formulas=np.where(best_lab.mask==1)
-                tqdm.write(f"{unit:02d}\t{best_name}\t{best_iou:.3f}\t{samples_entailing_formulas}")
-                write_to_file(unit, f"{save_dir}/Cluster{cluster}IOUS1024N.csv", ["unit", "best_name", "best_iou", "samples_entailing_formulas", "activation_value_for_samples", 'detection_accuracy'], [unit, best_name, best_iou, samples_entailing_formulas, torch.tensor(states)[activated_samples,unit], detection_acc])
+                tqdm.write(f"{unit:02d}\t{best_name}\t{best_iou:.3f}\tSample_Covg:{samples_cvg}\tExpl_Cvg:{expl_cvg}")
+                write_to_file(unit, f"{save_dir}/Cluster{cluster}IOUS1024N.csv", ["unit", "best_name", "best_iou", "samples_entailing_formulas", "activation_value_for_samples", 'intersection', 'sample_coverage', 'len_samples_entailing_formula', 'explanation_coverage', "num_active_in_range"], [unit, best_name, best_iou, samples_entailing_formulas, torch.tensor(states)[activated_samples,unit], intersection, samples_cvg, num_samples_active_for_form, expl_cvg, num_active_in_range])
             
                 r = {
                     "cluster": cluster,
@@ -867,7 +869,7 @@ def main():
         )
     
     print(torch.cuda.is_available())
-    states, weights = initiate_exp_run(save_exp_dir='code/TestRun/Run1', save_masks_dir='code/TestRun/Run1',masks_saved=False)
+    states, weights = initiate_exp_run(save_exp_dir='code/TestRun/Random_Run/RandomExpls', save_masks_dir='code/TestRun/Random_Run/RandomExplsMasks',masks_saved=False)
     
     print("Load predictions")
     mbase = os.path.splitext(os.path.basename(settings.MODEL))[0]

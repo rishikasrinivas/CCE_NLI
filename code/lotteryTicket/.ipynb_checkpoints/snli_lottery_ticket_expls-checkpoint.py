@@ -54,34 +54,35 @@ def make_folders(prune_iter):
 def main(args, pruned_percents=[], final_acc=[]):
     
     settings.PRUNE_METHOD='lottery_ticket'
-    settings.PRUNE_AMT= 1 if args.baseline else 0.2
-    
-    args.prune_iters = 1 if args.baseline else args.prune_iters
+    settings.PRUNE_AMT=0.99078
     os.makedirs(args.exp_dir, exist_ok=True)
 
     # ==== LOAD DATA ====
     if args.debug:
         max_data = 1000
     else:
-        max_data = 10000
-   
-    # ==== BUILD MODEL ====
+        max_data = None
     
-    model, ckpt = train_utils.load_model(max_data=max_data)
+    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data)
+   
+    # ==== BUILD MODEL LOAD DATALOADERS ====
+    model = train_utils.load_model(max_data=max_data, train=train, ckpt=args.ckpt)
+    print("Loading base_ckpt from ", settings.MODEL)
+    base_ckpt=torch.load(settings.MODEL) #randomly initialzied model
+    final_weights=model.mlp[:-1][0].weight.detach().cpu().numpy()
+    
     if settings.CUDA:
         device = 'cuda'
         model = model.cuda()
     else:
         device = 'cpu'
-        
-    
+
     optimizer = optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
-    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, ckpt=ckpt)
     
     
     # ==== BUILD VOCAB ====
-    vocab = {"itos": ckpt["itos"], "stoi": ckpt["stoi"]}
+    vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
 
     with open(settings.DATA, "r") as f:
         lines = f.readlines()
@@ -89,30 +90,24 @@ def main(args, pruned_percents=[], final_acc=[]):
     dataset = analysis.AnalysisDataset(lines, vocab)
     
     
+    # ==== INITIAL ACCURACY ====
     init_acc=train_utils.run_eval(model, dataloaders['test'])
     print(f"Accuracy: {init_acc}")
 
-    
-    
-    # setting up pruning mask and weights
-    final_weights=model.mlp[:-1][0].weight.detach().cpu().numpy()
-    
-    
-    
+
     #pruning
     
     for prune_iter in tqdm(range(1,args.prune_iters+1)):
         print(f"==== PRUNING ITERATION {prune_iter}/{args.prune_iters+1} ====")
         
         #location to store metrics
-        
         prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{prune_iter}_Pruning_Iter")
         if not os.path.exists(prune_metrics_dir):
             os.makedirs(args.prune_metrics_dir,exist_ok=True)
             os.makedirs(prune_metrics_dir,exist_ok=True)
 
 
-        model, ckpt = train_utils.load_model(max_data=max_data)
+        model.load_state_dict(base_ckpt['state_dict']) # RELOAD RANDOM WEIGHTS
         if settings.CUDA:
             device = 'cuda'
             model = model.cuda()
@@ -122,59 +117,47 @@ def main(args, pruned_percents=[], final_acc=[]):
         criterion = nn.CrossEntropyLoss()
         
         if prune_iter > 1:
-            #model.load_state_dict(torch.load(os.path.join(args.prune_metrics_dir,f"{prune_iter-1}_Pruning_Iter","model_best.pth"))['state_dict'])
-            model.prune_mask = pruning_mask.cuda() #reload the pruning mask
-        else: #default expls
-            print(f"======Running default explanations======")
-            exp_after_finetuning_flder_baseline = f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter_Baseline/"
-            if not os.path.exists(exp_after_finetuning_flder_baseline):
-                os.mkdir(exp_after_finetuning_flder_baseline) 
-
-            masks_after_finetuning_flder_baseline = f"code/LHMasks/Masks{prune_iter}_Pruning_Iter_Baseline/"
-            if not os.path.exists(masks_after_finetuning_flder_baseline):
-                os.mkdir(masks_after_finetuning_flder_baseline)
-            _,final_layer_weights =initiate_exp_run(
-                save_exp_dir = exp_after_finetuning_flder_baseline, 
-                save_masks_dir= masks_after_finetuning_flder_baseline, 
-                masks_saved=False, 
-                model_=model,
-                dataset=dataset,
-                clusters=5,
-            )
+            model.prune_mask = pruning_mask.cuda() #RELOAD PRUNING MASK
         model.cuda()
     
     
         print("Prune amt", settings.PRUNE_AMT)
         bfore=np.round(torch.where(model.mlp[0].weight.detach() == 0,1,0).sum().item()*100/(1024*2048),2)
     
+    
+        model=model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, reverse=args.reverse) #PRUNE
+        pruning_mask = model.prune_mask # SAVE PRUNE MASK
+        
         print("Bfore pruning: Final_wegihts prune% is: ", bfore)
-        model=model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, reverse=args.reverse)
-        pruning_mask = model.prune_mask #save the pruning mask
         bfore=np.round(torch.where(model.mlp[0].weight.detach() == 0,1,0).sum().item()*100/(1024*2048),2)
         print("After pruning: Final_wegihts prune% is: ", bfore)
         
-        model, final_weights, _= train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, device)
+        model, final_weights, _= train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, device) #FINETUNE
         final_weights_pruned= np.round(100*torch.where(torch.tensor(final_weights) == 0,1,0).sum().item()/(1024*2048), 3)
         print("After fting: Final_wegihts prune% is: ",final_weights_pruned )
         
+        acc=train_utils.run_eval(model, dataloaders['test'])
+        print(f"Accuracy: {acc}")
         exp_after_finetuning_flder, masks_after_finetuning_flder = make_folders(final_weights_pruned)
         
         if settings.CUDA:
             device = 'cuda'
             model = model.cuda()
         
-        if final_weights_pruned == 100:
-            print(f"======Running Explanations for 100% pruned=======")
-        #run after pruning before finetuning
+        clusters = 1 if final_weights_pruned == 100 else 4
+    
+        if final_weights_pruned > 99:
+            print(f"======Running Explanations for {final_weights_pruned}% pruned=======")
+            #run after pruning before finetuning
             _,final_layer_weights =initiate_exp_run(
                 save_exp_dir = exp_after_finetuning_flder, 
                 save_masks_dir= masks_after_finetuning_flder, 
                 masks_saved=False, 
                 model_=model,
                 dataset=dataset,
-                clusters=1,
+                clusters=clusters,
             )
-        
+    
         assert(torch.equal(model.mlp[0].weight.detach().cpu(), torch.tensor(final_weights)))
         
         acc=train_utils.run_eval(model, dataloaders['test'])
@@ -182,6 +165,7 @@ def main(args, pruned_percents=[], final_acc=[]):
         final_accs.append(acc)
         
         print(f"Accuracy: {acc}")
+        if final_weights_pruned > 99: break
     return init_acc, pruned_percents, final_accs
 
 def parse_args():
@@ -210,6 +194,7 @@ def parse_args():
     parser.add_argument("--test_iters", default=1, type=int)
     parser.add_argument("--log", action='store_true')
     parser.add_argument("--baseline", action='store_true')
+    parser.add_argument("--ckpt", default=None)
     return parser.parse_args()
 
 

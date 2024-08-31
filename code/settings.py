@@ -16,10 +16,11 @@ DEBUG = False
 METRIC = "iou"
 
 EMBEDDING_NEIGHBORHOOD_SIZE = 5
-VOCAB_CKPT_PATH="models/snli/6.pth"
+
+
 NEURONS = None
 PARALLEL = 1
-
+PRUNE_METRICS_DIR='models/snli/'
 MIN_ACTS=500
 SHUFFLE = False
 SAVE_EVERY = 4
@@ -30,7 +31,7 @@ MAX_OPEN_FEATS = 5
 # Minimum number of activations to analyze a neuron
 
 
-MODEL = "models/snli/6.pth"
+MODEL = "models/snli/random_inits.pth"
 MODEL_TYPE = "bowman"  # choices: bowman, minimal, imdbData
 RANDOM_WEIGHTS = False  # Initialize weights randomly (equivalent to an untrained model)
 N_SENTENCE_FEATS = 2000  # how many of the most common sentence lemmas to keep

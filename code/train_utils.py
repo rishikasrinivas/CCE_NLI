@@ -12,40 +12,55 @@ import settings
 from tqdm import tqdm
 from data.snli import SNLI, pad_collate
 from collections import defaultdict
-
-def create_dataloaders(max_data, ckpt):
-
-    train = SNLI("data/snli_1.0", "train", max_data=max_data*7)
-
-    
-    train_loader = DataLoader(
-        train,
-        batch_size=100,
-        shuffle=True,
-        pin_memory=False,
-        num_workers=0,
-        collate_fn=pad_collate,
-    )
-    val = SNLI("data/snli_1.0","dev",max_data=max_data,vocab=(ckpt["stoi"], ckpt["itos"]),unknowns=False)
-    
-    val_loader = DataLoader(val, batch_size=100, shuffle=False,pin_memory=True, num_workers=0, collate_fn=pad_collate)
-    test = SNLI("data/snli_1.0", "test", max_data=max_data, vocab=(ckpt["stoi"], ckpt["itos"]), unknowns=True)
-
-    test_loader = DataLoader(
-        test,
-        batch_size=100,
-        shuffle=False,
-        pin_memory=True,
-        num_workers=0,
-        collate_fn=pad_collate,
-    )
+import os
+def create_dataloaders(max_data):
+    if not ('train_loader.pth' in os.listdir("models/DataLoaders/") and 'val_loader.pth' in os.listdir("models/DataLoaders/") and 'test_loader.pth' in os.listdir("models/DataLoaders/")):
+        train = SNLI("data/snli_1.0", "train", max_data=max_data)
+        train_loader = DataLoader(
+            train,
+            batch_size=100,
+            shuffle=True,
+            pin_memory=False,
+            num_workers=0,
+            collate_fn=pad_collate,
+        )
+        torch.save(train_loader, 'train_loader.pth')
+        
+        val = SNLI("data/snli_1.0","dev",max_data=max_data,vocab=(train.stoi, train.itos),unknowns=False)
+        val_loader = DataLoader(
+            val, 
+            batch_size=100, 
+            shuffle=False,
+            pin_memory=True, 
+            num_workers=0, 
+            collate_fn=pad_collate
+        
+        )
+        torch.save(val_loader, 'val_loader.pth')
+        
+        test = SNLI("data/snli_1.0", "test", max_data=max_data, vocab=(train.stoi, train.itos), unknowns=True)
+        test_loader = DataLoader(
+            test,
+            batch_size=100,
+            shuffle=False,
+            pin_memory=True,
+            num_workers=0,
+            collate_fn=pad_collate,
+        )
+        torch.save(test_loader, 'test_loader.pth')
+    else:
+        train_loader=torch.load("models/DataLoaders/train_loader.pth")
+        val_loader=torch.load("models/DataLoaders/val_loader.pth")
+        test_loader=torch.load("models/DataLoaders/test_loader.pth")
+        
+        
     
     dataloaders = {
         'train': train_loader,
         'val':val_loader,
         'test': test_loader
     }
-    return train, val, test, dataloaders
+    return train_loader.dataset, val_loader.dataset,test_loader.dataset, dataloaders
 
 
 def run(split, epoch, model, optimizer, criterion, dataloader, device='cuda'):
@@ -156,9 +171,17 @@ def build_model(vocab_size, model_type, embedding_dim=300, hidden_dim=512):
         model = models.BowmanEntailmentClassifier(enc)
     return model
 
-def load_model(max_data, ckpt, device='cuda'):
-    model = build_model(vocab_size=len(ckpt["stoi"]), model_type='bowman', embedding_dim=300, hidden_dim=512)
-    model.load_state_dict(ckpt["state_dict"])
+def load_model(max_data, train, ckpt=None, device='cuda'):
+    model = build_model(vocab_size=len(train.stoi), model_type='bowman', embedding_dim=300, hidden_dim=512)
+    if ckpt:
+        if type(ckpt) == 'str':
+            ckpt = torch.load(ckpt)
+        model.load_state_dict(ckpt["state_dict"])
+    else:
+        util.save_checkpoint(
+                serialize(model, train), False, settings.PRUNE_METRICS_DIR, filename=f"random_inits.pth"
+        )
+    
     return model
 
 
