@@ -60,7 +60,7 @@ def main(args, pruned_percents, final_accs):
     # ==== BUILD MODEL LOAD DATALOADERS ====
 
     
-    model = train_utils.load_model(max_data=max_data, train=train)
+    model = train_utils.load_model(max_data=max_data, train=train, ckpt=settings.MODEL)
     print("Loading base_ckpt from ", settings.MODEL)
     base_ckpt=torch.load(settings.MODEL) #randomly initialzied model
     final_weights=model.mlp[:-1][0].weight.detach().cpu().numpy()
@@ -97,20 +97,22 @@ def main(args, pruned_percents, final_accs):
     
     init_acc=train_utils.run_eval(model, dataloaders['test'])
     print(f"Accuracy: {init_acc}")
-
+    model, final_weights, _= train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, device)
+    init_acc=train_utils.run_eval(model, dataloaders['test'])
+    print(f"Accuracy: {init_acc}")
 
     #pruning
     
     for prune_iter in tqdm(range(1,args.prune_iters+1)):
         print(f"==== PRUNING ITERATION {prune_iter} ====")
         #location to store metrics
-        prune_metrics_dir = os.path.join(settings.PRUNE_METRICS_DIR,f"{prune_iter}_Pruning_Iter")
+        prune_metrics_dir = os.path.join(settings.PRUNE_METRICS_DIR,f"TestTrain", f"{prune_iter}_Pruning_Iter")
         if not os.path.exists(prune_metrics_dir):
             os.makedirs(settings.PRUNE_METRICS_DIR,exist_ok=True)
             os.makedirs(prune_metrics_dir,exist_ok=True)
 
 
-        model.load_state_dict(base_ckpt['state_dict']) # trained for k iters X(actually ranomd)
+        model.load_state_dict(base_ckpt['state_dict']) # RELOAD RANDOM INITS
         
         if settings.CUDA:
             device = 'cuda'

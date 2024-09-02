@@ -52,9 +52,6 @@ def make_folders(prune_iter):
 
 #running the expls using the already finetuned and precreated masks from before
 def main(args, pruned_percents=[], final_accs=[]):
-    
-    settings.PRUNE_METHOD='lottery_ticket'
-    settings.PRUNE_AMT=0.99078
     os.makedirs(args.exp_dir, exist_ok=True)
 
     # ==== LOAD DATA ====
@@ -96,16 +93,12 @@ def main(args, pruned_percents=[], final_accs=[]):
 
 
     #pruning
-    default=model
     for prune_iter in tqdm(range(1,args.prune_iters+1)):
         print(f"==== PRUNING ITERATION {prune_iter}/{args.prune_iters+1} ====")
         
-        #location to store metrics
+        
 
         model.load_state_dict(base_ckpt['state_dict']) # RELOAD RANDOM WEIGHTS
-        for p, op in zip(model.parameters(), default.parameters()):
-            print(p, op)
-            assert torch.equal(p,op)
         if settings.CUDA:
             device = 'cuda'
             model = model.cuda()
@@ -121,15 +114,17 @@ def main(args, pruned_percents=[], final_accs=[]):
     
         print("Prune amt", settings.PRUNE_AMT)
         bfore=np.round(torch.where(model.mlp[0].weight.detach() == 0,1,0).sum().item()*100/(1024*2048),2)
-    
+        print("Bfore pruning: Final_wegihts prune% is: ", bfore)
     
         model=model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, reverse=args.reverse) #PRUNE
         pruning_mask = model.prune_mask # SAVE PRUNE MASK
-        print("Bfore pruning: Final_wegihts prune% is: ", bfore)
+        
+        
+        
         bfore=np.round(torch.where(model.mlp[0].weight.detach() == 0,1,0).sum().item()*100/(1024*2048),2)
         print("After pruning: Final_wegihts prune% is: ", bfore)
         
-        
+        #location to store metrics
         prune_metrics_dir = os.path.join(args.prune_metrics_dir,f"{prune_iter}_Pruning_Iter")
         if not os.path.exists(prune_metrics_dir):
             os.makedirs(args.prune_metrics_dir,exist_ok=True)
@@ -138,22 +133,27 @@ def main(args, pruned_percents=[], final_accs=[]):
         
 
         model, final_weights, _= train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, device) #FINETUNE
+        
+        
         final_weights_pruned= np.round(100*torch.where(torch.tensor(final_weights) == 0,1,0).sum().item()/(1024*2048), 3)
         print("After fting: Final_wegihts prune% is: ",final_weights_pruned )
         
         acc=train_utils.run_eval(model, dataloaders['test'])
         print(f"Accuracy: {acc}")
+        
+        
         exp_after_finetuning_flder, masks_after_finetuning_flder = make_folders(final_weights_pruned)
         torch.save(pruning_mask,f"{masks_after_finetuning_flder}/{bfore}_prune_mask.pt")
         if settings.CUDA:
             device = 'cuda'
             model = model.cuda()
         
-        clusters = 4
+        clusters = 3
         torch.save(final_weights, f'{masks_after_finetuning_flder}/final_weights_{final_weights_pruned}.pth')
-        if final_weights_pruned > 99:
+        if final_weights_pruned > 95 or final_weights_pruned == 20:
             print(f"======Running Explanations for {final_weights_pruned}% pruned=======")
             #run after pruning before finetuning
+            
             _,final_layer_weights =initiate_exp_run(
                 save_exp_dir = exp_after_finetuning_flder, 
                 save_masks_dir= masks_after_finetuning_flder, 
@@ -170,7 +170,7 @@ def main(args, pruned_percents=[], final_accs=[]):
         final_accs.append(acc)
         
         print(f"Accuracy: {acc}")
-        if final_weights_pruned > 99: break
+        if final_weights_pruned > 91: break
     return init_acc, pruned_percents, final_accs
 
 def parse_args():

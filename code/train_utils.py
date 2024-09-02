@@ -174,7 +174,7 @@ def build_model(vocab_size, model_type, embedding_dim=300, hidden_dim=512):
 def load_model(max_data, train, ckpt=None, device='cuda'):
     model = build_model(vocab_size=len(train.stoi), model_type='bowman', embedding_dim=300, hidden_dim=512)
     if ckpt:
-        if type(ckpt) == 'str':
+        if type(ckpt) == str:
             ckpt = torch.load(ckpt)
         model.load_state_dict(ckpt["state_dict"])
     else:

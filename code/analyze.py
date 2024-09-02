@@ -804,7 +804,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
         
         assert type(states)==list and len(states)==10000 and len(states[0]) == 1024 #should be list 100000 ittems ach of len 1024
      
-        assert(acts.shape[0] == 10000 and acts.shape[1]==1024)
+        assert(acts.shape[0] == 10000 and acts.shape[1]==1024), acts.shape
         records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = 0, save_dir=save_exp_dir)
     return activations
 

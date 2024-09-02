@@ -61,15 +61,26 @@ def create_clusters(activations, num_clusters):
             dead_neurons.append(i)
             activation_ranges.append([])
             continue
+        #account for non-0 only 1 unique value neurons at high pruning
+        if len(torch.unique(neurons_acts)) < num_clusters:
+            print("Found repeated activation at neuron: ", i)
+            num_clusters_ = 1
+        else:
+            num_clusters_ = num_clusters
+            
            
         neurons_acts = neurons_acts[neurons_acts>0]
         
         neurons_acts  = neurons_acts.reshape(1,-1).t()
         
-        clusters = scikit_cluster.KMeans(n_clusters= num_clusters, random_state=0).fit(neurons_acts)
+        clusters = scikit_cluster.KMeans(n_clusters= num_clusters_, random_state=0).fit(neurons_acts)
         cluster_lst = clusters.labels_
         
-        activation_range = compute_activ_ranges(neurons_acts, cluster_lst, num_clusters)
+        activation_range = compute_activ_ranges(neurons_acts, cluster_lst, num_clusters_)
+        if num_clusters_<num_clusters:
+            diff = num_clusters-num_clusters_
+            for i in diff:
+                activation_range.append([])
         activation_ranges.append(activation_range)
  
        
@@ -97,6 +108,8 @@ def build_masks(activations, activation_ranges, num_clusters, save_dir):
         for i, activ_for_neuron in enumerate(activations):
             #if torch.all(activ_for_sample >= 0):
                 #activ_for_sample=activ_for_sample[activ_for_sample>0]
+            #handling case with no unique non-0 activation
+            
             mask=build_act_mask(activ_for_neuron.squeeze(),activation_ranges[i], cluster_num)
             act_masks.append(mask)
 

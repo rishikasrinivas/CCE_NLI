@@ -229,7 +229,7 @@ class BowmanEntailmentClassifier(nn.Module):
         mlp_input = self.dropout(mlp_input)
         
                 
-        rep = self.mlp[:-1](mlp_input) #this would need to be updated w the pruning
+        rep = self.mlp[:-1](mlp_input) 
         
         return rep
 
