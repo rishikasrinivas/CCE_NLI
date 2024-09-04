@@ -73,6 +73,8 @@ def run(split, epoch, model, optimizer, criterion, dataloader, device='cuda'):
         model.eval()
 
     ranger = tqdm(dataloader, desc=f"{split} epoch {epoch}")
+    model.prune_mask=model.prune_mask.cuda()
+    print("Pruned mask pruned ", torch.where(model.prune_mask==0,1,0).sum()/(2048*1024))
 
     loss_meter = util.AverageMeter()
     acc_meter = util.AverageMeter()
@@ -84,8 +86,7 @@ def run(split, epoch, model, optimizer, criterion, dataloader, device='cuda'):
             s2len = s2len.cuda()
             targets = targets.cuda()
 
-            model.prune_mask=model.prune_mask.cuda()
-
+    
 
         batch_size = targets.shape[0]
         
@@ -119,6 +120,8 @@ def finetune_pruned_model(model,optimizer,criterion, train, val, dataloaders, fi
     metrics[f"train_acc"]=[]
     metrics[f"val_loss"]=[]
     metrics[f"val_acc"]=[]
+    fw=model.mlp[0].weight.detach().cpu().numpy()
+    print("In function finetune final weights pruned ", torch.where(torch.tensor(fw)==0,1,0).sum()/(2048*1024))
     for epoch in range(finetune_epochs):
         
         train_metrics = run(
@@ -155,6 +158,9 @@ def finetune_pruned_model(model,optimizer,criterion, train, val, dataloaders, fi
     path_to_ckpt = os.path.join(prune_metrics_dir, f"model_best.pth")
     print(f"Loading best weights from {path_to_ckpt}")
     model.load_state_dict(torch.load(path_to_ckpt)['state_dict'])
+    fw=model.mlp[0].weight.detach().cpu().numpy()
+    print("In function finetune final weights pruned ", torch.where(torch.tensor(fw)==0,1,0).sum()/(2048*1024))
+    
     return model, model.mlp[0].weight.detach().cpu().numpy(), torch.load(path_to_ckpt)
 
 

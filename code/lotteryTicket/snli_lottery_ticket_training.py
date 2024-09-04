@@ -2,6 +2,7 @@
 """
 Train a bowman et al-style SNLI model
 """
+
 import csv
 import tqdm
 import os
@@ -29,51 +30,35 @@ import train_utils
 sys.path.append("Analysis/")
 import pipelines as pipelines
 import wandb_utils
+sys.path.append("Analysis/")
+import pipelines as pipelines
 
 def verify_pruning(model, prev_total_pruned_amt): # does this:
     num_zeros_in_final_weights=torch.where(model.mlp[0].weight.t()==0,1,0).sum()
     new_zeros=num_zeros_in_final_weights-prev_total_pruned_amt
     assert np.round((new_zeros/(1024*2048)),1) == 0.5
-    
 
-def save_load_ckpt(path, model):
-    ckpt=torch.load(path)
-    model.load_state_dict(ckpt['state_dict'])
-    return model, ckpt
+def make_folders(prune_iter):
+    #masks and explanation storing paths after finetuning
+    exp_after_finetuning_flder = f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/"
+    if not os.path.exists(exp_after_finetuning_flder):
+        os.mkdir(exp_after_finetuning_flder) 
+
+    masks_after_finetuning_flder = f"code/LHMasks/Masks{prune_iter}_Pruning_Iter/"
+    if not os.path.exists(masks_after_finetuning_flder):
+        os.mkdir(masks_after_finetuning_flder)
+    return exp_after_finetuning_flder, masks_after_finetuning_flder
 
 
-#running the expls using the already finetuned and precreated masks from before
-def main(args, pruned_percents, final_accs):
-    
-    settings.PRUNE_METHOD='lottery_ticket'
-    settings.PRUNE_AMT=0.2
+def main(args):
     os.makedirs(args.exp_dir, exist_ok=True)
-
-    # ==== LOAD DATA ====
     if args.debug:
         max_data = 1000
     else:
         max_data = None
-    
     train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data)
-   
-    # ==== BUILD MODEL LOAD DATALOADERS ====
-
-    
-    model = train_utils.load_model(max_data=max_data, train=train, ckpt=settings.MODEL)
-    print("Loading base_ckpt from ", settings.MODEL)
-    base_ckpt=torch.load(settings.MODEL) #randomly initialzied model
-    final_weights=model.mlp[:-1][0].weight.detach().cpu().numpy()
-    
-    if settings.CUDA:
-        device = 'cuda'
-        model = model.cuda()
-    else:
-        device = 'cpu'
-
-    optimizer = optim.Adam(model.parameters())
-    criterion = nn.CrossEntropyLoss()
-    
+    model = train_utils.load_model(max_data=max_data, train=train, ckpt=args.ckpt)
+    base_ckpt=torch.load(settings.MODEL) 
     
     # ==== BUILD VOCAB ====
     vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
@@ -82,96 +67,79 @@ def main(args, pruned_percents, final_accs):
         lines = f.readlines()
     
     dataset = analysis.AnalysisDataset(lines, vocab)
-
-
-    # == INITIAL FINETUNING ====
-    #prune_metrics_dir = os.path.join(settings.PRUNE_METRICS_DIR,f"default")
-    #os.makedirs(prune_metrics_dir, exist_ok=True)
     
+    optimizer = optim.Adam(model.parameters())
+    criterion = nn.CrossEntropyLoss()
     
-    #train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders, 50, settings.PRUNE_METRICS_DIR, device)
-    #model, base_ckpt = save_load_ckpt(path=f"{prune_metrics_dir}/model_best.pth", model=model)
+    if settings.CUDA:
+        device='cuda'
+    else:
+        device='cpu'
+    return run_prune(model, dataset, optimizer, criterion,device, num_cluster=5, max_thresh=95, min_thresh=20, prune_iters = args.prune_iters, prune_metrics_dirs=args.prune_metrics_dir, train=train,val=val,test=test,dataloaders=dataloaders)
     
-
-    
-    
-    init_acc=train_utils.run_eval(model, dataloaders['test'])
-    print(f"Accuracy: {init_acc}")
-    model, final_weights, _= train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, device)
-    init_acc=train_utils.run_eval(model, dataloaders['test'])
-    print(f"Accuracy: {init_acc}")
-
-    #pruning
-    
-    for prune_iter in tqdm(range(1,args.prune_iters+1)):
-        print(f"==== PRUNING ITERATION {prune_iter} ====")
-        #location to store metrics
-        prune_metrics_dir = os.path.join(settings.PRUNE_METRICS_DIR,f"TestTrain", f"{prune_iter}_Pruning_Iter")
-        if not os.path.exists(prune_metrics_dir):
-            os.makedirs(settings.PRUNE_METRICS_DIR,exist_ok=True)
-            os.makedirs(prune_metrics_dir,exist_ok=True)
-
-
-        model.load_state_dict(base_ckpt['state_dict']) # RELOAD RANDOM INITS
+#running the expls using the already finetuned and precreated masks from before
+def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thresh, min_thresh, prune_iters, prune_metrics_dirs, train,val,test,dataloaders, pruned_percents=[], final_accs=[]):
+    base_ckpt=torch.load(settings.MODEL) 
+    final_weights = model.mlp[0].weight.detach().numpy()
+    print("Base ckpt: ",settings.MODEL )
+    model.to(device)
+    for prune_iter in tqdm(range(1,prune_iters+1)):
         
-        if settings.CUDA:
-            device = 'cuda'
-            model = model.cuda()
-        else:
-            device = 'cpu'
+        print(f"==== PRUNING ITERATION {prune_iter}/{prune_iters+1} ====")
+        prune_metrics_dir = os.path.join(prune_metrics_dirs,f"{prune_iter}_Pruning_Iter")
+        if not os.path.exists(prune_metrics_dir):
+            os.makedirs(prune_metrics_dirs,exist_ok=True)
+            os.makedirs(prune_metrics_dir,exist_ok=True)
+            
+        model.load_state_dict(base_ckpt['state_dict']) # RELOAD RANDOM WEIGHTS
         optimizer = optim.Adam(model.parameters())
         criterion = nn.CrossEntropyLoss()
         
         if prune_iter > 1:
-            model.prune_mask = pruning_mask
-            
-        if settings.CUDA:
-            device = 'cuda'
-            model = model.cuda()
-            model.prune_mask.cuda()
-        else:
-            device = 'cpu'
-            
-    
+            model.prune_mask = pruning_mask.cuda() #RELOAD PRUNING MASK
+        model.cuda()
+        
         print("Prune amt", settings.PRUNE_AMT)
         bfore=np.round(torch.where(model.mlp[0].weight.detach() == 0,1,0).sum().item()*100/(1024*2048),2)
-    
         print("Bfore pruning: Final_wegihts prune% is: ", bfore)
-        model=model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, reverse=args.reverse)
-        pruning_mask = model.prune_mask
-
+        
+        model=model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, reverse=args.reverse) #PRUNE
+        pruning_mask = model.prune_mask # SAVE PRUNE MASK
+        
         bfore=np.round(torch.where(model.mlp[0].weight.detach() == 0,1,0).sum().item()*100/(1024*2048),2)
         print("After pruning: Final_wegihts prune% is: ", bfore)
         
-        model, final_weights, _= train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, device)
-
-        final_weights_pruned = np.round(100*torch.where(torch.tensor(final_weights) == 0,1,0).sum().item()/(1024*2048), 2)
-        print("After fting: Final_wegihts prune% is: ",final_weights_pruned )
+        model, final_weights, _= train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders,2, prune_metrics_dir, device) #FINETUNE
+        final_weights = model.mlp[0].weight.detach().cpu().numpy()
         
         
-        if settings.CUDA:
-            device = 'cuda'
-            model = model.cuda()
-            model.prune_mask.cuda()
-
-        final_weights_pruned= np.round(100*torch.where(torch.tensor(final_weights) == 0,1,0).sum().item()/(1024*2048), 2)
-        print("After fting: Final_wegihts prune% is: ",final_weights_pruned )
-        
-        
-        if settings.CUDA:
-            device = 'cuda'
-            model = model.cuda()
-        
-
-        assert(torch.equal(model.mlp[0].weight.detach().cpu(), torch.tensor(final_weights)))
-        
+        final_weights_pruned= np.round(100*torch.where(torch.tensor(final_weights) == 0,1,0).sum().item()/(1024*2048), 3)
+        print(final_weights_pruned)
         acc=train_utils.run_eval(model, dataloaders['test'])
+        print(f"Accuracy: {acc}")
         pruned_percents.append(final_weights_pruned)
         final_accs.append(acc)
         
-        print(f"Accuracy: {acc}")
-    return init_acc, pruned_percents, final_accs
         
+        assert(torch.equal(model.mlp[0].weight.detach().cpu(), torch.tensor(final_weights)))
+        
+        
+        
+        
+    
+    
+        
+    
+       
+        
+        
+        
+        
+   
+        
+        if final_weights_pruned > max_thresh: break
+    return init_acc, pruned_percents, final_accs
+
 def parse_args():
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
@@ -197,38 +165,12 @@ def parse_args():
     parser.add_argument("--reverse", action="store_true")
     parser.add_argument("--test_iters", default=1, type=int)
     parser.add_argument("--log", action='store_true')
+    parser.add_argument("--baseline", action='store_true')
+    parser.add_argument("--ckpt", default=settings.MODEL)
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    inital_accs_=0
-    pruned_percents_=[]
-    final_accs_=[]
-    if args.log:
-        wandb_=wandb_utils.wandb_init(proj_name="CCE_NLI_LT_Testing", exp_name='20prune_iters_lowest_pruned')
-    for i in range(args.test_iters):
-        pruned_percents=[]
-        final_accs=[]
-        inital_accs, pruned_percents, final_accs= main(args, pruned_percents, final_accs)
-        inital_accs_+=inital_accs
-        pruned_percents_.append(pruned_percents)
-        final_accs_.append(final_accs) #[[2.22, 1.67], [2.91, 3.38]]
-    print(f"RESULTS: {inital_accs_, pruned_percents_, final_accs_}")
-    wandb_.log({"prune_iter": 0, "accuracy_test": inital_accs_/args.test_iters})
-   
-    
-    for i in range(args.prune_iters ):
-        percents=0
-        accs = 0 
-        for j in range(args.test_iters):
-            percents +=  pruned_percents_[j][i] 
-            accs += final_accs_[j][i]
-        print("Average percent pruned after finetuning for iteration ", i, ": ", percents/args.test_iters)
-        print("Average accs after finetuning for iteration ", i, ": ", accs/args.test_iters)
-        
-        if args.log:
-            wandb_.log({"prune_iter": np.round(percents/args.test_iters,3), "accuracy_test": np.round(accs/args.test_iters,3)})
-   
-    if args.log:
-        wandb_.finish()
+    init_acc, pruned_percents, final_accs = main(args)
+    print(f"init_acc: {init_acc}\npruned_percents: {pruned_percents}\nfinal_accs: {final_accs}")

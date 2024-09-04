@@ -72,7 +72,8 @@ def main(args):
         print(f"==== PRUNING ITERATION {prune_iter}/{args.prune_iters+1} ====")
         
         model.load_state_dict(base_ckpt['state_dict']) # RELOAD RANDOM WEIGHTS
-        model.prune_mask = torch.ones((1024,2048))
+        if prune_iter > 1:
+            model.prune_mask = prune_mask
         if settings.CUDA:
             device = 'cuda'
             model = model.cuda()
@@ -82,15 +83,16 @@ def main(args):
         optimizer = optim.Adam(model.parameters())
         criterion = nn.CrossEntropyLoss()
     
-        prune_amt = 1-math.pow(1-settings.PRUNE_AMT,prune_iter)
+        prune_amt = settings.PRUNE_AMT #1-math.pow(1-settings.PRUNE_AMT,prune_iter)
         print("Prune amt", settings.PRUNE_AMT)
         bfore=np.round(torch.where(model.mlp[0].weight.detach() == 0,1,0).sum().item()*100/(1024*2048),2)
         print("Bfore pruning: Final_wegihts prune% is: ", bfore)
     
         model=model.prune(amount=prune_amt,final_weights=final_weights, reverse=args.reverse) #PRUNE
-   
+        prune_mask=model.prune_mask
+        
         bfore=np.round(torch.where(model.mlp[0].weight.detach() == 0,1,0).sum().item()*100/(1024*2048),2)
-        torch.save(model.prune_mask , f"code/lotteryTicket/Direct/{bfore}_mask.pth")
+        torch.save(model.prune_mask , f"code/lotteryTicket/Iter/{bfore}_mask.pth")
         
     
         if bfore > 99: break
