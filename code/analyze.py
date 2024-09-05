@@ -266,7 +266,6 @@ def compute_iou(unit, cluster, formula, acts, feats, dataset, feat_type="word", 
     masks = get_mask(feats, formula, dataset, feat_type) #10,000x1 saying if the formula is in the sample'
     # Cache mask
     formula.mask = masks
-    concept=get_concept(formula,dataset)
   
     '''if (len(concept) >= 2):
         if sentence_num is None: #if not running this on 1 sentence at a time
@@ -294,6 +293,9 @@ def compute_best_sentence_iou(args):
     acts = GLOBALS["acts"][:,unit]
     #acts reprseent states in activ range
     #for each neuron identify the samples where acts in col# neuron#==1
+    if acts.sum() < settings.MIN_ACTS:
+        null_f = (FM.Leaf(0), 0)
+        return {"unit": unit, "best": null_f, "best_noncomp": null_f}
     if acts.sum() == 0:
         return { #if the neuron is dead dont run expls on it
             "unit": unit,
@@ -532,7 +534,7 @@ def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =No
                 _, num_active_in_range, expl_cvg = metrics.explanation_coverage(acts[:,unit],best_lab.mask)
                 samples_entailing_formulas=np.where(best_lab.mask==1)
                 tqdm.write(f"{unit:02d}\t{best_name}\t{best_iou:.3f}\tSample_Covg:{samples_cvg}\tExpl_Cvg:{expl_cvg}")
-                write_to_file(unit, f"{save_dir}/Cluster{cluster}IOUS1024N.csv", ["unit", "best_name", "best_iou", "samples_entailing_formulas", "activation_value_for_samples", 'intersection', 'sample_coverage', 'len_samples_entailing_formula', 'explanation_coverage', "num_active_in_range"], [unit, best_name, best_iou, samples_entailing_formulas, torch.tensor(states)[activated_samples,unit], intersection, samples_cvg, num_samples_active_for_form, expl_cvg, num_active_in_range])
+                write_to_file(unit, f"{save_dir}/Cluster{cluster}IOUS1024N.csv", ["unit", "best_name", "best_iou", "samples_entailing_formulas", "activation_value_for_samples", 'intersection', 'sample_coverage', 'len_samples_entailing_formula', 'explanation_coverage', "num_active_in_range"], [unit, best_name, best_iou, samples_entailing_formulas, [torch.tensor(states)[activated_samples,unit].min(),torch.tensor(states)[activated_samples,unit].max()] , intersection, samples_cvg, num_samples_active_for_form, expl_cvg, num_active_in_range])
             
                 r = {
                     "cluster": cluster,
@@ -715,8 +717,14 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
 
     return token_masks, tok_feats_vocab
 
+def get_quantiles(feats, alpha):
+    quantiles = np.apply_along_axis(lambda a: np.quantile(a, 1 - alpha), 0, feats)
+    
+    return quantiles
+
 def quantile_features(feats):
     if settings.ALPHA is None:
+        print((np.stack(feats) > 0).shape)
         return np.stack(feats) > 0
 
     quantiles = get_quantiles(feats, settings.ALPHA)
@@ -811,6 +819,9 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
             
 
 def initiate_exp_run(save_exp_dir, save_masks_dir="code/TestRun/Random",masks_saved="code/TestRun/Random", path=settings.MODEL, model_=None, dataset=None, clusters=4, q_ret=0):
+    os.makedirs(save_masks_dir, exist_ok=True)
+    os.makedirs(save_exp_dir, exist_ok=True)
+    
     
     if model_==None and dataset==None:
         model, dataset = data.snli.load_for_analysis(
@@ -852,24 +863,35 @@ def initiate_exp_run(save_exp_dir, save_masks_dir="code/TestRun/Random",masks_sa
     print("Extracting sentence token features")
     
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
-
+    
     print(f"====RUNNING EXPLS ITERATION====")
-    acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, classification_weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved, num_clusters=clusters)
+    if clusters==1:
+        print("NO CLUSTERS")
+        print("Computing quantiles")
+        acts = quantile_features(states)
+        print("Mask search")
+        print(acts.shape)
+        assert type(states)==list and len(states)==10000 and len(states[0]) == 1024
+        search_feats(acts, states, (tok_feats, tok_feats_vocab), classification_weights, dataset, cluster=None, save_dir=save_exp_dir)
+    else:
+        acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, classification_weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved, num_clusters=clusters)
     
     return acts, final_weights
     
 from data.snli import SNLI
 def main():
     os.makedirs(settings.RESULT, exist_ok=True)
-    model, dataset = data.snli.load_for_analysis(
-            settings.MODEL,
-            settings.DATA,
-            model_type=settings.MODEL_TYPE,
-            cuda=settings.CUDA
-        )
+    for it in [0,1,14]:
+        path=os.path.join("models/snli/prune_metrics/LH/Run1",f"{it}_Pruning_Iter", 'model_best.pth')
+        path = 'models/snli/6.pth'
+        model, dataset = data.snli.load_for_analysis(
+                path,
+                settings.DATA,
+                model_type=settings.MODEL_TYPE,
+                cuda=settings.CUDA
+            )
     
-    print(torch.cuda.is_available())
-    states, weights = initiate_exp_run(save_exp_dir='code/TestRun/Random_Run/RandomExpls', save_masks_dir='code/TestRun/Random_Run/RandomExplsMasks',masks_saved=False)
+        states, weights = initiate_exp_run(save_exp_dir=f'code/TestRun/NLI_NoClustering/Expls/{it}', save_masks_dir=f'code/TestRun/NLI_NoClustering/Masks/{it}',masks_saved=False, clusters=1, path=path)
     
     print("Load predictions")
     mbase = os.path.splitext(os.path.basename(settings.MODEL))[0]

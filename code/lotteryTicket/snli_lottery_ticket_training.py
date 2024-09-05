@@ -33,21 +33,6 @@ import wandb_utils
 sys.path.append("Analysis/")
 import pipelines as pipelines
 
-def verify_pruning(model, prev_total_pruned_amt): # does this:
-    num_zeros_in_final_weights=torch.where(model.mlp[0].weight.t()==0,1,0).sum()
-    new_zeros=num_zeros_in_final_weights-prev_total_pruned_amt
-    assert np.round((new_zeros/(1024*2048)),1) == 0.5
-
-def make_folders(prune_iter):
-    #masks and explanation storing paths after finetuning
-    exp_after_finetuning_flder = f"Analysis/LHExpls/Expls{prune_iter}_Pruning_Iter/"
-    if not os.path.exists(exp_after_finetuning_flder):
-        os.mkdir(exp_after_finetuning_flder) 
-
-    masks_after_finetuning_flder = f"code/LHMasks/Masks{prune_iter}_Pruning_Iter/"
-    if not os.path.exists(masks_after_finetuning_flder):
-        os.mkdir(masks_after_finetuning_flder)
-    return exp_after_finetuning_flder, masks_after_finetuning_flder
 
 
 def main(args):
@@ -86,7 +71,7 @@ def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thre
     for prune_iter in tqdm(range(1,prune_iters+1)):
         
         print(f"==== PRUNING ITERATION {prune_iter}/{prune_iters+1} ====")
-        prune_metrics_dir = os.path.join(prune_metrics_dirs,f"{prune_iter}_Pruning_Iter")
+        prune_metrics_dir = os.path.join(prune_metrics_dirs,"Run2", f"{prune_iter}_Pruning_Iter")
         if not os.path.exists(prune_metrics_dir):
             os.makedirs(prune_metrics_dirs,exist_ok=True)
             os.makedirs(prune_metrics_dir,exist_ok=True)
