@@ -40,11 +40,11 @@ def verify_pruning(model, prev_total_pruned_amt): # does this:
 
 def make_folders(prune_iter):
     #masks and explanation storing paths after finetuning
-    exp_after_finetuning_flder = f"Analysis/LHExpls/Run2/Expls{prune_iter}_Pruning_Iter/"
+    exp_after_finetuning_flder = f"Analysis/LHExpls/Run1/Expls{prune_iter}_Pruning_Iter/Min_Acts_500_No_Filters/"
     if not os.path.exists(exp_after_finetuning_flder):
         os.mkdir(exp_after_finetuning_flder) 
 
-    masks_after_finetuning_flder = f"code/LHMasks/Run2/Masks{prune_iter}_Pruning_Iter/"
+    masks_after_finetuning_flder = f"code/LHMasks/Run1/Masks{prune_iter}_Pruning_Iter/"
     if not os.path.exists(masks_after_finetuning_flder):
         os.mkdir(masks_after_finetuning_flder)
     return exp_after_finetuning_flder, masks_after_finetuning_flder
@@ -79,7 +79,7 @@ def run_prune(model, dataset, optimizer, criterion, train,val,test,dataloaders,d
     base_ckpt=torch.load(settings.MODEL) 
     for prune_iter in tqdm(range(0,prune_iters+1)):
         print(f"==== PRUNING ITERATION {prune_iter}/{prune_iters+1} ====")
-        prune_metrics_dir = os.path.join(prune_metrics_dirs,f"{prune_iter}_Pruning_Iter")
+        prune_metrics_dir = os.path.join(prune_metrics_dirs, f"{prune_iter}_Pruning_Iter")
         if not os.path.exists(prune_metrics_dir):
             os.makedirs(prune_metrics_dirs,exist_ok=True)
             os.makedirs(prune_metrics_dir,exist_ok=True)
@@ -100,10 +100,10 @@ def run_prune(model, dataset, optimizer, criterion, train,val,test,dataloaders,d
         
         exp_after_finetuning_flder, masks_after_finetuning_flder = make_folders(final_weights_pruned)
         
-        if final_weights_pruned >= max_thresh:# or final_weights_pruned <= min_thresh:
+        if final_weights_pruned >= max_thresh or final_weights_pruned <= min_thresh:
             print(f"======Running Explanations for {final_weights_pruned}% pruned=======")
             #run after pruning before finetuning
-            for num_clusters in [3,4,5, 6,7]:
+            for num_clusters in [3,4,5,6,7,10,15]:
                 os.makedirs(f"{exp_after_finetuning_flder}{num_clusters}Clusters", exist_ok=True)
                 os.makedirs(f"{masks_after_finetuning_flder}{num_clusters}Clusters", exist_ok=True)
                 
@@ -111,7 +111,7 @@ def run_prune(model, dataset, optimizer, criterion, train,val,test,dataloaders,d
                 _,final_layer_weights =initiate_exp_run(
                     save_exp_dir = f"{exp_after_finetuning_flder}{num_clusters}Clusters", 
                     save_masks_dir= f"{masks_after_finetuning_flder}{num_clusters}Clusters", 
-                    masks_saved=False, 
+                    masks_saved=True, 
                     model_=model,
                     dataset=dataset,
                     clusters=num_clusters,
@@ -139,7 +139,7 @@ def parse_args():
     )
 
     parser.add_argument("--exp_dir", default="models/snli/LH")
-    parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/LH/Run2")
+    parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/LH/Run1")
     parser.add_argument("--model_dir", default="exp/snli/model_dir")
     parser.add_argument("--store_exp_bkdown", default="exp/snli_1.0_dev-6-sentence-5/")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal"])

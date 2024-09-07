@@ -296,12 +296,6 @@ def compute_best_sentence_iou(args):
     if acts.sum() < settings.MIN_ACTS:
         null_f = (FM.Leaf(0), 0)
         return {"unit": unit, "best": null_f, "best_noncomp": null_f}
-    if acts.sum() == 0:
-        return { #if the neuron is dead dont run expls on it
-            "unit": unit,
-            "best": (FM.Leaf(0),0),
-            "best_noncomp": (FM.Leaf(0),0),
-        }
 
     feats = GLOBALS["feats"]
     #print("FEATS. ", feats.shape) #10,000rows each row holds num concepts saying true if concept at the index is in the sample else false  
@@ -419,7 +413,6 @@ def extract_features(
     all_feats = []
     all_multifeats = []
     all_idxs = []
-    
     for src, src_feats, src_multifeats, src_lengths, idx in tqdm(loader):
       
         #  words = dataset.to_text(src)
@@ -438,7 +431,6 @@ def extract_features(
             s2len = src_lengths_comb[:, 1]
 
             final_reprs = model.get_final_reprs(s1, s1len, s2, s2len)
-
         # Pack the sequence
         all_srcs.extend(list(np.transpose(src_one_comb.cpu().numpy(), (1, 2, 0))))
         
@@ -452,6 +444,7 @@ def extract_features(
         all_idxs.extend(list(pairs(idx).cpu().numpy()))
 
     all_feats = {"onehot": all_feats, "multi": all_multifeats}
+    
     return all_srcs, all_states, all_feats, all_idxs
 
 
@@ -561,7 +554,7 @@ def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =No
     pd.DataFrame(records).to_csv(rfile, index=False)
     return records
 
- 
+#no filters
 def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
     """
     Convert token-level feats to sentence feats
@@ -587,8 +580,8 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
     for pair, featpair in zip(toks, feats["onehot"]):
         pair_counts = np.bincount(pair.ravel())
         tokens[: len(pair_counts)] += pair_counts
-        
-        enct = np.unique(pair[0]) #get the unique concepts in premise and hyp
+
+        enct = np.unique(pair[0])
         dect = np.unique(pair[1])
 
         encu = np.setdiff1d(enct, dect)
@@ -599,10 +592,10 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
         #  both_uniques.append(both)
 
         # PoS
-        enctag = np.unique(featpair[0, :, tag_i]) #vector correspodnignt to tag value
+        enctag = np.unique(featpair[0, :, tag_i])
         dectag = np.unique(featpair[1, :, tag_i])
 
-        enctag = enctag[enctag != -1] #remove padding
+        enctag = enctag[enctag != -1]
         dectag = dectag[dectag != -1]
 
         #  enctagu = np.setdiff1d(enctag, dectag)
@@ -624,8 +617,7 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
             )
         )
 
-    SKIP = {"a", "an", "the", "of", ".", ",", "UNK", "PAD", '"'}
- 
+    SKIP = {"a", "an", "the", "of", ".", ",", "UNK", "PAD"}
     if tok_feats_vocab is None:
         for s in SKIP:
             if s in dataset.stoi:
@@ -634,28 +626,19 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
         # Keep top tokens, use as features
         tokens_by_count = np.argsort(tokens)[::-1]
         tokens_by_count = tokens_by_count[: settings.N_SENTENCE_FEATS]
-    
+
         # Create feature dict
         # Token features
         tokens_stoi = {}
         for prefix in ["pre", "hyp"]:
             for t in tokens_by_count:
-                if t == 0:
-                    continue
                 ts = dataset.itos[t]
                 t_prefixed = f"{prefix}:tok:{ts}"
                 tokens_stoi[t_prefixed] = len(tokens_stoi)
 
             # PoS
-            spec_tok=False
             for pos_i in dataset.cnames2fis["tag"]:
                 pos = dataset.fitos[pos_i].lower()
-                for s in SKIP:
-                    if s in dataset.fitos[t]:
-                        spec_tok = True
-                        break
-                if spec_tok:
-                    continue
                 assert pos.startswith("tag:")
                 pos_prefixed = f"{prefix}:{pos}"
                 tokens_stoi[pos_prefixed] = len(tokens_stoi)
@@ -671,9 +654,9 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
             "itos": tokens_itos,
             "stoi": tokens_stoi,
         }
-   
+
     # Binary mask - encoder/decoder
-    token_masks = np.zeros((len(toks), len(tok_feats_vocab["stoi"])), dtype=np.bool_)
+    token_masks = np.zeros((len(toks), len(tok_feats_vocab["stoi"])), dtype=np.bool)
     for i, (encu, decu, enctagu, dectagu, oth) in enumerate(
         zip(
             encoder_uniques,
@@ -693,15 +676,8 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
                     token_masks[i, ti] = 1
 
         # PoS
-        spec_tok=False
         for prefix, tags in [("pre", enctagu), ("hyp", dectagu)]:
             for t in tags:
-                for s in SKIP:
-                    if s in dataset.fitos[t]:
-                        spec_tok = True
-                        break
-                if spec_tok:
-                    continue
                 ts = dataset.fitos[t].lower()
                 t_prefixed = f"{prefix}:{ts}"
                 assert t_prefixed in tok_feats_vocab["stoi"]
@@ -716,7 +692,7 @@ def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
             token_masks[i, oi] = oth_u
 
     return token_masks, tok_feats_vocab
-
+   
 def get_quantiles(feats, alpha):
     quantiles = np.apply_along_axis(lambda a: np.quantile(a, 1 - alpha), 0, feats)
     
@@ -874,6 +850,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir="code/TestRun/Random",masks_sa
         assert type(states)==list and len(states)==10000 and len(states[0]) == 1024
         search_feats(acts, states, (tok_feats, tok_feats_vocab), classification_weights, dataset, cluster=None, save_dir=save_exp_dir)
     else:
+        print("Verfieid pruning % ", torch.where(torch.tensor(final_weights)==0,1,0).sum()/(1024*2048))
         acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, classification_weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved, num_clusters=clusters)
     
     return acts, final_weights

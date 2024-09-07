@@ -60,18 +60,18 @@ def main(args):
         device='cuda'
     else:
         device='cpu'
-    return run_prune(model, dataset, optimizer, criterion,device, num_cluster=5, max_thresh=95, min_thresh=20, prune_iters = args.prune_iters, prune_metrics_dirs=args.prune_metrics_dir, train=train,val=val,test=test,dataloaders=dataloaders)
+    return run_prune(model, dataset, optimizer, criterion,device, num_cluster=5, max_thresh=95, min_thresh=20, prune_iters = args.prune_iters, ft_epochs=args.finetune_epochs, prune_metrics_dirs=args.prune_metrics_dir, train=train,val=val,test=test,dataloaders=dataloaders)
     
 #running the expls using the already finetuned and precreated masks from before
-def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thresh, min_thresh, prune_iters, prune_metrics_dirs, train,val,test,dataloaders, pruned_percents=[], final_accs=[]):
+def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thresh, min_thresh, prune_iters, prune_metrics_dirs, ft_epochs, train,val,test,dataloaders, pruned_percents=[], final_accs=[]):
     base_ckpt=torch.load(settings.MODEL) 
     final_weights = model.mlp[0].weight.detach().numpy()
     print("Base ckpt: ",settings.MODEL )
     model.to(device)
-    for prune_iter in tqdm(range(1,prune_iters+1)):
+    for prune_iter in tqdm(range(0,prune_iters+1)):
         
         print(f"==== PRUNING ITERATION {prune_iter}/{prune_iters+1} ====")
-        prune_metrics_dir = os.path.join(prune_metrics_dirs,"Run2", f"{prune_iter}_Pruning_Iter")
+        prune_metrics_dir = os.path.join(prune_metrics_dirs,"Run1", f"{prune_iter}_Pruning_Iter")
         if not os.path.exists(prune_metrics_dir):
             os.makedirs(prune_metrics_dirs,exist_ok=True)
             os.makedirs(prune_metrics_dir,exist_ok=True)
@@ -87,14 +87,14 @@ def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thre
         print("Prune amt", settings.PRUNE_AMT)
         bfore=np.round(torch.where(model.mlp[0].weight.detach() == 0,1,0).sum().item()*100/(1024*2048),2)
         print("Bfore pruning: Final_wegihts prune% is: ", bfore)
-        
-        model=model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, reverse=args.reverse) #PRUNE
-        pruning_mask = model.prune_mask # SAVE PRUNE MASK
-        
+        if prune_iter > 0:
+            model=model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, reverse=args.reverse) #PRUNE
+            pruning_mask = model.prune_mask # SAVE PRUNE MASK
+
         bfore=np.round(torch.where(model.mlp[0].weight.detach() == 0,1,0).sum().item()*100/(1024*2048),2)
         print("After pruning: Final_wegihts prune% is: ", bfore)
         
-        model, final_weights, _= train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders,2, prune_metrics_dir, device) #FINETUNE
+        model, final_weights, _= train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders,ft_epochs, prune_metrics_dir, device) #FINETUNE
         final_weights = model.mlp[0].weight.detach().cpu().numpy()
         
         
@@ -108,22 +108,8 @@ def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thre
         
         assert(torch.equal(model.mlp[0].weight.detach().cpu(), torch.tensor(final_weights)))
         
-        
-        
-        
-    
-    
-        
-    
-       
-        
-        
-        
-        
-   
-        
         if final_weights_pruned > max_thresh: break
-    return init_acc, pruned_percents, final_accs
+    return pruned_percents, final_accs
 
 def parse_args():
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
