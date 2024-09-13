@@ -20,7 +20,6 @@ from contextlib import nullcontext
 from tqdm import tqdm
 import numpy as np
 from collections import defaultdict
-from analyze import initiate_exp_run 
 import settings
 import models
 import util
@@ -143,5 +142,8 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    init_acc, pruned_percents, final_accs = main(args)
-    print(f"init_acc: {init_acc}\npruned_percents: {pruned_percents}\nfinal_accs: {final_accs}")
+    pruned_percents, final_accs = main(args)
+    print(f"pruned_percents: {pruned_percents}\nfinal_accs: {final_accs}")
+    wandb_ = wandb_init("CCE_NLI_Pruned_Model_Accs", "Run")
+    for i,acc in enumerate(final_accs):
+        wandb_.log({"prune_iter": i, "accuracy_test": acc})

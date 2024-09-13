@@ -98,12 +98,12 @@ def run_prune(model, dataset, optimizer, criterion, train,val,test,dataloaders,d
         pruned_percents.append(final_weights_pruned)
         final_accs.append(acc)
         
-        exp_after_finetuning_flder, masks_after_finetuning_flder = make_folders(final_weights_pruned)
         
-        if final_weights_pruned >= max_thresh or final_weights_pruned <= min_thresh:
+        if final_weights_pruned <= min_thresh: #final_weights_pruned >= max_thresh: #or :
+            exp_after_finetuning_flder, masks_after_finetuning_flder = make_folders(final_weights_pruned)
             print(f"======Running Explanations for {final_weights_pruned}% pruned=======")
             #run after pruning before finetuning
-            for num_clusters in [3,4,5,6,7,10,15]:
+            for num_clusters in [3]:
                 os.makedirs(f"{exp_after_finetuning_flder}{num_clusters}Clusters", exist_ok=True)
                 os.makedirs(f"{masks_after_finetuning_flder}{num_clusters}Clusters", exist_ok=True)
                 
@@ -111,7 +111,7 @@ def run_prune(model, dataset, optimizer, criterion, train,val,test,dataloaders,d
                 _,final_layer_weights =initiate_exp_run(
                     save_exp_dir = f"{exp_after_finetuning_flder}{num_clusters}Clusters", 
                     save_masks_dir= f"{masks_after_finetuning_flder}{num_clusters}Clusters", 
-                    masks_saved=True, 
+                    masks_saved=False, 
                     model_=model,
                     dataset=dataset,
                     clusters=num_clusters,
@@ -129,7 +129,7 @@ def run_prune(model, dataset, optimizer, criterion, train,val,test,dataloaders,d
    
         
         if final_weights_pruned > max_thresh: break
-    return init_acc, pruned_percents, final_accs
+    return  pruned_percents, final_accs
 
 def parse_args():
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -163,5 +163,5 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    init_acc, pruned_percents, final_accs = main(args)
-    print(f"init_acc: {init_acc}\npruned_percents: {pruned_percents}\nfinal_accs: {final_accs}")
+    pruned_percents, final_accs = main(args)
+    print(f"pruned_percents: {pruned_percents}\nfinal_accs: {final_accs}")
