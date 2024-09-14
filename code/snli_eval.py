@@ -81,14 +81,14 @@ def from_file(fpath):
 
     
 def main(args):
-    print("using weights from ", args.model)
+    print("using weights from ", settings.MODEL)
     nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger", "ner"])
-    ckpt = torch.load(args.model)
+    ckpt = torch.load(settings.MODEL)
     stoi = ckpt["stoi"]
     
-    vocab_stats = torch.load(settings.VOCAB_CKPT_PATH)
+
     # ==== BUILD MODEL ====
-    model = train_utils.build_model(len(vocab_stats['stoi']), args.model_type)
+    model = train_utils.build_model(len(ckpt['stoi']), args.model_type)
     
 
     
@@ -101,60 +101,73 @@ def main(args):
     else:
         max_data=10000
     # ==== EVAL ON VAL SET ====
-    test = SNLI(
+    val = SNLI(
         args.eval_data_path,
         "test",
-        vocab=(vocab_stats['stoi'], vocab_stats['itos']),
-        max_data=max_data,
+        vocab=(ckpt['stoi'], ckpt['itos']),
+        max_data=None,
         unknowns=True,
     )
     
     test_loader = DataLoader(
-        test,
+        val,
         batch_size=100,
         shuffle=False,
         pin_memory=True,
         num_workers=0,
         collate_fn=data.snli.pad_collate,
     )
-    
-    model.load_state_dict(torch.load(args.model)['state_dict'])
-    
-    all_preds = []
-    all_targets = []
-    for (s1, s1len, s2, s2len, targets) in test_loader:
-        if settings.CUDA:
-            s1 = s1.cuda()
-            s1len = s1len.cuda()
-            s2 = s2.cuda()
-            s2len = s2len.cuda()
+    pruned_percents=[0.0,20.0,36.0,48.8,59.04,67.232,73.786,79.029,83.223,86.578,89.263,91.41,93.12,94.502,95.602]
+    weights_dir="models/snli/prune_metrics/LH/Run1/"
+    for i,direct in enumerate(os.listdir(weights_dir)):
+        if direct == '.ipynb_checkpoints':
+            continue
+        model.load_state_dict(torch.load(weights_dir+direct+"/model_best.pth")['state_dict'])
 
-        with torch.no_grad():
-            logits = model(s1, s1len, s2, s2len)
+        all_preds = []
+        all_targets = []
+        for (s1, s1len, s2, s2len, targets) in test_loader:
+            if settings.CUDA:
+                s1 = s1.cuda()
+                s1len = s1len.cuda()
+                s2 = s2.cuda()
+                s2len = s2len.cuda()
 
-        preds = logits.argmax(1)
+            with torch.no_grad():
+                logits = model(s1, s1len, s2, s2len)
 
-        all_preds.append(preds.cpu().numpy())
-        all_targets.append(targets.cpu().numpy())
+            preds = logits.argmax(1)
 
-    all_preds = np.concatenate(all_preds, 0)
-    all_targets = np.concatenate(all_targets, 0)
-    acc = (all_preds == all_targets).mean()
-    print(f"Val acc: {acc:.3f}")
+            all_preds.append(preds.cpu().numpy())
+            all_targets.append(targets.cpu().numpy())
 
-    '''# Save predictions
-    fbase = os.path.splitext(os.path.basename(val.text_path))[0]
-    mbase = os.path.splitext(os.path.basename(args.model))[0]
-    preds_file = f"{mbase}_{fbase}.csv"
-    preds_folder = os.path.join("data", "analysis", "preds")
-    os.makedirs(preds_folder, exist_ok=True)
+        all_preds = np.concatenate(all_preds, 0)
+        all_targets = np.concatenate(all_targets, 0)
+        acc = (all_preds == all_targets).mean()
+        print(f"Val acc: {acc:.3f}")
 
-    preds_file = os.path.join(preds_folder, preds_file)
-    gt_labels = [val.label_itos.get(i, "UNK") for i in val.labels]
-    preds = [val.label_itos[i] for i in all_preds]
-    hits = [i == j for i, j in zip(val.labels, all_preds)]
-    preds_df = pd.DataFrame({"gt": gt_labels, "pred": preds, "correct": hits})
-    preds_df.to_csv(preds_file, index=False)'''
+
+        # Save predictions
+        preds_file = f"Analysis/LHExpls/Run1/Expls{pruned_percents[i-1]}_Pruning_Iter/Min_Acts_500_No_Filters/Preds.csv"
+        print(weights_dir+direct+"/model_best.pth\n", preds_file)
+        gt_labels = [val.label_itos.get(i, "UNK") for i in val.labels]
+
+        preds = [val.label_itos[i] for i in all_preds]
+        hits = [i == j for i, j in zip(val.labels, all_preds)]
+        print(len(gt_labels), len(preds), len(hits))
+        ws=[]
+        for sent in test_loader.dataset:
+            for i in sent:
+                word=[]
+                if type(i) != torch.Tensor:
+                    continue
+                for w in i:
+                    word.append(ckpt['itos'][w.item()])
+                ws.append(" ".join(word))
+        print(len(ws))
+        ws=[ '\n'.join(x) for x in zip(ws[0::2], ws[1::2]) ]
+        preds_df = pd.DataFrame({'sentences': ws, "gt": gt_labels, "pred": preds, "correct": hits})
+        preds_df.to_csv(preds_file, index=False)
 
     # ==== INTERACTIVE ====
     

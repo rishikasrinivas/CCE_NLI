@@ -99,7 +99,7 @@ def run_prune(model, dataset, optimizer, criterion, train,val,test,dataloaders,d
         final_accs.append(acc)
         
         
-        if final_weights_pruned <= min_thresh: #final_weights_pruned >= max_thresh: #or :
+        if final_weights_pruned > min_thresh and final_weights_pruned < max_thresh: #or :
             exp_after_finetuning_flder, masks_after_finetuning_flder = make_folders(final_weights_pruned)
             print(f"======Running Explanations for {final_weights_pruned}% pruned=======")
             #run after pruning before finetuning
