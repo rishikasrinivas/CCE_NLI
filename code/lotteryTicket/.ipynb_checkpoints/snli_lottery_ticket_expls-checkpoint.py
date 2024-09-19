@@ -42,7 +42,7 @@ def make_folders(prune_iter):
     #masks and explanation storing paths after finetuning
     exp_after_finetuning_flder = f"Analysis/LHExpls/Run1/Expls{prune_iter}_Pruning_Iter/Min_Acts_500_No_Filters/"
     if not os.path.exists(exp_after_finetuning_flder):
-        os.mkdir(exp_after_finetuning_flder) 
+        os.makedirs(exp_after_finetuning_flder,exist_ok=True) 
 
     masks_after_finetuning_flder = f"code/LHMasks/Run1/Masks{prune_iter}_Pruning_Iter/"
     if not os.path.exists(masks_after_finetuning_flder):
@@ -99,7 +99,7 @@ def run_prune(model, dataset, optimizer, criterion, train,val,test,dataloaders,d
         final_accs.append(acc)
         
         
-        if final_weights_pruned > min_thresh and final_weights_pruned < max_thresh: #or :
+        if final_weights_pruned > 79 and final_weights_pruned < max_thresh: #or :
             exp_after_finetuning_flder, masks_after_finetuning_flder = make_folders(final_weights_pruned)
             print(f"======Running Explanations for {final_weights_pruned}% pruned=======")
             #run after pruning before finetuning

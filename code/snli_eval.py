@@ -117,11 +117,12 @@ def main(args):
         num_workers=0,
         collate_fn=data.snli.pad_collate,
     )
-    pruned_percents=[0.0,20.0,36.0,48.8,59.04,67.232,73.786,79.029,83.223,86.578,89.263,91.41,93.12,94.502,95.602]
+    pruned_percents=[0.0,20.0,36.0,48.8,59.04,67.232,73.786,79.028,83.223,86.578,89.263,91.41,93.128,94.502,95.602]
     weights_dir="models/snli/prune_metrics/LH/Run1/"
     for i,direct in enumerate(os.listdir(weights_dir)):
         if direct == '.ipynb_checkpoints':
             continue
+        print(direct)
         model.load_state_dict(torch.load(weights_dir+direct+"/model_best.pth")['state_dict'])
 
         all_preds = []
@@ -149,6 +150,8 @@ def main(args):
 
         # Save predictions
         preds_file = f"Analysis/LHExpls/Run1/Expls{pruned_percents[i-1]}_Pruning_Iter/Min_Acts_500_No_Filters/Preds.csv"
+        if pruned_percents[i-1] < 92:
+            continue
         print(weights_dir+direct+"/model_best.pth\n", preds_file)
         gt_labels = [val.label_itos.get(i, "UNK") for i in val.labels]
 
