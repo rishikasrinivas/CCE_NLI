@@ -6,7 +6,7 @@ def get_indiv_concepts(df) -> set:
     concepts= set()
     expls = [form for form in df.best_name]
     expls = " ".join(expls)
-    concps = re.findall(r'\b(?:pre:tok:|hyp:tok:|oth:)\S*', expls)
+    concps = re.findall(r'\b(?:pre:tok:|pre:tag:|hyp:tag:|hyp:tok:|oth:)\S*', expls)
     for i,_ in enumerate(concps):
         while concps[i][-1] == ')':
             concps[i] = concps[i][:-1]
