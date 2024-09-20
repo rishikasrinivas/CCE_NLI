@@ -1,8 +1,41 @@
-import utils
+import utils,files
 import record_global,cleaning,concept_getters
 import pandas as pd
 #get the 3 files
 
+def compute_iou(np,p):
+    cps=set()
+    overlap=0
+    for i in np:
+        cps.add(i)
+    for i in p:
+        cps.add(i)
+        if i in np:
+            overlap += 1
+    return overlap/len(cps)
+    
+def compare_units(np, p,f):
+    df=pd.DataFrame()
+    np=pd.read_csv(np)
+    p=pd.read_csv(p)
+    k=[]
+    ious=[]
+    np=concept_getters.get_indiv_concepts_per_unit(np)
+    p=concept_getters.get_indiv_concepts_per_unit(p)
+    for keys,val in np.items():
+        if keys in p.keys():
+            k.append(keys)
+            ious.append(compute_iou(val,p[keys]))
+    df['unit']=k
+    df['iou']=ious
+    df.to_csv(f)
+l_k={'b':20.0, 'c':36.0, 'd':48.8, 'e':59.04, 'f':67.232, 'g':73.786, 'h':79.028, 'i':83.223, 'j':86.578,  'k':89.263, 'l': 91.41, 'm':93.128, 'n':94.502, 'o':95.602}
+for k,v in l_k.items():
+    compare_units(files.get_fname(0.0, 1), files.get_fname(v, 1), f"Analysis/LHExpls/Run1/Expls{v}_Pruning_Iter/IOU0-{v}_C1.csv")
+    compare_units(files.get_fname(0.0, 2), files.get_fname(v, 2), f"Analysis/LHExpls/Run1/Expls{v}_Pruning_Iter/IOU0-{v}_C2.csv")
+    compare_units(files.get_fname(0.0, 3), files.get_fname(v, 3), f"Analysis/LHExpls/Run1/Expls{v}_Pruning_Iter/IOU0-{v}_C3.csv")
+'''   
+    
 utils.save_concepts("Analysis/LHExpls/Run1/Expls0.0_Pruning_Iter/Min_Acts_500_No_Filters/3Clusters", True)
 utils.save_concepts("Analysis/LHExpls/Run1/Expls20.0_Pruning_Iter/Min_Acts_500_No_Filters/3Clusters",True)
 utils.save_concepts("Analysis/LHExpls/Run1/Expls36.0_Pruning_Iter/Min_Acts_500_No_Filters/3Clusters",True)
@@ -82,7 +115,7 @@ print("\nConcepts common 0-67: ", zero_67)
 print("\nConcepts common 0-73: ", zero_73)
 print("\nConcepts common 0-95: ", zero_95)
 '''
-print("Concepts common as a %: ", record_global.record_common_concepts([a,b], fname=None, percent=True))
+#print("Concepts common as a %: ", record_global.record_common_concepts([a,b], fname=None, percent=True))
 '''
 l_k={'b':20.0, 'c':36.0, 'd':48.8, 'e':59.04, 'f':67.232, 'g':73.786, 'h':79.028, 'i':83.223, 'j':86.578,  'k':89.263, 'l': 91.41, 'm':93.128, 'n':94.502, 'o':95.602}
 
@@ -124,7 +157,8 @@ for s,l in zip([b,c,d,e,f,g,h,i,j,k,l,m,n,o],['b','c','d','e','f','g','h', 'i','
     print("Percent lost in Cluster 2: ", len(lost_cps_loc['Cluster_2']))
     print("Percent lost in Cluster 3: ", len(lost_cps_loc['Cluster_3']))
     print(f"\nLost 0 and {l_k[l]}: {lost_cps_loc}")
-''' 
+'''
+'''
 print("\nLos concepts 0 to 36 ", record_global.record_lost_concepts(a,c))
 print("\nLos concepts 0 to 48 ", record_global.record_lost_concepts(a,d))
 print("\nLos concepts 0 to 59 ", record_global.record_lost_concepts(a,e))
@@ -145,3 +179,4 @@ for vals in list(zero_twenty.values())[0]:
         print(vals)
 
 '''
+
