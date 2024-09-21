@@ -293,10 +293,12 @@ def compute_best_sentence_iou(args):
     acts = GLOBALS["acts"][:,unit]
     #acts reprseent states in activ range
     #for each neuron identify the samples where acts in col# neuron#==1
-    if acts.sum() < settings.MIN_ACTS:
+    '''if acts.sum() < settings.MIN_ACTS:
+        null_f = (FM.Leaf(0), 0)
+        return {"unit": unit, "best": null_f, "best_noncomp": null_f}'''
+    if acts.sum() ==0:
         null_f = (FM.Leaf(0), 0)
         return {"unit": unit, "best": null_f, "best_noncomp": null_f}
-
     feats = GLOBALS["feats"]
     #print("FEATS. ", feats.shape) #10,000rows each row holds num concepts saying true if concept at the index is in the sample else false  
     dataset = GLOBALS["dataset"] #holds each concept ex: hyp:tok:dog

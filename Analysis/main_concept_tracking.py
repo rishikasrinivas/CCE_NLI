@@ -1,6 +1,15 @@
-import utils,files
+import utils,files, code
+
 import record_global,cleaning,concept_getters
 import pandas as pd
+import sys
+import os
+
+# Add the path where wandb_utils is located
+sys.path.append(os.path.abspath('code/lotteryTicket/'))
+
+# Now you can import the module
+import wandb_utils
 #get the 3 files
 
 def compute_iou(np,p):
@@ -34,7 +43,7 @@ for k,v in l_k.items():
     compare_units(files.get_fname(0.0, 1), files.get_fname(v, 1), f"Analysis/LHExpls/Run1/Expls{v}_Pruning_Iter/IOU0-{v}_C1.csv")
     compare_units(files.get_fname(0.0, 2), files.get_fname(v, 2), f"Analysis/LHExpls/Run1/Expls{v}_Pruning_Iter/IOU0-{v}_C2.csv")
     compare_units(files.get_fname(0.0, 3), files.get_fname(v, 3), f"Analysis/LHExpls/Run1/Expls{v}_Pruning_Iter/IOU0-{v}_C3.csv")
-'''   
+  
     
 utils.save_concepts("Analysis/LHExpls/Run1/Expls0.0_Pruning_Iter/Min_Acts_500_No_Filters/3Clusters", True)
 utils.save_concepts("Analysis/LHExpls/Run1/Expls20.0_Pruning_Iter/Min_Acts_500_No_Filters/3Clusters",True)
@@ -106,7 +115,7 @@ zero_59 = record_global.record_common_concepts([a,e], fname=None, percent=False)
 zero_67 = record_global.record_common_concepts([a,f], fname=None, percent=False)
 zero_73 = record_global.record_common_concepts([a,g], fname=None, percent=False)
 zero_95 = record_global.record_common_concepts([a,h], fname=None, percent=False)
-
+'''
 print("\nConcepts common 0-20: ", zero_twenty)
 print("\nConcepts common 0-36: ", zero_36)
 print("\nConcepts common 0-48: ", zero_48)
@@ -116,48 +125,62 @@ print("\nConcepts common 0-73: ", zero_73)
 print("\nConcepts common 0-95: ", zero_95)
 '''
 #print("Concepts common as a %: ", record_global.record_common_concepts([a,b], fname=None, percent=True))
-'''
-l_k={'b':20.0, 'c':36.0, 'd':48.8, 'e':59.04, 'f':67.232, 'g':73.786, 'h':79.028, 'i':83.223, 'j':86.578,  'k':89.263, 'l': 91.41, 'm':93.128, 'n':94.502, 'o':95.602}
 
-cluster1_pd=pd.read_csv(f"Analysis/LHExpls/Run1/Expls0.0_Pruning_Iter/Min_Acts_500_No_Filters/3Clusters/Cluster1IOUS1024N.csv")
-cluster2_pd=pd.read_csv(f"Analysis/LHExpls/Run1/Expls0.0_Pruning_Iter/Min_Acts_500_No_Filters/3Clusters/Cluster2IOUS1024N.csv")
-cluster3_pd=pd.read_csv(f"Analysis/LHExpls/Run1/Expls0.0_Pruning_Iter/Min_Acts_500_No_Filters/3Clusters/Cluster3IOUS1024N.csv")
-
-for s,l in zip([b,c,d,e,f,g,h,i,j,k,l,m,n,o],['b','c','d','e','f','g','h', 'i','j', 'k', 'l', 'm', 'n', 'o']):
+l_k={'b':20.0, 'c':36.0, 'd':48.8, 'e':59.04}#'f':67.232, 'g':73.786, 'h':79.028, 'i':83.223, 'j':86.578,  'k':89.263, 'l': 91.41, 'm':93.128, 'n':94.502, 'o':95.602}
+cluster1_pd=pd.read_csv(f"Analysis/LHExpls/Run1/Expls0.0_Pruning_Iter/No_Min_Acts_No_Filters/3Clusters/Cluster1IOUS1024N.csv")
+cluster2_pd=pd.read_csv(f"Analysis/LHExpls/Run1/Expls0.0_Pruning_Iter/No_Min_Acts_No_Filters/3Clusters/Cluster2IOUS1024N.csv")
+cluster3_pd=pd.read_csv(f"Analysis/LHExpls/Run1/Expls0.0_Pruning_Iter/No_Min_Acts_No_Filters/3Clusters/Cluster3IOUS1024N.csv")
+c1_np=list(concept_getters.get_indiv_concepts(cluster1_pd))
+c2_np=list(concept_getters.get_indiv_concepts(cluster2_pd))
+c3_np=list(concept_getters.get_indiv_concepts(cluster3_pd))
+wandb=wandb_utils.wandb_init("CCE_NLI", "Tracking Neurons")
+ #f,g,h,i,j,k,l,m,n,o], ,'f','g','h', 'i','j', 'k', 'l', 'm', 'n', 'o']
+for s,l in zip([b,c,d,e],['b','c','d','e']):
     lost_cps_loc={'Cluster_1':[], 'Cluster_2': [], 'Cluster_3': []}
     new_cps_loc={'Cluster_1':[], 'Cluster_2': [], 'Cluster_3': []}
-    cluster1_pd_pruned=pd.read_csv(f"Analysis/LHExpls/Run1/Expls{l_k[l]}_Pruning_Iter/Min_Acts_500_No_Filters/3Clusters/Cluster1IOUS1024N.csv")
-    cluster2_pd_pruned=pd.read_csv(f"Analysis/LHExpls/Run1/Expls{l_k[l]}_Pruning_Iter/Min_Acts_500_No_Filters/3Clusters/Cluster2IOUS1024N.csv")
-    cluster3_pd_pruned=pd.read_csv(f"Analysis/LHExpls/Run1/Expls{l_k[l]}_Pruning_Iter/Min_Acts_500_No_Filters/3Clusters/Cluster3IOUS1024N.csv")
+    cluster1_pd_pruned=pd.read_csv(f"Analysis/LHExpls/Run1/Expls{l_k[l]}_Pruning_Iter/No_Min_Acts_No_Filters/3Clusters/Cluster1IOUS1024N.csv")
+    cluster2_pd_pruned=pd.read_csv(f"Analysis/LHExpls/Run1/Expls{l_k[l]}_Pruning_Iter/No_Min_Acts_No_Filters/3Clusters/Cluster2IOUS1024N.csv")
+    cluster3_pd_pruned=pd.read_csv(f"Analysis/LHExpls/Run1/Expls{l_k[l]}_Pruning_Iter/No_Min_Acts_No_Filters/3Clusters/Cluster3IOUS1024N.csv")
 
+    c1_p=list(concept_getters.get_indiv_concepts(cluster1_pd_pruned))
+    c2_p=list(concept_getters.get_indiv_concepts(cluster2_pd_pruned))
+    c3_p=list(concept_getters.get_indiv_concepts(cluster3_pd_pruned))
     for val in list(record_global.record_lost_concepts(a,s).values())[0]:
-        if val in list(concept_getters.get_indiv_concepts(cluster1_pd)):
+        if val in c1_np :
             lost_cps_loc['Cluster_1'].append(val)
-        if val in list(concept_getters.get_indiv_concepts(cluster2_pd)):
+        if val in c2_np:
             lost_cps_loc['Cluster_2'].append(val)
-        if val in list(concept_getters.get_indiv_concepts(cluster3_pd)):
+        if val in c3_np:
             lost_cps_loc['Cluster_3'].append(val)
     for val in concept_getters.get_new_concepts(a, s):
-        if val in list(concept_getters.get_indiv_concepts(cluster1_pd_pruned)):
+        if val in c1_p:
             new_cps_loc['Cluster_1'].append(val)
-        if val in list(concept_getters.get_indiv_concepts(cluster2_pd_pruned)):
+        if val in c2_p:
             new_cps_loc['Cluster_2'].append(val)
-        if val in list(concept_getters.get_indiv_concepts(cluster3_pd_pruned)):
+        if val in c3_p:
             new_cps_loc['Cluster_3'].append(val) 
     total_new,total_lost=0,0
     for count in new_cps_loc.values():
         total_new += len(count)
     for count in lost_cps_loc.values():
         total_lost += len(count)
+    c1=[len(new_cps_loc['Cluster_1'])/ len(c1_p), len(lost_cps_loc['Cluster_1'])/len(c1_np)]   
+    c2=[len(new_cps_loc['Cluster_2'])/ len(c1_p), len(lost_cps_loc['Cluster_2'])/len(c1_np)]
+    c3=[len(new_cps_loc['Cluster_3'])/ len(c1_p), len(lost_cps_loc['Cluster_3'])/len(c1_np)]
+              
     print(f"\n\nNew 0 and {l_k[l]} ", new_cps_loc)
-    print("\nPercent new in Cluster 1: ", len(new_cps_loc['Cluster_1']))
-    print("Percent new in Cluster 2: ", len(new_cps_loc['Cluster_2']))
-    print("Percent new in Cluster 3: ", len(new_cps_loc['Cluster_3']))
-    print("\n\nPercent lost in Cluster 1: ",len( lost_cps_loc['Cluster_1']))
-    print("Percent lost in Cluster 2: ", len(lost_cps_loc['Cluster_2']))
-    print("Percent lost in Cluster 3: ", len(lost_cps_loc['Cluster_3']))
+    print("\nPercent new in Cluster 1: ", len(new_cps_loc['Cluster_1'])/ len(c1_p))
+    print("Percent new in Cluster 2: ", len(new_cps_loc['Cluster_2'])/len(c2_p))
+    print("Percent new in Cluster 3: ", len(new_cps_loc['Cluster_3'])/len(c3_p))
+    print("\n\nPercent lost in Cluster 1: ",len( lost_cps_loc['Cluster_1'])/len(c1_np))
+    print("Percent lost in Cluster 2: ", len(lost_cps_loc['Cluster_2'])/len(c2_np))
+    print("Percent lost in Cluster 3: ", len(lost_cps_loc['Cluster_3'])/len(c3_np))
     print(f"\nLost 0 and {l_k[l]}: {lost_cps_loc}")
-'''
+
+    wandb.log({'C1 New':c1[0],'c1 Lost': c1[1]}) #plot new % and lost%
+    wandb.log({'c2 New':c2[0],'c2 Lost': c2[1]}) #plot new % and lost%
+    wandb.log({'c3 New':c3[0],'c3 Lost': c3[1]}) #plot new % and lost%
+
 '''
 print("\nLos concepts 0 to 36 ", record_global.record_lost_concepts(a,c))
 print("\nLos concepts 0 to 48 ", record_global.record_lost_concepts(a,d))
@@ -178,5 +201,6 @@ for vals in list(zero_twenty.values())[0]:
     if vals in list(zero_36.values())[0] and vals in list(zero_48.values())[0] and vals in list(zero_59.values())[0] and vals in list(zero_67.values())[0] and vals in list(zero_73.values())[0] and vals in list(zero_95.values())[0]:
         print(vals)
 
-'''
 
+
+'''
