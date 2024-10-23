@@ -186,6 +186,7 @@ def track_concepts():
         wandb.log({'C1 New':c1[0],'c1 Lost': c1[1]}) #plot new % and lost%
         wandb.log({'c2 New':c2[0],'c2 Lost': c2[1]}) #plot new % and lost%
         wandb.log({'c3 New':c3[0],'c3 Lost': c3[1]}) #plot new % and lost%
+        
 def recovered_concept_track():
     run_folder = "Min_Acts_500_No_Filters"
     cluster1_pd=pd.read_csv(f"Analysis/LHExpls/Run1/Expls0.0_Pruning_Iter/{run_folder}/3Clusters/Cluster1IOUS1024N.csv")

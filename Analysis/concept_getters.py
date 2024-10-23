@@ -6,7 +6,7 @@ def get_indiv_concepts(df) -> set:
     concepts= set()
     expls = [form for form in df.best_name]
     expls = " ".join(expls)
-    concps = re.findall(r'\b(?:pre:tok:|pre:tag:|hyp:tag:|hyp:tok:|oth:)\S*', expls)
+    concps = re.findall(r'\b(?:NOT )?(?:pre:tok:|pre:tag:|hyp:tag:|hyp:tok:|oth:)\S*', expls)
     for i,_ in enumerate(concps):
         while concps[i][-1] == ')':
             concps[i] = concps[i][:-1]
@@ -16,7 +16,7 @@ def get_indiv_concepts(df) -> set:
 def get_indiv_concepts_per_unit(df) -> dict:
     concepts = {}
     for unit,expl in zip(df.unit, df.best_name):
-        concps = re.findall(r'\b(?:pre:tok:|hyp:tok:|oth:)\S*', expl)
+        concps = re.findall(r'\b(?:NOT )?(?:pre:tok:|pre:tag:|hyp:tag:|hyp:tok:|oth:)\S*', expl)
         for i in range(len(concps)):
             while concps[i][-1] == ')':
                 concps[i] = concps[i][:-1]
@@ -105,6 +105,9 @@ def get_avg_iou(ious):
 def get_common_neurons(pruned, not_pruned):
     return set(pruned['unit'].unique()).intersection(set(not_pruned['unit'].unique()))
 
+def get_neurons(file):
+    cluster = pd.read_csv(file)
+    return set(cluster['unit'])
 
         
         

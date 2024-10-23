@@ -141,6 +141,7 @@ class BowmanEntailmentClassifier(nn.Module):
                   values are numpy arrays with values in {0, 1}.
                 final_weights: The weights at the end of the last training run. A
                   dictionary whose keys are strings and whose values are numpy arrays.
+                reverse: Boolean True if pruning out highest weights, false if pruning lowest weights
 
             Returns:
                 A dictionary containing the newly-pruned masks.
@@ -158,18 +159,15 @@ class BowmanEntailmentClassifier(nn.Module):
 
             cutoff_index = np.round(percent * sorted_weights.size).astype(int)
             cutoff = sorted_weights[cutoff_index - 1] 
-            # Prune all weights below the cutoff.
-            
+            # Prune all weights below the cutoff
             if reverse:
                 new_mask = torch.where(torch.abs(torch.tensor(final_weight)) >= cutoff, torch.zeros(mask.shape), mask)
                 new_weights= torch.where(torch.abs(torch.tensor(final_weight)) >= cutoff, torch.zeros(final_weight.shape), torch.tensor(final_weight))
             else:
                 new_mask = torch.where(torch.abs(torch.tensor(final_weight)) <= cutoff, torch.zeros(mask.shape), mask)
                 new_weights= torch.where(torch.abs(torch.tensor(final_weight)) <= cutoff, torch.zeros(final_weight.shape), torch.tensor(final_weight))
-           
             return new_mask, new_weights
 
-        
         return prune_by_percent_once(percent, self.prune_mask, final_weights, reverse)
 
     
