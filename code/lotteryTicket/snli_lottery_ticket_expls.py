@@ -40,11 +40,11 @@ def verify_pruning(model, prev_total_pruned_amt): # does this:
 
 def make_folders(prune_iter):
     #masks and explanation storing paths after finetuning
-    exp_after_finetuning_flder = f"Analysis/LHExpls/Run1/Expls{prune_iter}_Pruning_Iter/Min_Acts_500_No_Filters/"
+    exp_after_finetuning_flder = f"Analysis/LHExpls/Run2/Expls{prune_iter}_Pruning_Iter/Min_Acts_500_No_Filters/"
     if not os.path.exists(exp_after_finetuning_flder):
         os.makedirs(exp_after_finetuning_flder,exist_ok=True) 
 
-    masks_after_finetuning_flder = f"code/LHMasks/Run1/Masks{prune_iter}_Pruning_Iter/"
+    masks_after_finetuning_flder = f"code/LHMasks/Run2/Masks{prune_iter}_Pruning_Iter/"
     if not os.path.exists(masks_after_finetuning_flder):
         os.mkdir(masks_after_finetuning_flder)
     return exp_after_finetuning_flder, masks_after_finetuning_flder
@@ -72,7 +72,7 @@ def main(args):
     criterion = nn.CrossEntropyLoss()
     
     device = 'cuda' if settings.CUDA else 'cpu'
-    return run_prune(model, dataset, optimizer, criterion,train,val,test,dataloaders,device,max_thresh=95, min_thresh=20, prune_iters = args.prune_iters, prune_metrics_dirs=args.prune_metrics_dir)
+    return run_prune(model, dataset, optimizer, criterion,train,val,test,dataloaders,device,max_thresh=99.9, min_thresh=20, prune_iters = args.prune_iters, prune_metrics_dirs=args.prune_metrics_dir)
     
 #running the expls using the already finetuned and precreated masks from before
 def run_prune(model, dataset, optimizer, criterion, train,val,test,dataloaders,device, max_thresh, min_thresh, prune_iters, prune_metrics_dirs, pruned_percents=[], final_accs=[]):
@@ -99,7 +99,7 @@ def run_prune(model, dataset, optimizer, criterion, train,val,test,dataloaders,d
         final_accs.append(acc)
         
         
-        if final_weights_pruned > 79 and final_weights_pruned < max_thresh: #or :
+        if final_weights_pruned < max_thresh: #or :
             exp_after_finetuning_flder, masks_after_finetuning_flder = make_folders(final_weights_pruned)
             print(f"======Running Explanations for {final_weights_pruned}% pruned=======")
             #run after pruning before finetuning
@@ -139,7 +139,7 @@ def parse_args():
     )
 
     parser.add_argument("--exp_dir", default="models/snli/LH")
-    parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/LH/Run1")
+    parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/LH/Run2")
     parser.add_argument("--model_dir", default="exp/snli/model_dir")
     parser.add_argument("--store_exp_bkdown", default="exp/snli_1.0_dev-6-sentence-5/")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal"])

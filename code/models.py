@@ -6,6 +6,9 @@ import torch.nn.functional as F
 import torch.nn.utils.prune as prune
 import numpy as np
 import settings
+import collections
+from typing import Union
+from prune import Pruner
 class SentimentClassifier(nn.Module):
     def __init__(self, encoder):
         super().__init__()
@@ -83,9 +86,159 @@ class EntailmentClassifier(nn.Module):
         mlp_input = s1enc * s2enc
 
         return mlp_input
+class Layer:
+    """Represents a single prunable layer in the neural network."""
+
+    def __init__(
+            self,
+            name: str,
+            weights: torch.nn.Parameter,
+            initial_weights: torch.Tensor,
+            pruning_mask: torch.Tensor) -> None:
+        """Initializes a new Layer instance.
+
+        Args:
+            name (str): The name of the layer.
+            kind (LayerKind): The kind of the layer.
+            weights (torch.nn.Parameter): The weights of the layer.
+            biases (torch.nn.Parameter): The biases of the layer.
+            initial_weights (torch.Tensor): A copy of the initial weights of the layer.
+            initial_biases (torch.Tensor): A copy of the initial biases of the layer.
+            pruning_mask (torch.Tensor): The current pruning mask of the layer.
+        """
+
+        self.name = name
+      
+        self.weights = weights
+        self.initial_weights = initial_weights
+        self.pruning_mask = pruning_mask
 
 
-class BowmanEntailmentClassifier(nn.Module):
+class BaseModel(torch.nn.Module):
+    """Represents the base class for all models."""
+
+    def __init__(self) -> None:
+        """Initializes a new BaseModel instance. Since this is a base class, it should never be called directly."""
+
+        # Invokes the constructor of the base class
+        super().__init__()
+
+        # Initializes some class members
+        self.layers = None
+        self.init_weights=torch.load(settings.MODEL)['state_dict']
+
+        self.prune_masks={}
+
+    def initialize(self) -> None:
+        """Initializes the model. It initializes the weights of the model using Xavier Normal (equivalent to Gaussian Glorot used in the original
+        Lottery Ticket Hypothesis paper). It also creates an initial pruning mask for the layers of the model. These are initialized with all ones. A
+        pruning mask with all ones does nothing. This method must be called by all sub-classes at the end of their constructor.
+        """
+
+        # Gets the all the fully-connected and convolutional layers of the model (these are the only ones that are being used right now, if new layer
+        # types are introduced, then they have to be added here, but right now all models only consist of these two types)
+        self.layers = []
+        print([i for i in self.init_weights])
+        for parameter_name, parameter in self.init_weights.items():
+            
+            weights=parameter
+            init_weights=parameter
+                
+            # Initializes the pruning masks of the layer, which are used for pruning as well as freezing the pruned weights during training
+            pruning_mask = torch.ones_like(init_weights, dtype=torch.uint8)  # pylint: disable=no-member
+            # Adds the layer to the internal list of layers
+            self.layers.append(Layer(parameter_name, weights, init_weights, pruning_mask))
+        
+            
+
+    def get_layer_names(self):
+        """Retrieves the internal names of all the layers of the model.
+
+        Returns:
+            list[str]: Returns a list of all the names of the layers of the model.
+        """
+
+        layer_names = []
+        for layer in self.layers:
+            layer_names.append(layer.name)
+        return layer_names
+
+    def get_layer(self, layer_name: str) -> Layer:
+        """Retrieves the layer of the model with the specified name.
+
+        Args:
+            layer_name (str): The name of the layer that is to be retrieved.
+
+        Raises:
+            LookupError: If the layer does not exist, an exception is raised.
+
+        Returns:
+            Layer: Returns the layer with the specified name.
+        """
+
+        for layer in self.layers:
+            if layer.name == layer_name:
+                return layer
+        raise LookupError(f'The specified layer "{layer_name}" does not exist.')
+
+    def update_layer_weights(self, mask, layer_name: str, new_weights: torch.Tensor) -> None:
+        """Updates the weights of the specified layer.
+
+        Args:
+            layer_name (str): The name of the layer whose weights are to be updated.
+            new_weights (torch.Tensor): The new weights of the layer.
+        """
+
+        self.state_dict()[f'{layer_name}'].copy_(new_weights)
+        self.prune_masks[layer_name]=mask
+        
+    def get_total_num_weights(self):
+        terms =0
+        for l in self.layers:
+            l = self.get_layer(l.name)
+            terms += l.weights.flatten.shape[0]
+        return terms
+
+    def reset(self) -> None:
+        """Resets the model back to its initial initialization."""
+
+        for layer in self.layers:
+            self.state_dict()[f'{layer.name}.weight'].copy_(layer.initial_weights)
+
+    def move_to_device(self, device: Union[int, str, torch.device]) -> None:  # pylint: disable=no-member
+        """Moves the model to the specified device.
+
+        Args:
+            device (Union[int, str, torch.device]): The device that the model is to be moved to.
+        """
+
+        # Moves the model itself to the device
+        self.to(device)
+
+        # Moves the initial weights, initial biases, and the pruning masks also to the device
+        for layer in self.layers:
+            layer.initial_weights = layer.initial_weights.to(device)
+            layer.pruning_mask = layer.pruning_mask.to(device)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Performs the forward pass through the neural network. Since this is the base model, the method is not implemented and must be implemented
+        in all classes that derive from the base model.
+
+        Args:
+            x (torch.Tensor): The input to the neural network.
+
+        Raises:
+            NotImplementedError: _description_
+
+        Returns:
+            torch.Tensor: Returns the output of the neural network.
+        """
+
+        raise NotImplementedError()
+
+
+
+class BowmanEntailmentClassifier(BaseModel, nn.Module):
     """
     The RNN-based entailment model of Bowman et al 2017
     """
@@ -107,6 +260,10 @@ class BowmanEntailmentClassifier(nn.Module):
         )
         #self.mlp[:-1][0] = prune.ln_structured(self.mlp[:-1][0], name="weight", amount=0.05, dim=1, n=float('-inf'))
         self.output_dim = 3
+        
+        self.initialize()
+        
+        self.p=Pruner(self)
         
         
     def forward(self, s1, s1len, s2, s2len):
@@ -130,64 +287,10 @@ class BowmanEntailmentClassifier(nn.Module):
         if layer == 'default':
             layer = self.mlp[:-1]
         return prune.is_pruned(layer)
-    
-    def prune_masks(self,percent,final_weights, reverse=False):
-        """Return new masks that involve pruning the smallest of the final weights.
-
-            Args:
-                percents: A dictionary determining the percent by which to prune each layer.
-                  Keys are layer names and values are floats between 0 and 1 (inclusive).
-                masks: A dictionary containing the current masks. Keys are strings and
-                  values are numpy arrays with values in {0, 1}.
-                final_weights: The weights at the end of the last training run. A
-                  dictionary whose keys are strings and whose values are numpy arrays.
-                reverse: Boolean True if pruning out highest weights, false if pruning lowest weights
-
-            Returns:
-                A dictionary containing the newly-pruned masks.
-        """
-        def prune_by_percent_once(percent, mask, final_weight, reverse=False):
-            # Put the weights that aren't masked out in sorted order.
-            mask=mask.cpu()
-            if reverse:
-                sorted_weights = np.sort(np.abs(final_weight[mask == 1]))[::-1]
-            else:
-                print(mask)
-                sorted_weights = np.sort(np.abs(final_weight[mask == 1]))
-
-            # Determine the cutoff for weights to be pruned.
-
-            cutoff_index = np.round(percent * sorted_weights.size).astype(int)
-            cutoff = sorted_weights[cutoff_index - 1] 
-            # Prune all weights below the cutoff
-            if reverse:
-                new_mask = torch.where(torch.abs(torch.tensor(final_weight)) >= cutoff, torch.zeros(mask.shape), mask)
-                new_weights= torch.where(torch.abs(torch.tensor(final_weight)) >= cutoff, torch.zeros(final_weight.shape), torch.tensor(final_weight))
-            else:
-                new_mask = torch.where(torch.abs(torch.tensor(final_weight)) <= cutoff, torch.zeros(mask.shape), mask)
-                new_weights= torch.where(torch.abs(torch.tensor(final_weight)) <= cutoff, torch.zeros(final_weight.shape), torch.tensor(final_weight))
-            return new_mask, new_weights
-
-        return prune_by_percent_once(percent, self.prune_mask, final_weights, reverse)
-
-    
-    def prune(self, layer='default', amount=0.005, final_weights=None, mask=None, reverse=False):
-        
-        if layer == 'default':
-            layer = self.mlp[:-1][0]
-        if settings.PRUNE_METHOD == 'lottery_ticket':
-            print("in LT")
-            if type(final_weights) != np.ndarray :
-                final_weights=final_weights.numpy()
-            assert final_weights.shape[0] == 1024
-            self.prune_mask, weights = self.prune_masks(amount, final_weights, reverse) 
-            self.prune_mask = self.prune_mask.to('cuda')
-            layer.weight.detach().copy_(weights) 
-        elif settings.PRUNE_METHOD == 'incremental':
-            print("Pruning by: ",amount)
-            if not self.check_pruned() :
-                prune.ln_structured(layer, name="weight", amount=amount, dim=1, n=2)
+    def prune(self):
+        self.p.prune()
         return self
+    
         
    
             
@@ -237,6 +340,9 @@ class BowmanEntailmentClassifier(nn.Module):
     
     def get_encoder(self):
         return self.encoder
+    
+    def get_total_num_weight(self):
+        return get_total_num_weights
     
      
 

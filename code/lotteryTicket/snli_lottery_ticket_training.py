@@ -59,7 +59,7 @@ def main(args):
         device='cuda'
     else:
         device='cpu'
-    return run_prune(model, dataset, optimizer, criterion,device, num_cluster=5, max_thresh=95, min_thresh=20, prune_iters = args.prune_iters, ft_epochs=args.finetune_epochs, prune_metrics_dirs=args.prune_metrics_dir, train=train,val=val,test=test,dataloaders=dataloaders)
+    return run_prune(model, dataset, optimizer, criterion,device, num_cluster=5, max_thresh=99.9, min_thresh=20, prune_iters = args.prune_iters, ft_epochs=args.finetune_epochs, prune_metrics_dirs=args.prune_metrics_dir, train=train,val=val,test=test,dataloaders=dataloaders)
     
 #running the expls using the already finetuned and precreated masks from before
 def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thresh, min_thresh, prune_iters, prune_metrics_dirs, ft_epochs, train,val,test,dataloaders, pruned_percents=[], final_accs=[]):
@@ -70,7 +70,7 @@ def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thre
     for prune_iter in tqdm(range(0,prune_iters+1)):
         
         print(f"==== PRUNING ITERATION {prune_iter}/{prune_iters+1} ====")
-        prune_metrics_dir = os.path.join(prune_metrics_dirs,"Run1", f"{prune_iter}_Pruning_Iter")
+        prune_metrics_dir = os.path.join(prune_metrics_dirs,"Run2", f"{prune_iter}_Pruning_Iter")
         if not os.path.exists(prune_metrics_dir):
             os.makedirs(prune_metrics_dirs,exist_ok=True)
             os.makedirs(prune_metrics_dir,exist_ok=True)
@@ -79,29 +79,35 @@ def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thre
         optimizer = optim.Adam(model.parameters())
         criterion = nn.CrossEntropyLoss()
         
-        if prune_iter > 1:
-            model.prune_mask = pruning_mask.cuda() #RELOAD PRUNING MASK
+        #RELOAD PRUNING MASK
         model.cuda()
         
         print("Prune amt", settings.PRUNE_AMT)
-        bfore=np.round(torch.where(model.mlp[0].weight.detach() == 0,1,0).sum().item()*100/(1024*2048),2)
-        print("Bfore pruning: Final_wegihts prune% is: ", bfore)
+        bfore=0
+        print("Bfore pruning: % pruned is: ", bfore)
         if prune_iter > 0:
-            model=model.prune(amount=settings.PRUNE_AMT,final_weights=final_weights, reverse=args.reverse) #PRUNE
-            pruning_mask = model.prune_mask # SAVE PRUNE MASK
-
-        bfore=np.round(torch.where(model.mlp[0].weight.detach() == 0,1,0).sum().item()*100/(1024*2048),2)
-        print("After pruning: Final_wegihts prune% is: ", bfore)
+            model=model.prune() #PRUNE# SAVE PRUNE MASK
+            
+        for layer in model.layers:
+            l = model.get_layer(layer.name)
+            print(layer.name, l.weights.shape)
+            if 'bias' in str(layer.name) or 'bn' in str(layer.name):
+                continue
+            bfore+=torch.where(l.weights.detach() == 0,1,0).sum().item()
+            print("before pruning: : ", bfore)
         
         model, final_weights, _= train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders,ft_epochs, prune_metrics_dir, device) #FINETUNE
-        final_weights = model.mlp[0].weight.detach().cpu().numpy()
+        for layer in model.layers:
+            l = model.get_layer(layer.name)
+            if 'bias' in str(layer.name) or 'bn' in str(layer.name):
+                continue
+            bfore+=torch.where(l.weights.detach() == 0,1,0).sum().item()
+            print("After pruning: Final_wegihts prune% is: ", bfore/model.get_total_num_weight())
+        final_weights_pruned = bfore/model.get_total_num_weight()
         
-        
-        final_weights_pruned= np.round(100*torch.where(torch.tensor(final_weights) == 0,1,0).sum().item()/(1024*2048), 3)
-        print(final_weights_pruned)
         acc=train_utils.run_eval(model, dataloaders['test'])
         print(f"Accuracy: {acc}")
-        pruned_percents.append(final_weights_pruned)
+        pruned_percents.append()
         final_accs.append(acc)
         
         
@@ -125,8 +131,8 @@ def parse_args():
     parser.add_argument("--save_every", default=1, type=int)
     
     parser.add_argument("--prune_epochs", default=10, type=int)
-    parser.add_argument("--finetune_epochs", default=10, type=int)
-    parser.add_argument("--prune_iters", default=5, type=int)
+    parser.add_argument("--finetune_epochs", default=1, type=int)
+    parser.add_argument("--prune_iters", default=5000, type=int)
     
     parser.add_argument("--embedding_dim", default=300, type=int)
     parser.add_argument("--hidden_dim", default=512, type=int)
@@ -144,6 +150,6 @@ if __name__ == "__main__":
     args = parse_args()
     pruned_percents, final_accs = main(args)
     print(f"pruned_percents: {pruned_percents}\nfinal_accs: {final_accs}")
-    wandb_ = wandb_init("CCE_NLI_Pruned_Model_Accs", "Run")
-    for i,acc in enumerate(final_accs):
-        wandb_.log({"prune_iter": i, "accuracy_test": acc})
+    #wandb_ = wandb_init("CCE_NLI_Pruned_Model_Accs", "Run")
+    #for i,acc in enumerate(final_accs):
+      #  wandb_.log({"prune_iter": i, "accuracy_test": acc})
