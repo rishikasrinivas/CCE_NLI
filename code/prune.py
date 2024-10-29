@@ -23,7 +23,7 @@ class Pruner:
 
             cutoff_index = np.round(percent * sorted_weights.size).astype(int)
             cutoff = sorted_weights[cutoff_index - 1] 
-            print(cutoff)
+            
             # Prune all weights below the cutoff
             if reverse:
                 new_mask = torch.where(torch.abs(torch.tensor(final_weight)) >= cutoff, torch.zeros(mask.shape), mask)
@@ -39,17 +39,20 @@ class Pruner:
                 continue
             layer=self.model.get_layer(layername)
             shape=layer.pruning_mask.shape
-            print(layer.pruning_mask.flatten().shape)
-            new_mask, new_weights = self.prune_by_percent_once(self.pruning_percents[layername], layer.pruning_mask.flatten(), layer.weights.reshape(-1), reverse=False)
-            print("Pruned ", layername, ",  ", torch.where(new_weights==0,1,0).sum()/(layer.weights.shape[0] * layer.weights.shape[1]))
-            self.model.get_layer(layername).pruning_mask=new_mask
+            new_mask, new_weights = self.prune_by_percent_once(self.pruning_percents[layername], layer.pruning_mask.flatten(), layer.weights.detach().reshape(-1), reverse=False)
+            
             new_weights=new_weights.reshape(shape)
-            self.model.get_layer(layername).layer.weights=new_weights
+            new_mask=new_mask.reshape(shape)
             self.model.update_layer_weights(new_mask, layername, new_weights)
-         
+            vweights=self.model.get_layer(layername).weights
+            
+        #====Logging=======
+            
         for la in self.model.get_layer_names():
             la=self.model.get_layer(la)
-            print("Pruned at end ", la, ",  ", torch.where(la.weights==0,1,0).sum()/(layer.weights.shape[0] * layer.weights.shape[1]))
+            if len(list(la.weights.shape)) <= 1:
+                continue
+            print("Pruned at end ", la.name, ",  ", torch.where(la.pruning_mask==0,1,0).sum()/(la.weights.shape[0] * la.weights.shape[1]))
             
         return self.model
     def get_mask(self,layer):

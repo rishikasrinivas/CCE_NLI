@@ -43,7 +43,7 @@ def main(args):
     train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data)
     model = train_utils.load_model(max_data=max_data, train=train, ckpt=args.ckpt)
     base_ckpt=torch.load(settings.MODEL) 
-    
+    print("called init")
     # ==== BUILD VOCAB ====
     vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
 
@@ -67,7 +67,7 @@ def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thre
     final_weights = model.mlp[0].weight.detach().numpy()
     print("Base ckpt: ",settings.MODEL )
     model.to(device)
-    for prune_iter in tqdm(range(0,prune_iters+1)):
+    for prune_iter in tqdm(range(0,300)):
         
         print(f"==== PRUNING ITERATION {prune_iter}/{prune_iters+1} ====")
         prune_metrics_dir = os.path.join(prune_metrics_dirs,"Run2", f"{prune_iter}_Pruning_Iter")
@@ -78,8 +78,6 @@ def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thre
         model.load_state_dict(base_ckpt['state_dict']) # RELOAD RANDOM WEIGHTS
         optimizer = optim.Adam(model.parameters())
         criterion = nn.CrossEntropyLoss()
-        
-        #RELOAD PRUNING MASK
         model.cuda()
         
         print("Prune amt", settings.PRUNE_AMT)
@@ -88,26 +86,32 @@ def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thre
         if prune_iter > 0:
             model=model.prune() #PRUNE# SAVE PRUNE MASK
             
-        for layer in model.layers:
+        '''for layer in model.layers:
             l = model.get_layer(layer.name)
-            print(layer.name, l.weights.shape)
             if 'bias' in str(layer.name) or 'bn' in str(layer.name):
                 continue
-            bfore+=torch.where(l.weights.detach() == 0,1,0).sum().item()
-            print("before pruning: : ", bfore)
-        
+            bfore=(torch.where(l.pruning_mask.detach() == 0,1,0).sum().item() / model.get_total_num_weights())
+            print("before pruning: : ", bfore)'''
         model, final_weights, _= train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders,ft_epochs, prune_metrics_dir, device) #FINETUNE
+        
+        bfore=0
         for layer in model.layers:
             l = model.get_layer(layer.name)
-            if 'bias' in str(layer.name) or 'bn' in str(layer.name):
+            if settings.PRUNE[layer.name]==0.0:
                 continue
             bfore+=torch.where(l.weights.detach() == 0,1,0).sum().item()
-            print("After pruning: Final_wegihts prune% is: ", bfore/model.get_total_num_weight())
-        final_weights_pruned = bfore/model.get_total_num_weight()
+            pm = l.pruning_mask.detach()
+            print("Pruning Mask for layer ", l,  torch.where(pm == 0,1,0).sum().item() / (pm.shape[0]*pm.shape[1]))
+            
+        
+        layer = model.get_layer("mlp.0.weight")
+        final_weights_pruned = (torch.where(layer.weights==0,1,0).sum().item()/(layer.weights.shape[0] * layer.weights.shape[1]))
+        final_weights_pruned = np.round(final_weights_pruned,2)
+        print("After pruning: Final_wegihts prune% is: ", final_weights_pruned)
         
         acc=train_utils.run_eval(model, dataloaders['test'])
         print(f"Accuracy: {acc}")
-        pruned_percents.append()
+        pruned_percents.append(final_weights_pruned)
         final_accs.append(acc)
         
         
@@ -130,7 +134,7 @@ def parse_args():
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal"])
     parser.add_argument("--save_every", default=1, type=int)
     
-    parser.add_argument("--prune_epochs", default=10, type=int)
+    #parser.add_argument("--prune_epochs", default=10, type=int)
     parser.add_argument("--finetune_epochs", default=1, type=int)
     parser.add_argument("--prune_iters", default=5000, type=int)
     

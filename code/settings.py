@@ -18,6 +18,23 @@ METRIC = "iou"
 EMBEDDING_NEIGHBORHOOD_SIZE = 5
 NUM_CLUSTERS=3
 
+
+PRUNE = {
+    'encoder.emb.weight' : 0,
+    'encoder.rnn.weight_ih_l0' : 0.0,
+    'encoder.rnn.weight_hh_l0' : 0.0,
+    'encoder.rnn.bias_ih_l0' : 0.0,
+    'encoder.rnn.bias_hh_l0' :0.0,
+    'bn.weight' : 0.0, 
+    'bn.bias' : 0.0, 
+    'bn.running_mean' : 0.0,
+    'bn.running_var': 0.0, 
+    'bn.num_batches_tracked' : 0.0,
+    'mlp.0.weight' : 0.2, 
+    'mlp.0.bias' : 0.0, 
+    'mlp.3.weight': 0.0, 
+    'mlp.3.bias': 0.0,
+}
 NEURONS = None
 PARALLEL = 1
 PRUNE_METRICS_DIR='models/snli/'

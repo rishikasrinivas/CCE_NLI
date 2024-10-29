@@ -134,19 +134,23 @@ class BaseModel(torch.nn.Module):
         Lottery Ticket Hypothesis paper). It also creates an initial pruning mask for the layers of the model. These are initialized with all ones. A
         pruning mask with all ones does nothing. This method must be called by all sub-classes at the end of their constructor.
         """
+        
 
         # Gets the all the fully-connected and convolutional layers of the model (these are the only ones that are being used right now, if new layer
         # types are introduced, then they have to be added here, but right now all models only consist of these two types)
         self.layers = []
-        print([i for i in self.init_weights])
         for parameter_name, parameter in self.init_weights.items():
             
-            weights=parameter
+            weights = parameter.float() 
+            
+            weights.requires_grad = True
             init_weights=parameter
                 
             # Initializes the pruning masks of the layer, which are used for pruning as well as freezing the pruned weights during training
             pruning_mask = torch.ones_like(init_weights, dtype=torch.uint8)  # pylint: disable=no-member
             # Adds the layer to the internal list of layers
+            print(weights.grad)
+        
             self.layers.append(Layer(parameter_name, weights, init_weights, pruning_mask))
         
             
@@ -189,14 +193,19 @@ class BaseModel(torch.nn.Module):
             new_weights (torch.Tensor): The new weights of the layer.
         """
 
-        self.state_dict()[f'{layer_name}'].copy_(new_weights)
-        self.prune_masks[layer_name]=mask
+        
+        with torch.no_grad():
+            # Update the layer weights
+            self.state_dict()[layer_name].copy_(new_weights)
+            self.get_layer(layer_name).weights = new_weights
+    
+            self.get_layer(layer_name).pruning_mask.copy_(mask)
         
     def get_total_num_weights(self):
         terms =0
         for l in self.layers:
             l = self.get_layer(l.name)
-            terms += l.weights.flatten.shape[0]
+            terms += l.weights.flatten().shape[0]
         return terms
 
     def reset(self) -> None:
@@ -261,7 +270,7 @@ class BowmanEntailmentClassifier(BaseModel, nn.Module):
         #self.mlp[:-1][0] = prune.ln_structured(self.mlp[:-1][0], name="weight", amount=0.05, dim=1, n=float('-inf'))
         self.output_dim = 3
         
-        self.initialize()
+        
         
         self.p=Pruner(self)
         
@@ -341,8 +350,6 @@ class BowmanEntailmentClassifier(BaseModel, nn.Module):
     def get_encoder(self):
         return self.encoder
     
-    def get_total_num_weight(self):
-        return get_total_num_weights
     
      
 

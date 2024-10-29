@@ -73,8 +73,6 @@ def run(split, epoch, model, optimizer, criterion, dataloader, device='cuda'):
         model.eval()
 
     ranger = tqdm(dataloader, desc=f"{split} epoch {epoch}")
-    model.prune_mask=model.prune_mask.cuda()
-    print("Pruned mask pruned ", torch.where(model.prune_mask==0,1,0).sum()/(2048*1024))
 
     loss_meter = util.AverageMeter()
     acc_meter = util.AverageMeter()
@@ -97,7 +95,11 @@ def run(split, epoch, model, optimizer, criterion, dataloader, device='cuda'):
         if training:
             optimizer.zero_grad()
             loss.backward()
-            model.mlp[0].weight.grad *= model.prune_mask
+            for layer in model.layers:
+                if layer.weights.grad is not None:
+                    layer.weights.grad *= layer.pruning_mask
+
+            #model.mlp[0].weight.grad *= model.prune_mask
             
             optimizer.step()
         preds = logits.argmax(1)
@@ -159,6 +161,10 @@ def finetune_pruned_model(model,optimizer,criterion, train, val, dataloaders, fi
     print(f"Loading best weights from {path_to_ckpt}")
     model.load_state_dict(torch.load(path_to_ckpt)['state_dict'])
     fw=model.mlp[0].weight.detach().cpu().numpy()
+    for l in model.layers:
+        pm = l.pruning_mask
+        if len(pm.shape )>1:
+            print("In function finetune mask pruned ", torch.where(torch.tensor(pm)==0,1,0).sum()/(pm.shape[0]*pm.shape[1]))
     print("In function finetune final weights pruned ", torch.where(torch.tensor(fw)==0,1,0).sum()/(2048*1024))
     
     return model, model.mlp[0].weight.detach().cpu().numpy(), torch.load(path_to_ckpt)
@@ -180,6 +186,7 @@ def build_model(vocab_size, model_type, embedding_dim=300, hidden_dim=512):
 def load_model(max_data, train, ckpt=None, device='cuda'):
     model = build_model(vocab_size=len(train.stoi), model_type='bowman', embedding_dim=300, hidden_dim=512)
     if ckpt:
+        model.initialize()
         if type(ckpt) == str:
             ckpt = torch.load(ckpt)
         model.load_state_dict(ckpt["state_dict"])
