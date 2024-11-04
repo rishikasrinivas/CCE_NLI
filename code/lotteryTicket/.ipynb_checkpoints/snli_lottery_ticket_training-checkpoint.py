@@ -59,7 +59,7 @@ def main(args):
         device='cuda'
     else:
         device='cpu'
-    return run_prune(model, dataset, optimizer, criterion,device, num_cluster=5, max_thresh=99.9, min_thresh=20, prune_iters = args.prune_iters, ft_epochs=args.finetune_epochs, prune_metrics_dirs=args.prune_metrics_dir, train=train,val=val,test=test,dataloaders=dataloaders)
+    return run_prune(model, dataset, optimizer, criterion,device, num_cluster=5, max_thresh=0.99, min_thresh=0.20, prune_iters = args.prune_iters, ft_epochs=args.finetune_epochs, prune_metrics_dirs=args.prune_metrics_dir, train=train,val=val,test=test,dataloaders=dataloaders)
     
 #running the expls using the already finetuned and precreated masks from before
 def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thresh, min_thresh, prune_iters, prune_metrics_dirs, ft_epochs, train,val,test,dataloaders, pruned_percents=[], final_accs=[]):

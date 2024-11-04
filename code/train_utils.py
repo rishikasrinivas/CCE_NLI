@@ -91,17 +91,23 @@ def run(split, epoch, model, optimizer, criterion, dataloader, device='cuda'):
         with ctx():
             logits = model(s1, s1len, s2, s2len)
             loss = criterion(logits, targets)
-
+ 
         if training:
             optimizer.zero_grad()
             loss.backward()
             for layer in model.layers:
                 if layer.weights.grad is not None:
                     layer.weights.grad *= layer.pruning_mask
-
-            #model.mlp[0].weight.grad *= model.prune_mask
             
+                    '''if layer.name == 'mlp.0.weight':
+                        print(layer.pruning_mask)
+                        assert(torch.equal(layer.weights.grad, model.mlp[0].weight.grad))
+                        print(layer.weights.grad, model.mlp[0].weight.grad, model.mlp[0].weight.grad.shape )'''
+                  
+        
             optimizer.step()
+            
+                
         preds = logits.argmax(1)
         acc = (preds == targets).float().mean()
         loss_meter.update(loss.item(), batch_size)
@@ -122,10 +128,10 @@ def finetune_pruned_model(model,optimizer,criterion, train, val, dataloaders, fi
     metrics[f"train_acc"]=[]
     metrics[f"val_loss"]=[]
     metrics[f"val_acc"]=[]
-    fw=model.mlp[0].weight.detach().cpu().numpy()
-    print("In function finetune final weights pruned ", torch.where(torch.tensor(fw)==0,1,0).sum()/(2048*1024))
+    fw_old=model.mlp[0].weight.detach().cpu().numpy().copy()
+    print("Bfore finetune In function finetune final weights pruned ", torch.where(torch.tensor(fw_old)==0,1,0).sum()/(2048*1024))
     for epoch in range(finetune_epochs):
-        
+        print(model)
         train_metrics = run(
             "train", epoch, model, optimizer, criterion, dataloaders['train'],device
         )
@@ -160,12 +166,8 @@ def finetune_pruned_model(model,optimizer,criterion, train, val, dataloaders, fi
     path_to_ckpt = os.path.join(prune_metrics_dir, f"model_best.pth")
     print(f"Loading best weights from {path_to_ckpt}")
     model.load_state_dict(torch.load(path_to_ckpt)['state_dict'])
-    fw=model.mlp[0].weight.detach().cpu().numpy()
-    for l in model.layers:
-        pm = l.pruning_mask
-        if len(pm.shape )>1:
-            print("In function finetune mask pruned ", torch.where(torch.tensor(pm)==0,1,0).sum()/(pm.shape[0]*pm.shape[1]))
-    print("In function finetune final weights pruned ", torch.where(torch.tensor(fw)==0,1,0).sum()/(2048*1024))
+    fw=model.mlp[0].weight.detach().cpu()
+    print("After ft pruned weights: ", torch.where(fw==0,1,0).sum().item()/(2048*1024))
     
     return model, model.mlp[0].weight.detach().cpu().numpy(), torch.load(path_to_ckpt)
 
@@ -186,10 +188,10 @@ def build_model(vocab_size, model_type, embedding_dim=300, hidden_dim=512):
 def load_model(max_data, train, ckpt=None, device='cuda'):
     model = build_model(vocab_size=len(train.stoi), model_type='bowman', embedding_dim=300, hidden_dim=512)
     if ckpt:
-        model.initialize()
         if type(ckpt) == str:
             ckpt = torch.load(ckpt)
-        model.load_state_dict(ckpt["state_dict"])
+        #model.load_state_dict(ckpt["state_dict"])
+        model.initialize()
     else:
         util.save_checkpoint(
                 serialize(model, train), False, settings.PRUNE_METRICS_DIR, filename=f"random_inits.pth"

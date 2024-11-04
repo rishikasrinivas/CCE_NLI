@@ -39,7 +39,7 @@ class Pruner:
                 continue
             layer=self.model.get_layer(layername)
             shape=layer.pruning_mask.shape
-            new_mask, new_weights = self.prune_by_percent_once(self.pruning_percents[layername], layer.pruning_mask.flatten(), layer.weights.detach().reshape(-1), reverse=False)
+            new_mask, new_weights = self.prune_by_percent_once(self.pruning_percents[layername], layer.pruning_mask.flatten(), layer.weights.detach().cpu().reshape(-1), reverse=False)
             
             new_weights=new_weights.reshape(shape)
             new_mask=new_mask.reshape(shape)

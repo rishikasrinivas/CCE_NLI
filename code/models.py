@@ -1,4 +1,4 @@
-    
+  
 import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
@@ -127,7 +127,7 @@ class BaseModel(torch.nn.Module):
         self.layers = None
         self.init_weights=torch.load(settings.MODEL)['state_dict']
 
-        self.prune_masks={}
+        
 
     def initialize(self) -> None:
         """Initializes the model. It initializes the weights of the model using Xavier Normal (equivalent to Gaussian Glorot used in the original
@@ -139,17 +139,16 @@ class BaseModel(torch.nn.Module):
         # Gets the all the fully-connected and convolutional layers of the model (these are the only ones that are being used right now, if new layer
         # types are introduced, then they have to be added here, but right now all models only consist of these two types)
         self.layers = []
-        for parameter_name, parameter in self.init_weights.items():
-            
-            weights = parameter.float() 
+        for parameter_name, parameter in self.named_parameters():
+            weights = parameter
             
             weights.requires_grad = True
-            init_weights=parameter
+            init_weights=parameter.clone()
                 
             # Initializes the pruning masks of the layer, which are used for pruning as well as freezing the pruned weights during training
-            pruning_mask = torch.ones_like(init_weights, dtype=torch.uint8)  # pylint: disable=no-member
+            pruning_mask = torch.ones_like(init_weights, dtype=torch.uint8).to('cuda')  # pylint: disable=no-member
             # Adds the layer to the internal list of layers
-            print(weights.grad)
+         
         
             self.layers.append(Layer(parameter_name, weights, init_weights, pruning_mask))
         
@@ -197,7 +196,7 @@ class BaseModel(torch.nn.Module):
         with torch.no_grad():
             # Update the layer weights
             self.state_dict()[layer_name].copy_(new_weights)
-            self.get_layer(layer_name).weights = new_weights
+            self.get_layer(layer_name).weights.copy_(new_weights)
     
             self.get_layer(layer_name).pruning_mask.copy_(mask)
         
@@ -247,7 +246,7 @@ class BaseModel(torch.nn.Module):
 
 
 
-class BowmanEntailmentClassifier(BaseModel, nn.Module):
+class BowmanEntailmentClassifier(BaseModel):
     """
     The RNN-based entailment model of Bowman et al 2017
     """
@@ -270,7 +269,7 @@ class BowmanEntailmentClassifier(BaseModel, nn.Module):
         #self.mlp[:-1][0] = prune.ln_structured(self.mlp[:-1][0], name="weight", amount=0.05, dim=1, n=float('-inf'))
         self.output_dim = 3
         
-        
+        self.initialize()
         
         self.p=Pruner(self)
         
