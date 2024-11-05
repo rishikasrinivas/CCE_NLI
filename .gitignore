@@ -1,3 +1,6 @@
 *.pth
 *.pt
 *.csv
+*/LHMasks
+*/LHExpls
+models/

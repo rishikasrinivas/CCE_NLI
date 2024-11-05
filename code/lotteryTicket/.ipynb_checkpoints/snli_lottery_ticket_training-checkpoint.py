@@ -80,19 +80,14 @@ def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thre
         bfore=0
         print("Bfore pruning: % pruned is: ", bfore)
         if prune_iter > 0:
-            if prune_iter <= 24:
-                model.load_state_dict(torch.load(f"models/snli/prune_metrics/LH/Run2/{prune_iter-1}_Pruning_Iter/model_best.pth")['state_dict'])
-                model=model.prune()
-                continue
             
             model=model.prune() #PRUNE# SAVE PRUNE MASK
             
-            prune_metrics_dir = os.path.join(prune_metrics_dirs,"Run2", f"{prune_iter}_Pruning_Iter")
-            if not os.path.exists(prune_metrics_dir):
-                os.makedirs(prune_metrics_dirs,exist_ok=True)
-                os.makedirs(prune_metrics_dir,exist_ok=True)
-        if prune_iter <= 24:
-            continue
+        prune_metrics_dir = os.path.join(prune_metrics_dirs,"Run2", f"{prune_iter}_Pruning_Iter")
+        if not os.path.exists(prune_metrics_dir):
+            os.makedirs(prune_metrics_dirs,exist_ok=True)
+            os.makedirs(prune_metrics_dir,exist_ok=True)
+                
             
             
         '''for layer in model.layers:

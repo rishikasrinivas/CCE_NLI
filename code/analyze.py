@@ -401,6 +401,7 @@ def pairs(x):
 def extract_features(
     model,
     dataset,
+    save_masks_dir,
 ):
     model.eval()
     loader = DataLoader(
@@ -433,6 +434,7 @@ def extract_features(
             s2len = src_lengths_comb[:, 1]
 
             final_reprs = model.get_final_reprs(s1, s1len, s2, s2len)
+            torch.save(final_reprs, f"{save_masks_dir}/final_layer_activations.pth")
         # Pack the sequence
         all_srcs.extend(list(np.transpose(src_one_comb.cpu().numpy(), (1, 2, 0))))
         
@@ -810,7 +812,8 @@ def initiate_exp_run(save_exp_dir, save_masks_dir="code/TestRun/Random",masks_sa
         )
     else:
         model= model_
-        dataset =dataset
+        dataset =dataset,
+        
         
         if settings.CUDA:
             model=model.to('cuda')
@@ -828,7 +831,8 @@ def initiate_exp_run(save_exp_dir, save_masks_dir="code/TestRun/Random",masks_sa
     
     toks, states, feats, idxs = extract_features(
         model,
-        dataset
+        dataset,
+        save_masks_dir
     )
     
     if q_ret==1:
