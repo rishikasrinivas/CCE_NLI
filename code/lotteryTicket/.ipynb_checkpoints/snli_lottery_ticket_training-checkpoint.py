@@ -70,11 +70,7 @@ def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thre
     for prune_iter in tqdm(range(0,300)):
         
         print(f"==== PRUNING ITERATION {prune_iter}/{prune_iters+1} ====")
-        prune_metrics_dir = os.path.join(prune_metrics_dirs,"Run2", f"{prune_iter}_Pruning_Iter")
-        if not os.path.exists(prune_metrics_dir):
-            os.makedirs(prune_metrics_dirs,exist_ok=True)
-            os.makedirs(prune_metrics_dir,exist_ok=True)
-            
+        
         model.load_state_dict(base_ckpt['state_dict']) # RELOAD RANDOM WEIGHTS
         optimizer = optim.Adam(model.parameters())
         criterion = nn.CrossEntropyLoss()
@@ -84,7 +80,20 @@ def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thre
         bfore=0
         print("Bfore pruning: % pruned is: ", bfore)
         if prune_iter > 0:
+            if prune_iter <= 24:
+                model.load_state_dict(torch.load(f"models/snli/prune_metrics/LH/Run2/{prune_iter-1}_Pruning_Iter/model_best.pth")['state_dict'])
+                model=model.prune()
+                continue
+            
             model=model.prune() #PRUNE# SAVE PRUNE MASK
+            
+            prune_metrics_dir = os.path.join(prune_metrics_dirs,"Run2", f"{prune_iter}_Pruning_Iter")
+            if not os.path.exists(prune_metrics_dir):
+                os.makedirs(prune_metrics_dirs,exist_ok=True)
+                os.makedirs(prune_metrics_dir,exist_ok=True)
+        if prune_iter <= 24:
+            continue
+            
             
         '''for layer in model.layers:
             l = model.get_layer(layer.name)
@@ -106,7 +115,7 @@ def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thre
         
         layer = model.get_layer("mlp.0.weight")
         final_weights_pruned = (torch.where(layer.weights==0,1,0).sum().item()/(layer.weights.shape[0] * layer.weights.shape[1]))
-        final_weights_pruned = np.round(final_weights_pruned,2)
+        final_weights_pruned = np.round(final_weights_pruned,4)
         print("After pruning: Final_wegihts prune% is: ", final_weights_pruned)
         
         acc=train_utils.run_eval(model, dataloaders['test'])
@@ -135,7 +144,7 @@ def parse_args():
     parser.add_argument("--save_every", default=1, type=int)
     
     #parser.add_argument("--prune_epochs", default=10, type=int)
-    parser.add_argument("--finetune_epochs", default=1, type=int)
+    parser.add_argument("--finetune_epochs", default=10, type=int)
     parser.add_argument("--prune_iters", default=5000, type=int)
     
     parser.add_argument("--embedding_dim", default=300, type=int)

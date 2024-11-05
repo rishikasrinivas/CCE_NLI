@@ -103,7 +103,7 @@ def run(split, epoch, model, optimizer, criterion, dataloader, device='cuda'):
                         print(layer.pruning_mask)
                         assert(torch.equal(layer.weights.grad, model.mlp[0].weight.grad))
                         print(layer.weights.grad, model.mlp[0].weight.grad, model.mlp[0].weight.grad.shape )'''
-                  
+                    
         
             optimizer.step()
             
@@ -131,7 +131,6 @@ def finetune_pruned_model(model,optimizer,criterion, train, val, dataloaders, fi
     fw_old=model.mlp[0].weight.detach().cpu().numpy().copy()
     print("Bfore finetune In function finetune final weights pruned ", torch.where(torch.tensor(fw_old)==0,1,0).sum()/(2048*1024))
     for epoch in range(finetune_epochs):
-        print(model)
         train_metrics = run(
             "train", epoch, model, optimizer, criterion, dataloaders['train'],device
         )
