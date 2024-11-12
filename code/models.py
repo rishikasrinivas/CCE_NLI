@@ -86,6 +86,7 @@ class EntailmentClassifier(nn.Module):
         mlp_input = s1enc * s2enc
 
         return mlp_input
+#https://github.com/lecode-official/pytorch-lottery-ticket-hypothesis/blob/main/source/lth/models/__init__.py
 class Layer:
     """Represents a single prunable layer in the neural network."""
 
@@ -113,7 +114,7 @@ class Layer:
         self.initial_weights = initial_weights
         self.pruning_mask = pruning_mask
 
-
+# referenced from: https://github.com/lecode-official/pytorch-lottery-ticket-hypothesis/blob/main/source/lth/models/__init__.py
 class BaseModel(torch.nn.Module):
     """Represents the base class for all models."""
 
