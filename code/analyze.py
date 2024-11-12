@@ -93,9 +93,7 @@ def get_mask(feats, f, dataset, feat_type):
     Serializable/global version of get_mask for multiprocessing
     """
     # Mask has been cached
-    '''if f.mask is not None:
-        return f.mask
-'''
+    
     if isinstance(f, FM.And):
         masks_l = get_mask(feats, f.left, dataset, feat_type)
         masks_r = get_mask(feats, f.right, dataset, feat_type)
@@ -266,13 +264,8 @@ def compute_iou(unit, cluster, formula, acts, feats, dataset, feat_type="word", 
     masks = get_mask(feats, formula, dataset, feat_type) #10,000x1 saying if the formula is in the sample'
     # Cache mask
     formula.mask = masks
-  
-    '''if (len(concept) >= 2):
-        if sentence_num is None: #if not running this on 1 sentence at a time
-            calculate_act_mask_align_index(unit,formula, cluster, run, concept, acts, masks)'''
-
+    
     if settings.METRIC == "iou":
-        #if running w only 1 sentence iou would be.1 or 0, acts will be 1,1 (this is act for each neuron so 1 sentence and.1 neuon) mask is also 1x1
         comp_iou = metrics.iou(masks, acts)
         if comp_iou == 1:
             calculate_act_mask_align_index(unit,formula, cluster, acts, masks)
@@ -291,16 +284,10 @@ def compute_best_sentence_iou(args):
     (unit,cluster) = args
     print("Processsing neuron ", unit)
     acts = GLOBALS["acts"][:,unit]
-    #acts reprseent states in activ range
-    #for each neuron identify the samples where acts in col# neuron#==1
-    '''if acts.sum() < settings.MIN_ACTS:
-        null_f = (FM.Leaf(0), 0)
-        return {"unit": unit, "best": null_f, "best_noncomp": null_f}'''
-    if acts.sum() ==0:
+    if acts.sum() < settings.MIN_ACTS:
         null_f = (FM.Leaf(0), 0)
         return {"unit": unit, "best": null_f, "best_noncomp": null_f}
-    feats = GLOBALS["feats"]
-    #print("FEATS. ", feats.shape) #10,000rows each row holds num concepts saying true if concept at the index is in the sample else false  
+    feats = GLOBALS["feats"] 
     dataset = GLOBALS["dataset"] #holds each concept ex: hyp:tok:dog
 
 
@@ -756,13 +743,13 @@ def searching_dead_neurons(states, threshold, model, weights, val_loader):
         print(f"{thresh}: {acc}\nNum dead: {len(dead_neurons)}")
 
     
-def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved, num_clusters=4):
+def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved):
     activations= torch.from_numpy(np.array(states)).t() #1024x10000
-    #1st  time run this, after that dont
-    print("activs shaoe ", activations.shape)
+    
     if not masks_saved:
         print("creating masks storing in ",save_masks_dir )#check how many ones per row here
-        activation_ranges, dead_neur = create_clusters(activations,num_clusters)
+        
+        activation_ranges, dead_neur = create_clusters(activations,settings.NUM_CLUSTERS)
         pckl_file = open(f"{save_masks_dir}/ActivationRanges.pkl", "wb")
     
         pickle.dump(activation_ranges, pckl_file)
@@ -773,19 +760,16 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
         pickle.dump(dead_neur, pckl_file)
         pckl_file.close()
     
-        activs = build_masks(activations, activation_ranges, num_clusters, save_masks_dir) #how many ones per mask
-    for cluster_num in range(1,num_clusters+1): 
+        activs = build_masks(activations, activation_ranges, settings.NUM_CLUSTERS, save_masks_dir) #how many ones per mask
+        
+    for cluster_num in range(1,settings.NUM_CLUSTERS+1): 
         if masks_saved:
             print(f"{cluster_num} found : {f'Cluster{cluster_num}masks.pt' in os.listdir(save_masks_dir)}")
             if f"Cluster{cluster_num}masks.pt" in os.listdir(save_masks_dir):
-                acts = torch.load(f"{save_masks_dir}/Cluster{cluster_num}masks.pt")
-                #if acts.dtype == torch.float32:
-                print("converting")
-                acts=acts.t()
-                acts = acts.bool().numpy()
+                acts = torch.load(f"{save_masks_dir}/Cluster{cluster_num}masks.pt").t().bool().numpy()
 
             else:
-                raise Exception("cant find")
+                raise Exception(f"Cannot find masks in {save_masks_dir}")
                 return
         else:
             acts = torch.tensor(activs[cluster_num-1]).t().bool().numpy()
@@ -798,12 +782,12 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
 
             
 
-def initiate_exp_run(save_exp_dir, save_masks_dir="code/TestRun/Random",masks_saved="code/TestRun/Random", path=settings.MODEL, model_=None, dataset=None, clusters=4, q_ret=0):
+def initiate_exp_run(save_exp_dir, save_masks_dir, masks_saved, model_=None, dataset=None):
     os.makedirs(save_masks_dir, exist_ok=True)
     os.makedirs(save_exp_dir, exist_ok=True)
     
     
-    if model_==None and dataset==None:
+    if model_== None and dataset == None:
         model, dataset = data.snli.load_for_analysis(
             path,
             settings.DATA,
@@ -812,7 +796,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir="code/TestRun/Random",masks_sa
         )
     else:
         model= model_
-        dataset =dataset,
+        dataset =dataset
         
         
         if settings.CUDA:
@@ -835,8 +819,6 @@ def initiate_exp_run(save_exp_dir, save_masks_dir="code/TestRun/Random",masks_sa
         save_masks_dir
     )
     
-    if q_ret==1:
-        return states, final_weights
     
     with open(f"{save_masks_dir}/OrigActivations.pkl",'wb') as f:
         pickle.dump(states,f)
@@ -846,9 +828,8 @@ def initiate_exp_run(save_exp_dir, save_masks_dir="code/TestRun/Random",masks_sa
     
     tok_feats, tok_feats_vocab = to_sentence(toks, feats, dataset)
     
-    print(f"====RUNNING EXPLS ITERATION====")
-    if clusters==1:
-        print("NO CLUSTERS")
+
+    if settings.NUM_CLUSTERS == 1:
         print("Computing quantiles")
         acts = quantile_features(states)
         print("Mask search")
@@ -857,24 +838,17 @@ def initiate_exp_run(save_exp_dir, save_masks_dir="code/TestRun/Random",masks_sa
         search_feats(acts, states, (tok_feats, tok_feats_vocab), classification_weights, dataset, cluster=None, save_dir=save_exp_dir)
     else:
         print("Verfieid pruning % ", torch.where(torch.tensor(final_weights)==0,1,0).sum()/(1024*2048))
-        acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, classification_weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved, num_clusters=clusters)
+        acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, classification_weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved)
     
     return acts, final_weights
     
 from data.snli import SNLI
 def main():
     os.makedirs(settings.RESULT, exist_ok=True)
-    for it in [0,1,14]:
-        path=os.path.join("models/snli/prune_metrics/LH/Run1",f"{it}_Pruning_Iter", 'model_best.pth')
-        path = 'models/snli/6.pth'
-        model, dataset = data.snli.load_for_analysis(
-                path,
-                settings.DATA,
-                model_type=settings.MODEL_TYPE,
-                cuda=settings.CUDA
-            )
     
-        states, weights = initiate_exp_run(save_exp_dir=f'code/TestRun/NLI_NoClustering/Expls/{it}', save_masks_dir=f'code/TestRun/NLI_NoClustering/Masks/{it}',masks_saved=False, clusters=1, path=path)
+    if args.default:
+        settings.NUM_CLUSTERS=1
+        states, weights = initiate_exp_run(save_exp_dir=settings.RESULT_EXP, save_masks_dir=settings.RESULT_MASK)
     
     print("Load predictions")
     mbase = os.path.splitext(os.path.basename(settings.MODEL))[0]

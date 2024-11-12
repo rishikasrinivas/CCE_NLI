@@ -3,12 +3,13 @@ import pandas as pd
 functional_concepts= set(["at", "in", "is", "there", "on", "to", "are", "for", "has", "not", "their" ,"is", "while", "and", "by", "with", "from", "are", "one", "no", "another", "this", "these", "that", "those", "my", "our", "your", "his", "her", "its", "their", "some", "any", "every", "other", "many", "more", "most", "enough", "few", "less", "much", "either", "neither", "several", "all", "both", "each", "one", "two", "three", "four", "first", "second", "third" ,"last", "can", "have", "be", "do", "could", "has", "am", "does", "will", "had", "is", "did", "would", "having", "are", "done", "shall", "was", "doing", "should", "were", "may", "been", "might", "being", "must", "but", "or", "yet", "nor", "for", "so", "before", "once", "since", "until", "when", "while", "as", "like",  "although", "though", "whereas", "while", "except", "because", "since", "if", "where", "when", "why", "whom", "whose", "which", "what", "how"])
 
 # ================ Global concepts =======================
-
-for pruning_folder in os.listdir("Analysis/LHExpls/Run1"):
-    if pruning_folder == ".ipynb_checkpoints":
+main_dir = "exp/Run2"
+thresh='Local_Threshold'
+for pruning_folder in os.listdir(main_dir):
+    if pruning_folder == ".ipynb_checkpoints" or '91' in pruning_folder:
         continue
     ct_structural_cps = 0
-    filename = f"Analysis/LHExpls/Run1/{pruning_folder}/Min_Acts_500_No_Filters/3Clusters_concepts.csv"
+    filename = f"{main_dir}/{pruning_folder}/{thresh}/3Clusters_concepts.csv"
     global_concepts = set(pd.read_csv(filename)['concepts'])
     
     for gc in global_concepts:
@@ -25,10 +26,10 @@ for pruning_folder in os.listdir("Analysis/LHExpls/Run1"):
     
 # ================= Local concepts ==========================
 local_strucutred= {}
-for pruning_folder in os.listdir("Analysis/LHExpls/Run1"):
-    if pruning_folder == ".ipynb_checkpoints":
+for pruning_folder in os.listdir(main_dir):
+    if pruning_folder == ".ipynb_checkpoints" or '91' in pruning_folder:
         continue
-    filename = f"Analysis/LHExpls/Run1/{pruning_folder}/Min_Acts_500_No_Filters/concepts_per_cluster.csv"
+    filename = f"{main_dir}/{pruning_folder}/{thresh}/concepts_per_cluster.csv"
     df = pd.read_csv(filename)
     c1,c2,c3 = df['Cluster1'], df['Cluster2'], df['Cluster3']
     concepts = [c1,c2,c3]

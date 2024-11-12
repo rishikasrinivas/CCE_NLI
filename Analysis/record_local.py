@@ -66,22 +66,6 @@ def record_lost_concepts(nonpruned_dict: dict, pruned_dict : dict, fname=None, a
     return lost_cps
 
 
-def record_across_concepts(orig_dict, retrained_pruned_dict, noretrain_prune_dict, task, fname=None):
-    concepts_lost_after_pruning_wo_rt = record_lost_concepts(orig_dict,noretrain_prune_dict)
-    recordings = {}
-    #find concepts lost after pruning in retrrained
-    for cluster in retrained_pruned_dict.keys():
-        cps_in_retrained = retrained_pruned_dict[cluster]
-        #retrained cps set and lost cps set find the union
-        lost_cps =concepts_lost_after_pruning_wo_rt[cluster]
-        if task == 'relearned':
-            task_concepts = cps_in_retrained.intersection(lost_cps)
-        else:
-            task_concepts = lost_cps.difference(cps_in_retrained)
-        recordings[cluster] = task_concepts
-    if fname != None:
-        utils.save_to_csv(recordings, fname)
-    return recordings
 
         
 def record_new_concepts(orig_dict, pruned_dict, fname=None):

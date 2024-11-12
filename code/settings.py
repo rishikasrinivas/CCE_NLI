@@ -70,6 +70,7 @@ if "MTDISSECT_METRIC" in os.environ:
 
 mbase = os.path.splitext(os.path.basename(MODEL))[0]
 dbase = os.path.splitext(os.path.basename(DATA))[0]
-RESULT = f"exp/{dbase}-{mbase}-sentence-{MAX_FORMULA_LENGTH}{'-shuffled' if SHUFFLE else ''}{'-debug' if DEBUG else ''}{f'-{METRIC}' if METRIC != 'iou' else ''}{f'-random-weights' if RANDOM_WEIGHTS else ''}"
+prune = 'LH' #or 'None' or 'Hydra'
+RESULT_EXP = f"exp/{prune}/{dbase}-{mbase}-sentence-{MAX_FORMULA_LENGTH}{'-debug' if DEBUG else ''}{f'-{METRIC}' if METRIC != 'iou' else ''}{f'-random-weights' if RANDOM_WEIGHTS else ''}{f'{NUM_CLUSTERS}_clusters'}"
+RESULT_MASK = f"masks/{prune}/{dbase}-{mbase}-sentence-{MAX_FORMULA_LENGTH}{'-debug' if DEBUG else ''}{f'-{METRIC}' if METRIC != 'iou' else ''}{f'-random-weights' if RANDOM_WEIGHTS else ''}{f'{NUM_CLUSTERS}_clusters'}"
 
-print(RESULT)

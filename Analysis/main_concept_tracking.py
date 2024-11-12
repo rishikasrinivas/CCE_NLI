@@ -11,7 +11,8 @@ sys.path.append(os.path.abspath('code/lotteryTicket/'))
 # Now you can import the module
 import wandb_utils
 #get the 3 files
-run_folder = "Min_Acts_500_No_Filters"  #'No_Min_Acts_No_Filters' #
+run_folder = "Local_Threshold"  #'No_Min_Acts_No_Filters' #
+root_dir="exp/Run1"
 l_k={'b':20.0, 'c':36.0, 'd':48.8, 'e':59.04, 'f':67.232, 'g':73.786, 'h':79.028, 'i':83.223, 'j':86.578,  'k':89.263, 'l': 91.41, 'm':93.128, 'n':94.502, 'o':95.602}
 
 def compute_iou(np,p):
@@ -43,44 +44,46 @@ def compare_units(np, p,f):
     
 def main_unitwise_iou():
     for k,v in l_k.items():
-        compare_units(files.get_fname(0.0, 1), files.get_fname(v, 1), f"Analysis/LHExpls/Run1/Expls{v}_Pruning_Iter/IOU0-{v}_C1.csv")
-        compare_units(files.get_fname(0.0, 2), files.get_fname(v, 2), f"Analysis/LHExpls/Run1/Expls{v}_Pruning_Iter/IOU0-{v}_C2.csv")
-        compare_units(files.get_fname(0.0, 3), files.get_fname(v, 3), f"Analysis/LHExpls/Run1/Expls{v}_Pruning_Iter/IOU0-{v}_C3.csv")
+        compare_units(files.get_fname(0.0, 1), files.get_fname(v, 1), f"{root_dir}/Expls{v}_Pruning_Iter/IOU0-{v}_C1.csv")
+        compare_units(files.get_fname(0.0, 2), files.get_fname(v, 2), f"{root_dir}/Expls{v}_Pruning_Iter/IOU0-{v}_C2.csv")
+        compare_units(files.get_fname(0.0, 3), files.get_fname(v, 3), f"{root_dir}/Expls{v}_Pruning_Iter/IOU0-{v}_C3.csv")
   
-    
-utils.save_concepts(f"Analysis/LHExpls/Run1/Expls0.0_Pruning_Iter/{run_folder}/3Clusters", True)
-utils.save_concepts(f"Analysis/LHExpls/Run1/Expls20.0_Pruning_Iter/{run_folder}/3Clusters",True)
-utils.save_concepts(f"Analysis/LHExpls/Run1/Expls36.0_Pruning_Iter/{run_folder}/3Clusters",True)
-utils.save_concepts(f"Analysis/LHExpls/Run1/Expls48.8_Pruning_Iter/{run_folder}/3Clusters",True)
-utils.save_concepts(f"Analysis/LHExpls/Run1/Expls59.04_Pruning_Iter/{run_folder}/3Clusters",True)
-utils.save_concepts(f"Analysis/LHExpls/Run1/Expls67.232_Pruning_Iter/{run_folder}/3Clusters",True)
-utils.save_concepts(f"Analysis/LHExpls/Run1/Expls73.786_Pruning_Iter/{run_folder}/3Clusters",True)
-utils.save_concepts(f"Analysis/LHExpls/Run1/Expls79.028_Pruning_Iter/{run_folder}/3Clusters",True)
-utils.save_concepts(f"Analysis/LHExpls/Run1/Expls83.223_Pruning_Iter/{run_folder}/3Clusters",True)
-utils.save_concepts(f"Analysis/LHExpls/Run1/Expls86.578_Pruning_Iter/{run_folder}/3Clusters",True)
-utils.save_concepts(f"Analysis/LHExpls/Run1/Expls89.263_Pruning_Iter/{run_folder}/3Clusters",True)
-utils.save_concepts(f"Analysis/LHExpls/Run1/Expls91.41_Pruning_Iter/{run_folder}/3Clusters",True)
-utils.save_concepts(f"Analysis/LHExpls/Run1/Expls93.128_Pruning_Iter/{run_folder}/3Clusters",True)
-utils.save_concepts(f"Analysis/LHExpls/Run1/Expls94.502_Pruning_Iter/{run_folder}/3Clusters",True)
-utils.save_concepts(f"Analysis/LHExpls/Run1/Expls95.602_Pruning_Iter/{run_folder}/3Clusters",True)
+'''  
+utils.save_concepts(f"{root_dir}/Expls0.0_Pruning_Iter/{run_folder}/3Clusters", True)
+utils.save_concepts(f"{root_dir}/Expls20.0_Pruning_Iter/{run_folder}/3Clusters",True)
+utils.save_concepts(f"{root_dir}/Expls36.0_Pruning_Iter/{run_folder}/3Clusters",True)
+utils.save_concepts(f"{root_dir}/Expls48.8_Pruning_Iter/{run_folder}/3Clusters",True)
+utils.save_concepts(f"{root_dir}/Expls59.04_Pruning_Iter/{run_folder}/3Clusters",True)
+utils.save_concepts(f"{root_dir}/Expls67.232_Pruning_Iter/{run_folder}/3Clusters",True)
+utils.save_concepts(f"{root_dir}/Expls73.786_Pruning_Iter/{run_folder}/3Clusters",True)
+utils.save_concepts(f"{root_dir}/Expls79.028_Pruning_Iter/{run_folder}/3Clusters",True)
+utils.save_concepts(f"{root_dir}/Expls83.223_Pruning_Iter/{run_folder}/3Clusters",True)
+utils.save_concepts(f"{root_dir}/Expls86.578_Pruning_Iter/{run_folder}/3Clusters",True)
+utils.save_concepts(f"{root_dir}/Expls89.263_Pruning_Iter/{run_folder}/3Clusters",True)
+utils.save_concepts(f"{root_dir}/Expls91.41_Pruning_Iter/{run_folder}/3Clusters",True)
+utils.save_concepts(f"{root_dir}/Expls93.128_Pruning_Iter/{run_folder}/3Clusters",True)
+utils.save_concepts(f"{root_dir}/Expls94.502_Pruning_Iter/{run_folder}/3Clusters",True)
+utils.save_concepts(f"{root_dir}/Expls95.602_Pruning_Iter/{run_folder}/3Clusters",True)
+'''
 files = [
-    f"Analysis/LHExpls/Run1/Expls0.0_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
-    f"Analysis/LHExpls/Run1/Expls20.0_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
-    f"Analysis/LHExpls/Run1/Expls36.0_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
-    f"Analysis/LHExpls/Run1/Expls48.8_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
-    f"Analysis/LHExpls/Run1/Expls59.04_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
-    f"Analysis/LHExpls/Run1/Expls67.232_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
-    f"Analysis/LHExpls/Run1/Expls73.786_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
-    f"Analysis/LHExpls/Run1/Expls79.028_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
-    f"Analysis/LHExpls/Run1/Expls83.223_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
-    f"Analysis/LHExpls/Run1/Expls86.578_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
-    f"Analysis/LHExpls/Run1/Expls89.263_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
-    f"Analysis/LHExpls/Run1/Expls91.41_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
-    f"Analysis/LHExpls/Run1/Expls93.128_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
-    f"Analysis/LHExpls/Run1/Expls94.502_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
-    f"Analysis/LHExpls/Run1/Expls95.602_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
+    f"{root_dir}/Expls0.0_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
+    f"{root_dir}/Expls20.0_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
+    f"{root_dir}/Expls36.0_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
+    f"{root_dir}/Expls48.8_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
+    f"{root_dir}/Expls59.04_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
+    f"{root_dir}/Expls67.232_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
+    f"{root_dir}/Expls73.786_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
+    f"{root_dir}/Expls79.028_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
+    f"{root_dir}/Expls83.223_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
+    f"{root_dir}/Expls86.578_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
+    f"{root_dir}/Expls89.263_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
+    f"{root_dir}/Expls91.41_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
+    f"{root_dir}/Expls93.128_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
+    f"{root_dir}/Expls94.502_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
+    f"{root_dir}/Expls95.602_Pruning_Iter/{run_folder}/3Clusters_concepts.csv",
     
 ]
+
 a=pd.read_csv(files[0]).concepts
 a=set(a)
 b=pd.read_csv(files[1]).concepts
@@ -130,9 +133,9 @@ def main_rec_common_concepts():
     print("\nConcepts common 0-95: ", zero_95)
     '''
 #default expls
-cluster1_pd=pd.read_csv(f"Analysis/LHExpls/Run1/Expls0.0_Pruning_Iter/{run_folder}/3Clusters/Cluster1IOUS1024N.csv")
-cluster2_pd=pd.read_csv(f"Analysis/LHExpls/Run1/Expls0.0_Pruning_Iter/{run_folder}/3Clusters/Cluster2IOUS1024N.csv")
-cluster3_pd=pd.read_csv(f"Analysis/LHExpls/Run1/Expls0.0_Pruning_Iter/{run_folder}/3Clusters/Cluster3IOUS1024N.csv")
+cluster1_pd=pd.read_csv(f"{root_dir}/Expls0.0_Pruning_Iter/{run_folder}/3Clusters/Cluster1IOUS1024N.csv")
+cluster2_pd=pd.read_csv(f"{root_dir}/Expls0.0_Pruning_Iter/{run_folder}/3Clusters/Cluster2IOUS1024N.csv")
+cluster3_pd=pd.read_csv(f"{root_dir}/Expls0.0_Pruning_Iter/{run_folder}/3Clusters/Cluster3IOUS1024N.csv")
 c1_np=list(concept_getters.get_indiv_concepts(cluster1_pd))
 c2_np=list(concept_getters.get_indiv_concepts(cluster2_pd))
 c3_np=list(concept_getters.get_indiv_concepts(cluster3_pd))
@@ -142,9 +145,9 @@ def track_concepts():
     for s,l in zip([b,c,d,e,f,g,h,i,j,k,l,m,n, o],['b','c','d','e','f','g','h', 'i','j', 'k', 'l', 'm', 'n', 'o']):
         lost_cps_loc={'Cluster_1':[], 'Cluster_2': [], 'Cluster_3': []}
         new_cps_loc={'Cluster_1':[], 'Cluster_2': [], 'Cluster_3': []}
-        cluster1_pd_pruned=pd.read_csv(f"Analysis/LHExpls/Run1/Expls{l_k[l]}_Pruning_Iter/{run_folder}/3Clusters/Cluster1IOUS1024N.csv")
-        cluster2_pd_pruned=pd.read_csv(f"Analysis/LHExpls/Run1/Expls{l_k[l]}_Pruning_Iter/{run_folder}/3Clusters/Cluster2IOUS1024N.csv")
-        cluster3_pd_pruned=pd.read_csv(f"Analysis/LHExpls/Run1/Expls{l_k[l]}_Pruning_Iter/{run_folder}/3Clusters/Cluster3IOUS1024N.csv")
+        cluster1_pd_pruned=pd.read_csv(f"{root_dir}/Expls{l_k[l]}_Pruning_Iter/{run_folder}/3Clusters/Cluster1IOUS1024N.csv")
+        cluster2_pd_pruned=pd.read_csv(f"{root_dir}/Expls{l_k[l]}_Pruning_Iter/{run_folder}/3Clusters/Cluster2IOUS1024N.csv")
+        cluster3_pd_pruned=pd.read_csv(f"{root_dir}/Expls{l_k[l]}_Pruning_Iter/{run_folder}/3Clusters/Cluster3IOUS1024N.csv")
 
         c1_p=list(concept_getters.get_indiv_concepts(cluster1_pd_pruned))
         c2_p=list(concept_getters.get_indiv_concepts(cluster2_pd_pruned))
@@ -188,42 +191,19 @@ def track_concepts():
         wandb.log({'c3 New':c3[0],'c3 Lost': c3[1]}) #plot new % and lost%
         
 def recovered_concept_track():
-    run_folder = "Min_Acts_500_No_Filters"
-    cluster1_pd=pd.read_csv(f"Analysis/LHExpls/Run1/Expls0.0_Pruning_Iter/{run_folder}/3Clusters/Cluster1IOUS1024N.csv")
-    cluster2_pd=pd.read_csv(f"Analysis/LHExpls/Run1/Expls0.0_Pruning_Iter/{run_folder}/3Clusters/Cluster2IOUS1024N.csv")
-    cluster3_pd=pd.read_csv(f"Analysis/LHExpls/Run1/Expls0.0_Pruning_Iter/{run_folder}/3Clusters/Cluster3IOUS1024N.csv")
-    c1_np=list(concept_getters.get_indiv_concepts(cluster1_pd))
-    c2_np=list(concept_getters.get_indiv_concepts(cluster2_pd))
-    c3_np=list(concept_getters.get_indiv_concepts(cluster3_pd))
-
-    percents=l_k.values()
-    print(percents)
-    #are concepts that are lost with the threshold preserved without threshold --> 20%
-    for percent in percents:
-        lost_cps_loc_thresh=[]
-        cluster1_pd_pruned=pd.read_csv(f"Analysis/LHExpls/Run1/Expls{percent}_Pruning_Iter/{run_folder}/3Clusters/Cluster1IOUS1024N.csv")
-        cluster2_pd_pruned=pd.read_csv(f"Analysis/LHExpls/Run1/Expls{percent}_Pruning_Iter/{run_folder}/3Clusters/Cluster2IOUS1024N.csv")
-        cluster3_pd_pruned=pd.read_csv(f"Analysis/LHExpls/Run1/Expls{percent}_Pruning_Iter/{run_folder}/3Clusters/Cluster3IOUS1024N.csv")
-
-        c1_p=list(concept_getters.get_indiv_concepts(cluster1_pd_pruned))
-        c2_p=list(concept_getters.get_indiv_concepts(cluster2_pd_pruned))
-        c3_p=list(concept_getters.get_indiv_concepts(cluster3_pd_pruned))
-
-        for val in list(record_global.record_lost_concepts(a,b).values())[0]:
-            if val in c1_np :
-                lost_cps_loc_thresh.append(val)
-            if val in c2_np:
-                lost_cps_loc_thresh.append(val)
-            if val in c3_np:
-                lost_cps_loc_thresh.append(val)
-        no_thresh_concepts = pd.read_csv(f"Analysis/LHExpls/Run1/Expls{percent}_Pruning_Iter/No_Min_Acts_No_Filters/3Clusters_concepts.csv") 
-        ct=0
-        for cps in lost_cps_loc_thresh:
-            if cps in no_thresh_concepts['concepts'].tolist():
-                ct+=1
-                print(cps)
-        print(f"Percent {percent} : {ct/len(lost_cps_loc_thresh)}") #42% of lost concepts are actually in neurons where sample size is small
-        
+    
+    percents=list(l_k.values())
+    lostAt20 = list(record_global.record_lost_concepts(a,b).values())[0]
+    for percent in percents[1:]:
+        recov=0
+        concepts=pd.read_csv(f"{root_dir}/Expls{percent}_Pruning_Iter/{run_folder}/3Clusters_concepts.csv")['concepts'].tolist()
+       
+        for i in concepts:
+            if i in lostAt20:
+                recov += 1
+        print(f"{percent}, {recov/len(concepts)}")
+    
+     
 recovered_concept_track()
 '''
 print("\nLos concepts 0 to 36 ", record_global.record_lost_concepts(a,c))

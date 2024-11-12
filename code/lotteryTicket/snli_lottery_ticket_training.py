@@ -43,7 +43,7 @@ def main(args):
     train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data)
     model = train_utils.load_model(max_data=max_data, train=train, ckpt=args.ckpt)
     base_ckpt=torch.load(settings.MODEL) 
-    print("called init")
+    
     # ==== BUILD VOCAB ====
     vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
 
@@ -59,13 +59,13 @@ def main(args):
         device='cuda'
     else:
         device='cpu'
-    return run_prune(model, dataset, optimizer, criterion,device, num_cluster=5, max_thresh=0.99, min_thresh=0.20, prune_iters = args.prune_iters, ft_epochs=args.finetune_epochs, prune_metrics_dirs=args.prune_metrics_dir, train=train,val=val,test=test,dataloaders=dataloaders)
+    return run_prune(model, dataset, optimizer, criterion,device, num_cluster=5, max_thresh=0.9999, min_thresh=0.20, prune_iters = args.prune_iters, ft_epochs=args.finetune_epochs, prune_metrics_dirs=args.prune_metrics_dir, train=train,val=val,test=test,dataloaders=dataloaders)
     
 #running the expls using the already finetuned and precreated masks from before
 def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thresh, min_thresh, prune_iters, prune_metrics_dirs, ft_epochs, train,val,test,dataloaders, pruned_percents=[], final_accs=[]):
     base_ckpt=torch.load(settings.MODEL) 
     final_weights = model.mlp[0].weight.detach().numpy()
-    print("Base ckpt: ",settings.MODEL )
+    
     model.to(device)
     for prune_iter in tqdm(range(0,300)):
         
@@ -83,7 +83,7 @@ def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thre
             
             model=model.prune() #PRUNE# SAVE PRUNE MASK
             
-        prune_metrics_dir = os.path.join(prune_metrics_dirs,"Run2", f"{prune_iter}_Pruning_Iter")
+        prune_metrics_dir = os.path.join(prune_metrics_dirs,"Run3", f"{prune_iter}_Pruning_Iter")
         if not os.path.exists(prune_metrics_dir):
             os.makedirs(prune_metrics_dirs,exist_ok=True)
             os.makedirs(prune_metrics_dir,exist_ok=True)
@@ -107,7 +107,7 @@ def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thre
             pm = l.pruning_mask.detach()
             print("Pruning Mask for layer ", l,  torch.where(pm == 0,1,0).sum().item() / (pm.shape[0]*pm.shape[1]))
             
-        
+            
         layer = model.get_layer("mlp.0.weight")
         final_weights_pruned = (torch.where(layer.weights==0,1,0).sum().item()/(layer.weights.shape[0] * layer.weights.shape[1]))
         final_weights_pruned = np.round(final_weights_pruned,4)
@@ -121,7 +121,7 @@ def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thre
         
         assert(torch.equal(model.mlp[0].weight.detach().cpu(), torch.tensor(final_weights)))
         
-        if final_weights_pruned > max_thresh: break
+        if final_weights_pruned >= max_thresh: break
     return pruned_percents, final_accs
 
 def parse_args():

@@ -22,24 +22,3 @@ def record_common_concepts(concepts : list, fname=None,percent=False):
         utils.save_to_csv(common,fname)
     return common
 
-def record_across_concepts(orig_cps, retrained_pruned_cps, noretrain_prune_cps, task, fname=None, as_percent=True):
-    concepts_lost_after_pruning_wo_rt = record_lost_concepts(orig_cps,noretrain_prune_cps)
-    recordings = {}
-    #find concepts lost after pruning in retrrained
-    if task == 'relearned':
-        task_concepts = retrained_pruned_cps.intersection(concepts_lost_after_pruning_wo_rt['lost_concepts'])
-        if not as_percent:
-            recordings['relearned'] = task_concepts
-        else:
-            #of the concepts that were lost, % that was relearned
-            recordings['relearned'] = len(task_concepts)/len(concepts_lost_after_pruning_wo_rt['lost_concepts'])
-    elif task == 'lost':
-        task_concepts = concepts_lost_after_pruning_wo_rt.values().difference(retrained_pruned_cps)
-        recordings['lost'] = task_concepts
-    else:
-        raise ValueError("Invalid task argument")
-   
-    if fname != None:
-        utils.save_to_csv(recordings, fname)
-    return recordings
-        
