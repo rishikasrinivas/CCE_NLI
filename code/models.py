@@ -44,108 +44,7 @@ class SentimentClassifier(nn.Module):
         rep = self.mlp[:-1](enc)
         return rep
 
-class BertEntailmentClassifier(nn.Module):
-    def __init__(self, encoder_name="bert-base-uncased", vocab=None, freeze_bert=False):
-        super().__init__()
-        self.vocab = vocab
-        self.encoder_name = encoder_name
-        self.encoder = AutoModel.from_pretrained(encoder_name)
-        self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
-        
-#         if freeze_bert:
-#             for param in self.encoder.parameters():
-#                 param.requires_grad = False
-        
-        self.encoder_dim = self.encoder.config.hidden_size
-        self.mlp_input_dim = self.encoder_dim * 4
-        self.dropout = nn.Dropout(0.1)
-        self.bn = nn.BatchNorm1d(self.mlp_input_dim)
-        self.mlp = nn.Sequential(
-            nn.Linear(self.mlp_input_dim, 1024),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(1024, 3),
-        )
-        self.output_dim = 3
 
-    def forward(self, s1, s1len, s2, s2len):
-        device = s1.device
-        
-        s1 = s1.transpose(1, 0)
-        s2 = s2.transpose(1, 0)
-        
-        s1_tokens = self.indices_to_bert_tokens(s1)
-        s2_tokens = self.indices_to_bert_tokens(s2)
-        
-        s1_tokens = {k: v.to(device) for k, v in s1_tokens.items()}
-        s2_tokens = {k: v.to(device) for k, v in s2_tokens.items()}
-        
-        s1enc = self.encode_sentence(s1_tokens)
-        s2enc = self.encode_sentence(s2_tokens)
-        
-        diffs = s1enc - s2enc
-        prods = s1enc * s2enc
-        
-        mlp_input = torch.cat([s1enc, s2enc, diffs, prods], 1)
-        mlp_input = self.bn(mlp_input)
-        mlp_input = self.dropout(mlp_input)
-        preds = self.mlp(mlp_input)
-        
-        return preds
-
-    def get_final_reprs(self, s1, s1len, s2, s2len):
-        device = s1.device
-        
-        s1 = s1.transpose(1, 0)
-        s2 = s2.transpose(1, 0)
-        
-        s1_tokens = self.indices_to_bert_tokens(s1)
-        s2_tokens = self.indices_to_bert_tokens(s2)
-        
-        s1_tokens = {k: v.to(device) for k, v in s1_tokens.items()}
-        s2_tokens = {k: v.to(device) for k, v in s2_tokens.items()}
-        
-        s1enc = self.encode_sentence(s1_tokens)
-        s2enc = self.encode_sentence(s2_tokens)
-        
-        diffs = s1enc - s2enc
-        prods = s1enc * s2enc
-        
-        mlp_input = torch.cat([s1enc, s2enc, diffs, prods], 1)
-        mlp_input = self.bn(mlp_input)
-        mlp_input = self.dropout(mlp_input)
-        rep = self.mlp[:-1](mlp_input)
-        
-        return rep
-
-    def forward_from_final(self, rep):
-        preds = self.mlp[-1:](rep)
-        return preds
-
-    def indices_to_bert_tokens(self, indices):
-        batch_size, seq_len = indices.shape
-        words = []
-        for i in range(batch_size):
-            sentence = []
-            for idx in indices[i]:
-                if idx.item() in self.vocab['itos']:
-                    word = self.vocab['itos'][idx.item()]
-                    if word not in ("[PAD]", "<pad>", "PAD"): 
-                        sentence.append(word)
-                else:
-                    break
-            words.append(sentence)
-        
-        return self.tokenizer(words, is_split_into_words=True, return_tensors="pt", padding=True, truncation=True)
-
-    def encode_sentence(self, tokens):
-        outputs = self.encoder(**tokens)
-        return outputs.last_hidden_state[:, 0, :]
-
-    def to(self, device):
-        self.encoder = self.encoder.to(device)
-        return super().to(device)
-    
 class EntailmentClassifier(nn.Module):
     """
     An NLI entailment classifier where the hidden rep features are much
@@ -347,7 +246,115 @@ class BaseModel(torch.nn.Module):
 
         raise NotImplementedError()
 
+class BertEntailmentClassifier(BaseModel):
+    def __init__(self, encoder_name="bert-base-uncased", vocab=None, freeze_bert=False):
+        super().__init__()
+        self.vocab = vocab
+        self.encoder_name = encoder_name
+        self.encoder = AutoModel.from_pretrained(encoder_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
+        
+#         if freeze_bert:
+#             for param in self.encoder.parameters():
+#                 param.requires_grad = False
+        
+        self.encoder_dim = self.encoder.config.hidden_size
+        self.mlp_input_dim = self.encoder_dim * 4
+        self.dropout = nn.Dropout(0.1)
+        self.bn = nn.BatchNorm1d(self.mlp_input_dim)
+        self.mlp = nn.Sequential(
+            nn.Linear(self.mlp_input_dim, 1024),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(1024, 3),
+        )
+        self.output_dim = 3
+        self.initialize()
+        
+        self.p=Pruner(self)
 
+    def forward(self, s1, s1len, s2, s2len):
+        device = s1.device
+        
+        s1 = s1.transpose(1, 0)
+        s2 = s2.transpose(1, 0)
+        
+        s1_tokens = self.indices_to_bert_tokens(s1)
+        s2_tokens = self.indices_to_bert_tokens(s2)
+        
+        s1_tokens = {k: v.to(device) for k, v in s1_tokens.items()}
+        s2_tokens = {k: v.to(device) for k, v in s2_tokens.items()}
+        
+        s1enc = self.encode_sentence(s1_tokens)
+        s2enc = self.encode_sentence(s2_tokens)
+        
+        diffs = s1enc - s2enc
+        prods = s1enc * s2enc
+        
+        mlp_input = torch.cat([s1enc, s2enc, diffs, prods], 1)
+        mlp_input = self.bn(mlp_input)
+        mlp_input = self.dropout(mlp_input)
+        preds = self.mlp(mlp_input)
+        
+        return preds
+
+    def get_final_reprs(self, s1, s1len, s2, s2len):
+        device = s1.device
+        
+        s1 = s1.transpose(1, 0)
+        s2 = s2.transpose(1, 0)
+        
+        s1_tokens = self.indices_to_bert_tokens(s1)
+        s2_tokens = self.indices_to_bert_tokens(s2)
+        
+        s1_tokens = {k: v.to(device) for k, v in s1_tokens.items()}
+        s2_tokens = {k: v.to(device) for k, v in s2_tokens.items()}
+        
+        s1enc = self.encode_sentence(s1_tokens)
+        s2enc = self.encode_sentence(s2_tokens)
+        
+        diffs = s1enc - s2enc
+        prods = s1enc * s2enc
+        
+        mlp_input = torch.cat([s1enc, s2enc, diffs, prods], 1)
+        mlp_input = self.bn(mlp_input)
+        mlp_input = self.dropout(mlp_input)
+        rep = self.mlp[:-1](mlp_input)
+        
+        return rep
+
+    def forward_from_final(self, rep):
+        preds = self.mlp[-1:](rep)
+        return preds
+
+    def indices_to_bert_tokens(self, indices):
+        batch_size, seq_len = indices.shape
+        words = []
+        for i in range(batch_size):
+            sentence = []
+            for idx in indices[i]:
+                if idx.item() in self.vocab['itos']:
+                    word = self.vocab['itos'][idx.item()]
+                    if word not in ("[PAD]", "<pad>", "PAD"): 
+                        sentence.append(word)
+                else:
+                    break
+            words.append(sentence)
+        
+        return self.tokenizer(words, is_split_into_words=True, return_tensors="pt", padding=True, truncation=True)
+
+    def encode_sentence(self, tokens):
+        outputs = self.encoder(**tokens)
+        return outputs.last_hidden_state[:, 0, :]
+
+    def to(self, device):
+        self.encoder = self.encoder.to(device)
+        return super().to(device)
+    
+    def prune(self):
+        self.p.prune()
+        return self
+    
 
 class BowmanEntailmentClassifier(BaseModel):
     """

@@ -35,14 +35,14 @@ import pipelines as pipelines
 
 
 def main(args):
-    os.makedirs(args.exp_dir, exist_ok=True)
     if args.debug:
         max_data = 1000
     else:
         max_data = None
     train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data)
-    model = train_utils.load_model(max_data=max_data, train=train, ckpt=None)#args.ckpt)
-    base_ckpt=torch.load(settings.MODEL) 
+    print(len(train))
+    model = train_utils.load_model(max_data=max_data, model_type=args.model_type, train=train, ckpt=None)#args.ckpt)
+    base_ckpt=torch.load(f"models/snli/{args.model_type}_random_inits.pth") 
     
     # ==== BUILD VOCAB ====
     vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
@@ -52,7 +52,11 @@ def main(args):
     
     dataset = analysis.AnalysisDataset(lines, vocab)
     
-    optimizer = optim.Adam(model.parameters())
+    if args.model_type == 'bert':
+        optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8)  # AdamW optimizer is recommended for BERT
+    else:
+        optimizer = optim.Adam(model.parameters())
+        
     criterion = nn.CrossEntropyLoss()
     
     if settings.CUDA:
@@ -123,7 +127,7 @@ def run_prune(model, model_type, dataset, optimizer, criterion,device, max_thres
         bfore=0
         for layer in model.layers:
             l = model.get_layer(layer.name)
-            if settings.PRUNE[layer.name]==0.0:
+            if layer.name not in settings.PRUNE or settings.PRUNE[layer.name]==0.0:
                 continue
             bfore+=torch.where(l.weights.detach() == 0,1,0).sum().item()
             pm = l.pruning_mask.detach()
@@ -135,7 +139,7 @@ def run_prune(model, model_type, dataset, optimizer, criterion,device, max_thres
         final_weights_pruned = np.round(final_weights_pruned,4)
         print("After pruning: Final_wegihts prune% is: ", final_weights_pruned)
         
-        acc=train_utils.run_eval(model, dataloaders['test'])
+        acc=train_utils.run_eval(model, dataloaders['val'])
         print(f"Accuracy: {acc}")
         pruned_percents.append(final_weights_pruned)
         final_accs.append(acc)
@@ -153,11 +157,11 @@ def parse_args():
         description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
     )
 
-    parser.add_argument("--exp_dir", default="models/snli/LH")
-    parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/LH")
+   
+    parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/LH/BERT")
     parser.add_argument("--model_dir", default="exp/snli/model_dir")
     parser.add_argument("--store_exp_bkdown", default="exp/snli_1.0_dev-6-sentence-5/")
-    parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal"])
+    parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal", "bert"])
     parser.add_argument("--save_every", default=1, type=int)
     
     #parser.add_argument("--prune_epochs", default=10, type=int)

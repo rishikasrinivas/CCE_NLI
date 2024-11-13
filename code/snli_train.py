@@ -127,6 +127,7 @@ def main(args):
     val = SNLI(
         "data/snli_1.0/", "dev", max_data=max_data, vocab=(train.stoi, train.itos)
     )
+    
 
     dataloaders = {
         "train": DataLoader(
@@ -146,6 +147,9 @@ def main(args):
             collate_fn=pad_collate,
         ),
     }
+    torch.save(dataloaders['train'], 'models/dataloaders/train_loader.pth')
+    torch.save(dataloaders['val'], 'models/dataloaders/val_loader.pth')
+    print("Saved train and val dataloaders to models/dataloaders")
 
     # ==== BUILD MODEL ====
     model = build_model(
@@ -155,7 +159,7 @@ def main(args):
         embedding_dim=args.embedding_dim,
         hidden_dim=args.hidden_dim,
     )
-
+    
     if args.cuda:
         model = model.to('cuda')
         print("Moving model to cuda")

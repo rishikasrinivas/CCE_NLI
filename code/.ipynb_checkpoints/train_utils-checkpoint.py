@@ -16,7 +16,7 @@ import os
 from transformers import BertTokenizer, BertModel, AdamW, get_linear_schedule_with_warmup
 
 def create_dataloaders(max_data):
-    if not ('train_loader.pth' in os.listdir("models/DataLoaders/") and 'val_loader.pth' in os.listdir("models/DataLoaders/") and 'test_loader.pth' in os.listdir("models/DataLoaders/")):
+    if not ('train_dataset.pth' in os.listdir("models/DataLoaders/") and 'val_dataset.pth' in os.listdir("models/DataLoaders/") and 'test_dataset.pth' in os.listdir("models/DataLoaders/")):
         train = SNLI("data/snli_1.0", "train", max_data=max_data)
         train_loader = DataLoader(
             train,
@@ -26,7 +26,7 @@ def create_dataloaders(max_data):
             num_workers=0,
             collate_fn=pad_collate,
         )
-        torch.save(train_loader, 'train_loader.pth')
+        torch.save(train_loader.dataset, 'train_dataset.pth')
         
         val = SNLI("data/snli_1.0","dev",max_data=max_data,vocab=(train.stoi, train.itos),unknowns=False)
         val_loader = DataLoader(
@@ -38,7 +38,7 @@ def create_dataloaders(max_data):
             collate_fn=pad_collate
         
         )
-        torch.save(val_loader, 'val_loader.pth')
+        torch.save(val_loader.dataset, 'val_dataset.pth')
         
         test = SNLI("data/snli_1.0", "test", max_data=max_data, vocab=(train.stoi, train.itos), unknowns=True)
         test_loader = DataLoader(
@@ -49,11 +49,37 @@ def create_dataloaders(max_data):
             num_workers=0,
             collate_fn=pad_collate,
         )
-        torch.save(test_loader, 'test_loader.pth')
+        torch.save(test_loader.dataset, 'test_dataset.pth')
     else:
-        train_loader=torch.load("models/DataLoaders/train_loader.pth")
-        val_loader=torch.load("models/DataLoaders/val_loader.pth")
-        test_loader=torch.load("models/DataLoaders/test_loader.pth")
+        train_dataset = torch.load('train_dataset.pth')
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset, 
+            batch_size=100, 
+            shuffle=True, 
+            pin_memory=False,
+            num_workers=0,
+            collate_fn=pad_collate
+        )
+        
+        val_dataset = torch.load('val_dataset.pth')
+        val_loader = torch.utils.data.DataLoader(
+            val_dataset, 
+            batch_size=100, 
+            shuffle=False, 
+            pin_memory=True, 
+            num_workers=0, 
+            collate_fn=pad_collate
+        )
+        
+        test_dataset = torch.load('test_dataset.pth')
+        test_loader = torch.utils.data.DataLoader(
+            test_dataset, 
+            batch_size=100, 
+            shuffle=False,
+            pin_memory=True,
+            num_workers=0,
+            collate_fn=pad_collate
+        )
         
         
     
@@ -189,13 +215,13 @@ def build_model(vocab_size, model_type, vocab, embedding_dim=300, hidden_dim=512
     if model_type == "minimal":
         model = models.EntailmentClassifier(enc)
     elif model_type=='bert':
-        model.models.BertEntailmentClassifier(vocab=vocab)
+        model=models.BertEntailmentClassifier(vocab=vocab)
     else:
         model = models.BowmanEntailmentClassifier(enc)
     return model
 
-def load_model(max_data, model_type, train, vocab, ckpt=None, device='cuda'):
-    model = build_model(vocab_size=len(train.stoi), model_type='bowman', vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512)
+def load_model(max_data, model_type, train, ckpt=None, device='cuda'):
+    model = build_model(vocab_size=len(train.stoi), model_type=model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512)
     if ckpt:
         if type(ckpt) == str:
             ckpt = torch.load(ckpt)
@@ -203,13 +229,20 @@ def load_model(max_data, model_type, train, vocab, ckpt=None, device='cuda'):
         model.initialize()
     else:
         util.save_checkpoint(
-                serialize(model, train), False, settings.PRUNE_METRICS_DIR, filename=f"{model_type}_random_inits.pth"
+                serialize(model, model_type, train), False, settings.PRUNE_METRICS_DIR, filename=f"{model_type}_random_inits.pth"
         )
     
     return model
 
 
-def serialize(model, dataset):
+def serialize(model,model_type, dataset):
+    if model_type == 'bert':
+        return {
+            "encoder_name": model.encoder_name, 
+            "state_dict": model.state_dict(), 
+            "stoi": dataset.stoi,
+            "itos": dataset.itos,
+        }
     return {
         "state_dict": model.state_dict(),
         "stoi": dataset.stoi,
