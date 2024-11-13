@@ -13,6 +13,8 @@ from tqdm import tqdm
 from data.snli import SNLI, pad_collate
 from collections import defaultdict
 import os
+from transformers import BertTokenizer, BertModel, AdamW, get_linear_schedule_with_warmup
+
 def create_dataloaders(max_data):
     if not ('train_loader.pth' in os.listdir("models/DataLoaders/") and 'val_loader.pth' in os.listdir("models/DataLoaders/") and 'test_loader.pth' in os.listdir("models/DataLoaders/")):
         train = SNLI("data/snli_1.0", "train", max_data=max_data)
@@ -63,7 +65,7 @@ def create_dataloaders(max_data):
     return train_loader.dataset, val_loader.dataset,test_loader.dataset, dataloaders
 
 
-def run(split, epoch, model, optimizer, criterion, dataloader, device='cuda'):
+def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_epochs, device='cuda'):
     training = split == "train"
     if training:
         ctx = nullcontext
@@ -72,7 +74,13 @@ def run(split, epoch, model, optimizer, criterion, dataloader, device='cuda'):
         ctx = torch.no_grad
         model.eval()
 
-    ranger = tqdm(dataloader, desc=f"{split} epoch {epoch}")
+    ranger = tqdm(dataloader[split], desc=f"{split} epoch {epoch}")
+    
+    if model_type=='bert':
+        total_steps = len(dataloader['train']) *total_epochs
+        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=total_steps)
+
+    
 
     loss_meter = util.AverageMeter()
     acc_meter = util.AverageMeter()
@@ -119,7 +127,7 @@ def run(split, epoch, model, optimizer, criterion, dataloader, device='cuda'):
 
     return {"loss": loss_meter.avg, "acc": acc_meter.avg}
 
-def finetune_pruned_model(model,optimizer,criterion, train, val, dataloaders, finetune_epochs, prune_metrics_dir,device):
+def finetune_pruned_model(model,model_type, optimizer,criterion, train, val, dataloaders, finetune_epochs, prune_metrics_dir,device):
     metrics = defaultdict(list)
     metrics["best_val_acc"]=0.0
     metrics["best_val_epoch"] = 0
@@ -132,11 +140,11 @@ def finetune_pruned_model(model,optimizer,criterion, train, val, dataloaders, fi
     print("Bfore finetune In function finetune final weights pruned ", torch.where(torch.tensor(fw_old)==0,1,0).sum()/(2048*1024))
     for epoch in range(finetune_epochs):
         train_metrics = run(
-            "train", epoch, model, optimizer, criterion, dataloaders['train'],device
+            "train", epoch, model, model_type, optimizer, criterion, dataloaders, finetune_epochs, device
         )
 
         val_metrics = run(
-            "val", epoch, model, optimizer, criterion, dataloaders['val'] ,device
+            "val", epoch, model, model_type, optimizer, criterion, dataloaders, finetune_epochs, device
         )
 
         for name, val in train_metrics.items():
@@ -171,7 +179,7 @@ def finetune_pruned_model(model,optimizer,criterion, train, val, dataloaders, fi
     return model, model.mlp[0].weight.detach().cpu().numpy(), torch.load(path_to_ckpt)
 
 
-def build_model(vocab_size, model_type, embedding_dim=300, hidden_dim=512):
+def build_model(vocab_size, model_type, vocab, embedding_dim=300, hidden_dim=512):
     """
     Build a bowman-style SNLI model
     """
@@ -180,12 +188,14 @@ def build_model(vocab_size, model_type, embedding_dim=300, hidden_dim=512):
     )
     if model_type == "minimal":
         model = models.EntailmentClassifier(enc)
+    elif model_type=='bert':
+        model.models.BertEntailmentClassifier(vocab=vocab)
     else:
         model = models.BowmanEntailmentClassifier(enc)
     return model
 
-def load_model(max_data, train, ckpt=None, device='cuda'):
-    model = build_model(vocab_size=len(train.stoi), model_type='bowman', embedding_dim=300, hidden_dim=512)
+def load_model(max_data, model_type, train, vocab, ckpt=None, device='cuda'):
+    model = build_model(vocab_size=len(train.stoi), model_type='bowman', vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512)
     if ckpt:
         if type(ckpt) == str:
             ckpt = torch.load(ckpt)
@@ -193,15 +203,13 @@ def load_model(max_data, train, ckpt=None, device='cuda'):
         model.initialize()
     else:
         util.save_checkpoint(
-                serialize(model, train), False, settings.PRUNE_METRICS_DIR, filename=f"random_inits.pth"
+                serialize(model, train), False, settings.PRUNE_METRICS_DIR, filename=f"{model_type}_random_inits.pth"
         )
     
     return model
 
 
 def serialize(model, dataset):
-    if model.check_pruned():
-        prune.remove(model.mlp[:-1][0], name="weight")
     return {
         "state_dict": model.state_dict(),
         "stoi": dataset.stoi,

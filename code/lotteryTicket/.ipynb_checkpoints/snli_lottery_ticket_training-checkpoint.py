@@ -41,7 +41,7 @@ def main(args):
     else:
         max_data = None
     train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data)
-    model = train_utils.load_model(max_data=max_data, train=train, ckpt=args.ckpt)
+    model = train_utils.load_model(max_data=max_data, train=train, ckpt=None)#args.ckpt)
     base_ckpt=torch.load(settings.MODEL) 
     
     # ==== BUILD VOCAB ====
@@ -59,11 +59,29 @@ def main(args):
         device='cuda'
     else:
         device='cpu'
-    return run_prune(model, dataset, optimizer, criterion,device, num_cluster=5, max_thresh=0.9999, min_thresh=0.20, prune_iters = args.prune_iters, ft_epochs=args.finetune_epochs, prune_metrics_dirs=args.prune_metrics_dir, train=train,val=val,test=test,dataloaders=dataloaders)
+    return run_prune(
+        model,
+        args.model_type,
+        dataset,
+        optimizer, 
+        criterion,
+        device,
+        max_thresh=0.9999, 
+        min_thresh=0.20, 
+        prune_iters = args.prune_iters, 
+        ft_epochs=args.finetune_epochs, 
+        prune_metrics_dirs=args.prune_metrics_dir, 
+        train=train,
+        val=val,
+        test=test,
+        dataloaders=dataloaders
+    )
     
 #running the expls using the already finetuned and precreated masks from before
-def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thresh, min_thresh, prune_iters, prune_metrics_dirs, ft_epochs, train,val,test,dataloaders, pruned_percents=[], final_accs=[]):
-    base_ckpt=torch.load(settings.MODEL) 
+def run_prune(model, model_type, dataset, optimizer, criterion,device, max_thresh, min_thresh, prune_iters, prune_metrics_dirs, ft_epochs, train,val,test,dataloaders):
+    pruned_percents=[]
+    final_accs=[]
+    base_ckpt=torch.load(f"models/snli/{model_type}_random_inits") 
     final_weights = model.mlp[0].weight.detach().numpy()
     
     model.to(device)
@@ -72,7 +90,11 @@ def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thre
         print(f"==== PRUNING ITERATION {prune_iter}/{prune_iters+1} ====")
         
         model.load_state_dict(base_ckpt['state_dict']) # RELOAD RANDOM WEIGHTS
-        optimizer = optim.Adam(model.parameters())
+        if model_type=='bert':
+             optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8)  # AdamW optimizer is recommended for BERT
+        else:
+            optimizer = optim.Adam(model.parameters())
+            
         criterion = nn.CrossEntropyLoss()
         model.cuda()
         
@@ -83,7 +105,7 @@ def run_prune(model, dataset, optimizer, criterion,device, num_cluster, max_thre
             
             model=model.prune() #PRUNE# SAVE PRUNE MASK
             
-        prune_metrics_dir = os.path.join(prune_metrics_dirs,"Run3", f"{prune_iter}_Pruning_Iter")
+        prune_metrics_dir = os.path.join(prune_metrics_dirs,"Run1", f"{prune_iter}_Pruning_Iter")
         if not os.path.exists(prune_metrics_dir):
             os.makedirs(prune_metrics_dirs,exist_ok=True)
             os.makedirs(prune_metrics_dir,exist_ok=True)
