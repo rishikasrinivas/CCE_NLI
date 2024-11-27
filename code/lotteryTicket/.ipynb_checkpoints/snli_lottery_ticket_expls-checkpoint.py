@@ -40,11 +40,11 @@ def verify_pruning(model, prev_total_pruned_amt): # does this:
 
 def make_folders(prune_iter):
     #masks and explanation storing paths after finetuning
-    exp_after_finetuning_flder = f"exp/Run1/Expls{prune_iter}_Pruning_Iter/"
+    exp_after_finetuning_flder = f"exp/bert/Run1/Expls{prune_iter}_Pruning_Iter/"
     if not os.path.exists(exp_after_finetuning_flder):
         os.makedirs(exp_after_finetuning_flder,exist_ok=True) 
 
-    masks_after_finetuning_flder = f"masks/Run1/Masks{prune_iter}_Pruning_Iter/"
+    masks_after_finetuning_flder = f"masks/bert/Run1/Masks{prune_iter}_Pruning_Iter/"
     if not os.path.exists(masks_after_finetuning_flder):
         os.mkdir(masks_after_finetuning_flder)
     return exp_after_finetuning_flder, masks_after_finetuning_flder
@@ -58,7 +58,7 @@ def main(args):
         max_data = None
         
     train,_,_,dataloaders=train_utils.create_dataloaders(max_data=max_data)
-    model = train_utils.load_model(max_data=max_data, train=train, ckpt=args.ckpt)
+    model = train_utils.load_model(max_data=max_data, model_type=args.model_type, train=train, ckpt=args.ckpt)
     base_ckpt=torch.load(settings.MODEL) 
     
     # ==== BUILD VOCAB ====
@@ -74,7 +74,7 @@ def main(args):
     
     device = 'cuda' if settings.CUDA else 'cpu'
     #dataset_config = [train,val,test,dataloaders]
-    return run_prune(model, args.model_type, dataset, optimizer, criterion,dataloaders,device,max_thresh=95, min_thresh=20, prune_iters = args.prune_iters, prune_metrics_dirs=args.prune_metrics_dir)
+    return run_prune(model, args.model_type, dataset, optimizer, criterion,dataloaders,device,max_thresh=68, min_thresh=20, prune_iters = args.prune_iters, prune_metrics_dirs=args.prune_metrics_dir)
     
 #running the expls using the already finetuned and precreated masks from before
 def run_prune(

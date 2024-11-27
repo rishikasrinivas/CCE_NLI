@@ -127,8 +127,6 @@ class BaseModel(torch.nn.Module):
 
         # Initializes some class members
         self.layers = None
-        self.init_weights=torch.load(settings.MODEL)['state_dict']
-
         
 
     def initialize(self) -> None:

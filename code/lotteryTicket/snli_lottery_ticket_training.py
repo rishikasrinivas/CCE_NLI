@@ -32,6 +32,7 @@ import wandb_utils
 sys.path.append("Analysis/")
 import pipelines as pipelines
 
+from transformers import BertTokenizer, BertModel, AdamW, get_linear_schedule_with_warmup
 
 
 def main(args):
@@ -85,7 +86,7 @@ def main(args):
 def run_prune(model, model_type, dataset, optimizer, criterion,device, max_thresh, min_thresh, prune_iters, prune_metrics_dirs, ft_epochs, train,val,test,dataloaders):
     pruned_percents=[]
     final_accs=[]
-    base_ckpt=torch.load(f"models/snli/{model_type}_random_inits") 
+    base_ckpt=torch.load(f"models/snli/{model_type}_random_inits.pth") 
     final_weights = model.mlp[0].weight.detach().numpy()
     
     model.to(device)
@@ -106,8 +107,9 @@ def run_prune(model, model_type, dataset, optimizer, criterion,device, max_thres
         bfore=0
         print("Bfore pruning: % pruned is: ", bfore)
         if prune_iter > 0:
-            
+            ft_epochs=5
             model=model.prune() #PRUNE# SAVE PRUNE MASK
+        
             
         prune_metrics_dir = os.path.join(prune_metrics_dirs,"Run1", f"{prune_iter}_Pruning_Iter")
         if not os.path.exists(prune_metrics_dir):
@@ -122,7 +124,7 @@ def run_prune(model, model_type, dataset, optimizer, criterion,device, max_thres
                 continue
             bfore=(torch.where(l.pruning_mask.detach() == 0,1,0).sum().item() / model.get_total_num_weights())
             print("before pruning: : ", bfore)'''
-        model, final_weights, _= train_utils.finetune_pruned_model(model, optimizer,criterion, train, val, dataloaders,ft_epochs, prune_metrics_dir, device) #FINETUNE
+        model, final_weights, _= train_utils.finetune_pruned_model(model,model_type, optimizer,criterion, train, val, dataloaders,ft_epochs, prune_metrics_dir, device) #FINETUNE
         
         bfore=0
         for layer in model.layers:
@@ -158,7 +160,7 @@ def parse_args():
     )
 
    
-    parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/LH/BERT")
+    parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/LH/bowman")
     parser.add_argument("--model_dir", default="exp/snli/model_dir")
     parser.add_argument("--store_exp_bkdown", default="exp/snli_1.0_dev-6-sentence-5/")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal", "bert"])
