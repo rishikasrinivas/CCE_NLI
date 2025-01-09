@@ -379,7 +379,7 @@ class BowmanEntailmentClassifier(BaseModel):
         
         self.initialize()
         
-        self.p=Pruner(self)
+        self.p = Pruner(self)
         
         
     def forward(self, s1, s1len, s2, s2len):
@@ -403,6 +403,7 @@ class BowmanEntailmentClassifier(BaseModel):
         if layer == 'default':
             layer = self.mlp[:-1]
         return prune.is_pruned(layer)
+    
     def prune(self):
         self.p.prune()
         return self

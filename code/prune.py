@@ -35,7 +35,7 @@ class Pruner:
     
     def prune(self):
         for layername in self.model.get_layer_names():
-            if self.pruning_percents[layername] == 0.0:
+            if layername not in self.pruning_percents or self.pruning_percents[layername] == 0.0:
                 continue
             layer=self.model.get_layer(layername)
             shape=layer.pruning_mask.shape

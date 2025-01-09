@@ -55,7 +55,7 @@ def pad_collate(batch):
     s1, s1len, s2, s2len, label = zip(*batch)
     label = torch.tensor(label)
 
-    s1_pad = pad_sequence(s1, padding_value=1)
+    s1_pad = pad_sequence(s1, padding_value=1) #takes 10,000x longest sent length and flips to longest*10,000 which is then batched
     s1len = torch.tensor(s1len)
 
     s2_pad = pad_sequence(s2, padding_value=1)

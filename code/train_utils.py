@@ -165,6 +165,8 @@ def finetune_pruned_model(model,model_type, optimizer,criterion, train, val, dat
     metrics[f"val_acc"]=[]
     fw_old=model.mlp[0].weight.detach().cpu().numpy().copy()
     print("Bfore finetune In function finetune final weights pruned ", torch.where(torch.tensor(fw_old)==0,1,0).sum()/(2048*1024))
+    
+    print("Finetuning for ", finetune_epochs)
     for epoch in range(finetune_epochs):
         train_metrics = run(
             "train", epoch, model, model_type, optimizer, criterion, dataloaders, finetune_epochs, device
