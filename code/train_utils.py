@@ -228,8 +228,7 @@ def load_model(max_data, model_type, train, ckpt=None, device='cuda'):
     if ckpt:
         if type(ckpt) == str:
             ckpt = torch.load(ckpt)
-        #model.load_state_dict(ckpt["state_dict"])
-        model.initialize()
+        model.load_state_dict(ckpt["state_dict"])
     else:
         util.save_checkpoint(
                 serialize(model, model_type, train), False, settings.PRUNE_METRICS_DIR, filename=f"{model_type}_random_inits.pth"
