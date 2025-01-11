@@ -28,9 +28,7 @@ import importlib.util
 import train_utils
 sys.path.append("Analysis/")
 import pipelines as pipelines
-#import wandb_utils
-sys.path.append("Analysis/")
-import pipelines as pipelines
+from prune import Pruner
 
 from transformers import BertTokenizer, BertModel, AdamW, get_linear_schedule_with_warmup
 
@@ -42,11 +40,12 @@ def main(args):
         max_data = None
         
     train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data)
-    print(len(train))
-    model = train_utils.load_model(max_data=max_data, model_type=args.model_type, train=train, ckpt=None)#args.ckpt)
-    base_ckpt=torch.load(f"models/snli/{args.model_type}_random_inits.pth") 
+    model = train_utils.load_model(max_data=max_data, model_type=args.model_type, train=train, ckpt=args.ckpt)
+    
+    
     
     # ==== BUILD VOCAB ====
+    base_ckpt=torch.load(args.ckpt)
     vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
 
     with open(settings.DATA, "r") as f:
@@ -67,8 +66,10 @@ def main(args):
         device='cpu'
     model.to(device)
     
+    pruner = Pruner(model)
     return run_prune(
         model,
+        pruner,
         args, 
         base_ckpt,
         dataset,
@@ -82,30 +83,32 @@ def main(args):
     )
     
 #running the expls using the already finetuned and precreated masks from before
-def run_prune(model, args, base_ckpt, dataset, optimizer, criterion, device, train, val, test, dataloaders):
-    pruned_percents=[]
-    final_accs=[]
-    final_weights = model.mlp[0].weight.detach().cpu().numpy()
+def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, test, dataloaders):
+    pruned_percents, final_accs, final_weights =[], [], model.mlp[0].weight.detach().cpu().numpy()
     
-    for prune_iter in tqdm(range(args.prune_iters)):
+    for prune_iter in tqdm(range(0, args.prune_iters)):
         print(f"==== PRUNING ITERATION {prune_iter}/{args.prune_iters+1} ====")
         
-        model.load_state_dict(base_ckpt['state_dict']) # RELOAD RANDOM WEIGHTS
+        #Apply pruning mask to init weights
+        for layer in base_ckpt['state_dict'].keys():
+            try:
+                base_ckpt['state_dict'][layer] *= model.get_layer(layer).pruning_mask.cpu()
+            except:
+                continue
+                
+        model.load_state_dict(base_ckpt['state_dict']) # RELOAD INIT WEIGHTS (W/ APPLIED PRUNING MASK)                 
         
         if args.model_type=='bert':
-             optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8)  # AdamW optimizer is recommended for BERT
+            optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8)  # AdamW optimizer is recommended for BERT
         else:
             optimizer = optim.Adam(model.parameters())
             
         criterion = nn.CrossEntropyLoss()
         model.cuda()
         
-       
-        bfore=0
-        print("Bfore pruning: % pruned is: ", bfore)
         if prune_iter > 0:
             ft_epochs = int(args.finetune_epochs/2)
-            model=model.prune() #PRUNE# SAVE PRUNE MASK
+            model = pruner.prune() #PRUNE AND SAVE PRUNE MASK
         else:
             ft_epochs = args.finetune_epochs
         
@@ -116,33 +119,10 @@ def run_prune(model, args, base_ckpt, dataset, optimizer, criterion, device, tra
             os.makedirs(prune_metrics_dir,exist_ok=True)
             os.makedirs(prune_metrics_dir,exist_ok=True)
             
+        #finetune
         model, final_weights, _= train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, train, val, dataloaders, ft_epochs, prune_metrics_dir, device) #FINETUNE
         
-        #debug: verifying pruning
-        bfore=0
-        for layer in model.layers:
-            l = model.get_layer(layer.name)
-            if layer.name not in settings.PRUNE or settings.PRUNE[layer.name]==0.0:
-                continue
-            bfore+=torch.where(l.weights.detach() == 0,1,0).sum().item()
-            pm = l.pruning_mask.detach()
-            print("Pruning Mask for layer ", l,  torch.where(pm == 0,1,0).sum().item() / (pm.shape[0]*pm.shape[1]))
-            
-        #debug:   
-        layer = model.get_layer("mlp.0.weight")
-        final_weights_pruned = (torch.where(layer.weights==0,1,0).sum().item()/(layer.weights.shape[0] * layer.weights.shape[1]))
-        final_weights_pruned = np.round(final_weights_pruned,4)
-        print("After pruning: Final_wegihts prune% is: ", final_weights_pruned)
-        
-        #calcing percent pruned
-        acc=train_utils.run_eval(model, dataloaders['val'])
-        print(f"Accuracy: {acc}")
-        pruned_percents.append(final_weights_pruned)
-        final_accs.append(acc)
-        
-        
-        assert(torch.equal(model.mlp[0].weight.detach().cpu(), torch.tensor(final_weights)))
-        
+        #stop pruning after max_thresh
         if final_weights_pruned >= args.max_thresh: break
     return pruned_percents, final_accs
 

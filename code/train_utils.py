@@ -155,16 +155,10 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
     return {"loss": loss_meter.avg, "acc": acc_meter.avg}
 
 def finetune_pruned_model(model,model_type, optimizer,criterion, train, val, dataloaders, finetune_epochs, prune_metrics_dir,device):
-    metrics = defaultdict(list)
-    metrics["best_val_acc"]=0.0
-    metrics["best_val_epoch"] = 0
-    metrics["best_val_loss"] = np.inf
-    metrics[f"train_loss"]=[]
-    metrics[f"train_acc"]=[]
-    metrics[f"val_loss"]=[]
-    metrics[f"val_acc"]=[]
+    metrics = {"best_val_acc": 0.0, "best_val_epoch": 0, "best_val_loss": np.inf, "train_loss": [], "train_acc": [], "val_loss": [], "val_acc": []}
+    
     fw_old=model.mlp[0].weight.detach().cpu().numpy().copy()
-    print("Bfore finetune In function finetune final weights pruned ", torch.where(torch.tensor(fw_old)==0,1,0).sum()/(2048*1024))
+    print("Bfore finetune In function finetune final weights pruned ", torch.where(torch.tensor(fw_old)==0,1,0).sum()/(fw_old.shape[1]*fw_old.shape[0]))
     
     print("Finetuning for ", finetune_epochs)
     for epoch in range(finetune_epochs):
@@ -225,6 +219,7 @@ def build_model(vocab_size, model_type, vocab, embedding_dim=300, hidden_dim=512
 
 def load_model(max_data, model_type, train, ckpt=None, device='cuda'):
     model = build_model(vocab_size=len(train.stoi), model_type=model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512)
+    
     if ckpt:
         if type(ckpt) == str:
             ckpt = torch.load(ckpt)

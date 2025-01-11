@@ -1,13 +1,41 @@
 import collections,torch,settings
 import numpy as np
+import torch.nn as nn
 class Pruner:
     def __init__(self,model):
         self.model=model
-        self.pruning_percents=settings.PRUNE
-        
-        self.pruning_masks=collections.defaultdict()
-        for name, weights in self.model.named_parameters():
-            self.pruning_masks[name]=torch.ones(weights.shape)
+        self.prunable_layers = collections.defaultdict()
+        for layername, module in self.find_layers(self.model, self.model).items():
+            layername += ".weight"
+            if 'mlp.3' not  in layername:
+                self.prunable_layers[layername] = 0.2
+                
+                
+                
+            
+            
+            
+    def find_layers(self, model, module, layers=[nn.Linear], name=''):
+    
+        """
+        Recursively find the layers of a certain type in a module.
+
+        Args:
+            module (nn.Module): PyTorch module.
+            layers (list): List of layer types to find.
+            name (str): Name of the module.
+
+        Returns:
+            dict: Dictionary of layers of the given type(s) within the module.
+        """
+        if type(module) in layers:
+            return {name: module}
+        res = {}
+        for name1, child in module.named_children():
+            res.update(self.find_layers(
+                model, child, layers=layers, name=name + '.' + name1 if name != '' else name1
+            ))
+        return res
     
     def prune_by_percent_once(self,percent, mask, final_weight, reverse=False):
             # Put the weights that aren't masked out in sorted order.
@@ -16,7 +44,6 @@ class Pruner:
             if reverse:
                 sorted_weights = np.sort(np.abs(final_weight[mask == 1]))[::-1]
             else:
-                print(mask)
                 sorted_weights = np.sort(np.abs(final_weight[mask == 1]))
 
             # Determine the cutoff for weights to be pruned.
@@ -34,12 +61,15 @@ class Pruner:
             return new_mask, new_weights
     
     def prune(self):
-        for layername in self.model.get_layer_names():
-            if layername not in self.pruning_percents or self.pruning_percents[layername] == 0.0:
+        
+        for layername in self.prunable_layers:
+            if layername  not in self.model.get_layer_names() or self.prunable_layers[layername] == 0.0:
+                print("Skipped ", layername, " because not in ", self.model.get_layer_names())
                 continue
+                
             layer=self.model.get_layer(layername)
             shape=layer.pruning_mask.shape
-            new_mask, new_weights = self.prune_by_percent_once(self.pruning_percents[layername], layer.pruning_mask.flatten(), layer.weights.detach().cpu().reshape(-1), reverse=False)
+            new_mask, new_weights = self.prune_by_percent_once(self.prunable_layers[layername], layer.pruning_mask.flatten(), layer.weights.detach().cpu().reshape(-1), reverse=False)
             
             new_weights=new_weights.reshape(shape)
             new_mask=new_mask.reshape(shape)
@@ -52,9 +82,7 @@ class Pruner:
             la=self.model.get_layer(la)
             if len(list(la.weights.shape)) <= 1:
                 continue
-            print("Pruned at end ", la.name, ",  ", torch.where(la.pruning_mask==0,1,0).sum()/(la.weights.shape[0] * la.weights.shape[1]))
+            #print("Pruned at end ", la.name, ",  ", torch.where(la.pruning_mask==0,1,0).sum()/(la.weights.shape[0] * la.weights.shape[1]))
             
         return self.model
-    def get_mask(self,layer):
-        return self.pruning_masks[layer]
         
