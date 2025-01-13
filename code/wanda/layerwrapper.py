@@ -9,10 +9,16 @@ class WrappedGPT:
 
     def __init__(self, layer, layer_id=0, layer_name="none"):
         self.layer = layer
-        self.dev = self.layer.weight.device
-        self.rows = layer.weight.data.shape[0]
-        self.columns = layer.weight.data.shape[1]
-        self.scaler_row = torch.zeros((self.columns), device=self.dev)
+        if layer_name=='lstm':
+            self.dev = self.layer.weight_ih_l0.device
+            self.rows = layer.weight_ih_l0.data.shape[0]
+            self.columns = layer.weight_ih_l0.data.shape[1]
+            self.scaler_row = torch.zeros((self.columns), device=self.dev)
+        else:
+            self.dev = self.layer.weight.device
+            self.rows = layer.weight.data.shape[0]
+            self.columns = layer.weight.data.shape[1]
+            self.scaler_row = torch.zeros((self.columns), device=self.dev)
         self.nsamples = 0
 
         self.layer_id = layer_id 
@@ -22,7 +28,7 @@ class WrappedGPT:
         if len(inp.shape) == 2:
             inp = inp.unsqueeze(0)
         tmp = inp.shape[0]
-        if isinstance(self.layer, nn.Linear):
+        if isinstance(self.layer, nn.Linear) or isinstance(self.layer, nn.LSTM) :
             if len(inp.shape) == 3:
                 inp = inp.reshape((-1, inp.shape[-1]))
             inp = inp.t()

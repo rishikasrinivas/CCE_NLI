@@ -17,7 +17,7 @@ def get_model(model_name, ckpt):
     train,val,test,dataloaders=train_utils.create_dataloaders(max_data=10000)
 
     model = train_utils.load_model(10000, model_name, train, ckpt=ckpt, device='cuda')
-
+ 
     torch.save(model.state_dict(), "Results/bert_not_prunedby_wanda.pth")
 
 
@@ -79,10 +79,17 @@ def main():
 
     device = torch.device("cuda:0")
     
-    wanda.prune_wanda(args, model, dataloaders, device, prune_n=prune_n, prune_m=prune_m)
+    eval_test = train_utils.run_eval(model, dataloaders['val'])
     
+    print(f"NLI Eval: {eval_test}")
+    
+    wanda.prune_wanda(args, model, 'enc', dataloaders, device, prune_n=prune_n, prune_m=prune_m)
+    wanda.prune_wanda(args, model, 'mlp', dataloaders, device, prune_n=prune_n, prune_m=prune_m)
+    torch.save(model.state_dict(), f"models/snli/finalbowman.pth")
+    
+
     prune_utils.run_expls(args, model, dataset, optimizer, criterion, dataloaders, device)
-    eval_test = train_utils.run_eval(model, dataloaders['val'], device)
+    eval_test = train_utils.run_eval(model, dataloaders['val'])
     
     print(f"NLI Eval: {eval_test}")
 

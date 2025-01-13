@@ -8,7 +8,7 @@ import util, train_utils
 
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
-def find_layers(model, module, layers=[nn.Linear], name=''):
+def find_layers(model, module, layers=[nn.Linear, nn.LSTM], name=''):
     
     """
     Recursively find the layers of a certain type in a module.
@@ -64,75 +64,76 @@ def check_sparsity(model, args):
     return float(count)/total_params 
 
 
-def get_inputs_bert(model, embedder, dataloader, input_string, dtype, device):
-    inps = torch.zeros((100, 100, 768), dtype=dtype, device=device)
+def get_inputs_bert(model, embedder, dataloader, dtype, device):
+    inps = torch.zeros((200, 100, 768), dtype=dtype, device=device)
     attention_mask = torch.zeros((100, 100, model.seqlen), dtype=dtype, device=device)
     inps.requires_grad = False
     for batch in dataloader:
         try:
             s1, s1len, s2, s2len, target = batch #s1 is longest sent x 100 since batch size is 100
+            
+            #storing embedding for s1
             s1 = s1.to(device)
+            s1_tokens = model.indices_to_bert_tokens(s1.transpose(1,0))
+            s1_tokens = {k: v.to(device) for k, v in s1_tokens.items()}
+            s1_tokens_embed = embedder(s1_tokens['input_ids'])
+            inps[i][:s1_tokens_embed.shape[0], :]= s1_tokens_embed[:, 0, :]
+            attention_mask[i][:s1_tokens['attention_mask'].shape[0], :] = s1_tokens['attention_mask']
+            i+=1  
+            
+            #storing embedding for s2
             s2 = s2.to(device)
-            if input_string == 's1':
-                s1_tokens = model.indices_to_bert_tokens(s1.transpose(1,0))
-                s1_tokens = {k: v.to(device) for k, v in s1_tokens.items()}
-
-                s1_tokens_embed = embedder(s1_tokens['input_ids'])
-
-                inps[i][:s1_tokens_embed.shape[0], :]= s1_tokens_embed[:, 0, :]
-                attention_mask[i][:s1_tokens['attention_mask'].shape[0], :] = s1_tokens['attention_mask']
-            elif input_string == 's2':
-                s2_tokens = model.indices_to_bert_tokens(s2.transpose(1,0))
-                s2_tokens = {k: v.to(device) for k, v in s2_tokens.items()}
-                s2_tokens = embedder(**s2_tokens)
-
-                inps[i]= s2_tokens['input_ids']
-                attention_mask[i] = s2_tokens['attention_mask']
+            s2_tokens = model.indices_to_bert_tokens(s2.transpose(1,0))
+            s2_tokens = {k: v.to(device) for k, v in s2_tokens.items()}
+            s2_tokens = embedder(**s2_tokens)
+            inps[i]= s2_tokens['input_ids']
+            attention_mask[i] = s2_tokens['attention_mask']
+            
             i+=1
         except ValueError:
             print("Caught ValueError")  
         outs = torch.zeros_like(inps)
         attention_mask = cache['attention_mask']
         position_ids = cache['position_ids']
-    return inps, outs, None, attention_mask, position_ids
+    return inps, outs, attention_mask, position_ids
 
-def get_inputs_bowman(model,seg, dataloader,input_string, dtype, device):
-    inps = torch.zeros((100, 100, 300), dtype=dtype, device=device)
-    lengths = torch.zeros((100, 100), dtype=dtype, device=device)
+def get_inputs_bowman(model,embedder, dataloader, dtype, device):
+    inps = torch.zeros((200, 100, 300), dtype=dtype, device=device)
+    lengths = torch.zeros((200, 100), dtype=dtype, device=device)
     inps.requires_grad = False
     i=0
     for batch in dataloader:
         try:
             s1, s1len, s2, s2len, target = batch #s1 is longest sent x 100 since batch size is 100
-            s1 = s1.to(device)
-            s2 = s2.to(device)
             
-            if input_string == 's1':
-                s1_enc= model.encoder.emb(s1)
-                spk = pack_padded_sequence(s1_enc, s1len.cpu(), enforce_sorted=False)
-                unpacked_tensor, lengths = nn.utils.rnn.pad_packed_sequence(
-                    spk,
-                    batch_first=True  # depending on your desired format
-                )
-                print(lengths.shape, unpacked_tensor.shape)
-                inps[:lengths.shape,:unpacked_tensor.shape[1], :]=unpacked_tensor 
-               
-                
-            elif input_string == 's2':
-                s2_enc= model.encoder.emb(s2)
-                spk = pack_padded_sequence(s2_enc, s2len.cpu(), enforce_sorted=False)
-                unpacked_tensor, lengths = nn.utils.rnn.pad_packed_sequence(
-                    spk,
-                    batch_first=True  # depending on your desired format
-                )
-                print(lengths.shape, unpacked_tensor.shape)
-                inps[:lengths.shape,:unpacked_tensor.shape[1], :]=unpacked_tensor 
-               
+            #storing embedding for s1
+            s1 = s1.to(device) # the tokenixation for the batch in the format max_length_across_all_sentenes-in-batch x 100
+            s1_enc= model.encoder.emb(s1) #encodes it into a 1x300 vector making the ouput max_length_across_all_sentenes-in-batch x 100 x 300
+            spk_s1 = pack_padded_sequence(s1_enc, s1len.cpu(), enforce_sorted=False) #removes all padding making it total-num-tokens-in-batch x 300
+            unpacked_tensor_s1, lengths_s1 = nn.utils.rnn.pad_packed_sequence(
+                spk_s1,
+                batch_first=True  # depending on your desired format this batching first makes sure it goes from max_length*100 to 100*max_length
+            ) #unpacks to resotre the original 100 x max_length_across_all_sentenes-in-batch expected format
+            inps[:lengths_s1.shape[0], :unpacked_tensor_s1.shape[1], :] = unpacked_tensor_s1 
+            i+=1 
+            
+            #storing embedding for s2
+            s2 = s2.to(device)
+            s2_enc= model.encoder.emb(s2)
+            spk_s2 = pack_padded_sequence(s2_enc, s2len.cpu(), enforce_sorted=False)
+            unpacked_tensor_s2, lengths_s2 = nn.utils.rnn.pad_packed_sequence(
+                spk_s2,
+                batch_first=True  # depending on your desired format
+            )
+            inps[:lengths_s2.shape[0], :unpacked_tensor_s2.shape[1], :] = unpacked_tensor_s2 
             i+=1
+            
         except ValueError:
             print("Caught ValueError")  
-        outs = torch.zeros_like(inps)
-    return inps, lengths, outs
+        outs = lengths = torch.zeros((200, 100, 512), dtype=dtype, device=device)
+        
+        #NEED TO USE LENGTHS AS NEEDED 
+    return inps, outs, lengths
 
 def get_bert_encodings(model, embedder, s1, s2):
     s1_tokens = model.indices_to_bert_tokens(s1.transpose(1,0))
@@ -183,7 +184,7 @@ def get_inputs_mlp(model, embedder, args, dataloader, dtype, device):
     position_ids = None
     return inps, outs, attention_mask, position_ids
                         
-def prepare_calibration_input(model, args, dataloader, input_string, embedder, device):
+def prepare_calibration_input(model, args, seg, dataloader, embedder, device):
     if args.model_type == 'bert':
         use_cache = model.config.use_cache
         model.config.use_cache = False
@@ -192,15 +193,15 @@ def prepare_calibration_input(model, args, dataloader, input_string, embedder, d
     dtype = next(iter(model.parameters())).dtype
 
     model = model.to(device)
-    lengths=None
+    lengths, attention_mask, position_ids = None, None, None
     
     # Add more debug
     print("Starting data loop")
-    if args.seg == 'enc':
+    if seg == 'enc':
         if args.model_type == 'bert':
-            inps, outs, attention_mask, position_ids = get_inputs_bert(model, embedder, dataloader, 's1', dtype, device)
+            inps, outs, attention_mask, position_ids = get_inputs_bert(model, embedder, dataloader, dtype, device)
         elif args.model_type == 'bowman':
-            inps, lengths, outs = get_inputs_bowman(model,args.seg, dataloader, 's1', dtype, device) 
+            inps, outs, lengths = get_inputs_bowman(model, None, dataloader, dtype, device) 
     else: #layer==mlp
         inps, outs, attention_mask, position_ids = get_inputs_mlp(model, embedder, args, dataloader, dtype, device)
     
@@ -219,7 +220,7 @@ def get_embedder(model):
         return module
 
 
-def prune_wanda(args, model, dataloader, device=torch.device("cuda:0"), prune_n=0, prune_m=0):
+def prune_wanda(args, model, seg, dataloader, device=torch.device("cuda:0"), prune_n=0, prune_m=0):
     if args.model_type == 'bert':
         use_cache = model.config.use_cache 
         model.config.use_cache = False 
@@ -230,46 +231,58 @@ def prune_wanda(args, model, dataloader, device=torch.device("cuda:0"), prune_n=
     print("dataset loading complete")
     embedder = get_embedder(model)
     with torch.no_grad():
-        inps, outs, lengths, attention_mask, position_ids = prepare_calibration_input(model, args, dataloaders,'s1',embedder, device)
+        inps, outs, lengths, attention_mask, position_ids = prepare_calibration_input(model, args, seg, dataloaders, embedder, device)
+    
+    
+    nsamples = len(inps)
+    
+    if args.model_type == 'bowman':
+        layers = [model.encoder.rnn]  
+    elif args.model_type == 'bert':
+        layers = model.encoder.encoder.layer
+    
+    if seg == 'mlp':
+        layers = model.mlp
 
-    layers = model.mlp #model.encoder.encoder.layer
-    print(layers)
-    for layer in layers: #[0] for mlp
+    for layer in layers: 
         #get all the layers
         subset=find_layers(model, layer)
-        print(layer)
-        if layer == 'rnn':
-            inps = nn.utils.rnn.pack_padded_sequence(
-                inps,
-                lengths.cpu(),  # lengths must be on CPU
-                batch_first=True,  # if your tensor is [batch, seq, features]
-                enforce_sorted=False  # set True if sequences are sorted by length
-            )
+        print(subset)
+        #if args.model_type=='bowman' and args.seg=='enc':
+        #    inps = nn.utils.rnn.pack_padded_sequence(
+        #       inps,
+        #       lengths.cpu(),  # lengths must be on CPU
+        #       batch_first=True,  # if your tensor is [batch, seq, features]
+        #       enforce_sorted=False  # set True if sequences are sorted by length
+        #   )
 
         
         if not subset:
+            print("Continuing")
             continue
         
         
         #inps, outs, attention_mask, position_ids = inps.to(device), outs.to(device), attention_mask.to(device), position_ids.to(device)
         inps, outs  = inps.to(device), outs.to(device)
         
-        #TODO; need to find either how to pass in the layer obj with the weight and prune or w\how to modify LAYER class
         wrapped_layers = {}
         for name in subset:
-            wrapped_layers[subset[name]] = WrappedGPT(subset[name])
+            wrapped_layers[subset[name]] = WrappedGPT(subset[name], layer_name = 'lstm' if args.model_type == 'bowman' and seg=='enc' else 'linear')
 
         def add_batch(name):
             def tmp(_, inp, out):
-                wrapped_layers[name].add_batch(inp[0].data, out.data)
+                if args.model_type == 'bowman' and seg == 'enc':
+                    wrapped_layers[name].add_batch(inp[0].data, out[0].data)
+                else:
+                    wrapped_layers[name].add_batch(inp[0].data, out.data)
             return tmp
 
         handles = []
         for name in wrapped_layers:
             handles.append(name.register_forward_hook(add_batch(name)))
-        for j in range(args.nsamples):
+            
+        for j in range(nsamples):
             with torch.no_grad():
-               
                 input_tmp = inps[j].unsqueeze(0)
                 outs[j] = layer(input_tmp)[0]
                     
@@ -282,7 +295,10 @@ def prune_wanda(args, model, dataloader, device=torch.device("cuda:0"), prune_n=
         for name in subset:
             print(f"pruning layer {type(layer)} name {name}, {subset[name]}")
             subset_value = subset[name]
-            W_metric = torch.abs(subset_value.weight.data) * torch.sqrt(wrapped_layers[subset_value].scaler_row.reshape((1,-1)))
+            if args.model_type == 'bowman' and seg == 'enc':
+                W_metric = torch.abs(subset_value.weight_ih_l0.data) * torch.sqrt(wrapped_layers[subset_value].scaler_row.reshape((1,-1)))
+            else:
+                W_metric = torch.abs(subset_value.weight.data) * torch.sqrt(wrapped_layers[subset_value].scaler_row.reshape((1,-1)))
 
             W_mask = (torch.zeros_like(W_metric) == 1)  ## initialize a mask to be all False
             if prune_n != 0:
@@ -317,16 +333,18 @@ def prune_wanda(args, model, dataloader, device=torch.device("cuda:0"), prune_n=
                     # unstructured pruning
                     indices = sort_res[1][:,:int(W_metric.shape[1]*args.sparsity_ratio)]
                     W_mask.scatter_(1, indices, True)
-
-            subset[name].weight.data[W_mask] = 0  ## set weights to zero 
+            if args.model_type == 'bowman' and seg == 'enc':
+                subset[name].weight_ih_l0.data[W_mask] = 0  ## set weights to zero 
+            else:
+                subset[name].weight.data[W_mask] = 0  ## set weights to zero 
             
         #passes the inps thru the lauer to get the inputs to thenext layer
-        for j in range(args.nsamples):
+        for j in range(nsamples):
             input_tmp = inps[j].unsqueeze(0)
             outs[j]= layer(input_tmp)[0]
               
         inps, outs = outs, inps
-        if args.seg == 'mlp':
+        if seg == 'mlp':
             break
     if args.model_type == 'bert':
         model.config.use_cache = use_cache 

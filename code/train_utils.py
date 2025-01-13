@@ -196,10 +196,8 @@ def finetune_pruned_model(model,model_type, optimizer,criterion, train, val, dat
     path_to_ckpt = os.path.join(prune_metrics_dir, f"model_best.pth")
     print(f"Loading best weights from {path_to_ckpt}")
     model.load_state_dict(torch.load(path_to_ckpt)['state_dict'])
-    fw=model.mlp[0].weight.detach().cpu()
-    print("After ft pruned weights: ", torch.where(fw==0,1,0).sum().item()/(2048*1024))
     
-    return model, model.mlp[0].weight.detach().cpu().numpy(), torch.load(path_to_ckpt)
+    return model
 
 
 def build_model(vocab_size, model_type, vocab, embedding_dim=300, hidden_dim=512):
@@ -247,6 +245,7 @@ def serialize(model,model_type, dataset):
     }
 
 def run_eval(model, val_loader):
+    model.cuda()
     model.eval()
     all_preds = []
     all_targets = []

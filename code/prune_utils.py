@@ -19,6 +19,15 @@ def make_folders(root_dir, prune_iter):
         os.makedirs(masks_after_finetuning_flder, exist_ok=True)
     return exp_after_finetuning_flder, masks_after_finetuning_flder
 
+def percent_pruned_weights(model):
+    final_weights_pruned = 0
+    for layer in model.layers:
+        if 'bias' in str(layer.name) or 'bn' in str(layer.name):
+            continue
+        layer = model.get_layer(layer.name)
+        final_weights_pruned += torch.where(layer.weights.detach() == 0,1,0).sum().item() / model.get_total_num_weights())
+    return final_weights_pruned
+
 
 def run_expls(
     args,

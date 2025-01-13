@@ -120,8 +120,10 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
             os.makedirs(prune_metrics_dir,exist_ok=True)
             
         #finetune
-        model, final_weights, _= train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, train, val, dataloaders, ft_epochs, prune_metrics_dir, device) #FINETUNE
+        model = train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, train, val, dataloaders, ft_epochs, prune_metrics_dir, device) #FINETUNE
         
+        
+        final_weights_pruned = percent_pruned_weights(model)
         #stop pruning after max_thresh
         if final_weights_pruned >= args.max_thresh: break
     return pruned_percents, final_accs
