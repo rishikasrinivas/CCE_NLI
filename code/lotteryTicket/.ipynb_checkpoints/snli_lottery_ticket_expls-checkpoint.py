@@ -69,8 +69,8 @@ def parse_args():
         description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
     )
 
-    parser.add_argument("--expls_mask_root_dir", default="exp/bert/lottery_ticket/Run1")
-    parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/LH/BERT/Run1")
+    parser.add_argument("--expls_mask_root_dir", default="expls/bert/lottery_ticket/Run1")
+    parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/lottery_ticket/BERT/Run1")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal", "bert"])
     parser.add_argument("--save_every", default=1, type=int)
     parser.add_argument("--max_thresh", default=0.95, type=float)

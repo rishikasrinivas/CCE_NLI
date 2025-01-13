@@ -87,7 +87,11 @@ def main():
     wanda.prune_wanda(args, model, 'mlp', dataloaders, device, prune_n=prune_n, prune_m=prune_m)
     torch.save(model.state_dict(), f"models/snli/finalbowman.pth")
     
-
+    
+    weights_pruned = prune_utils.percent_pruned_weights(model)
+    util.save_checkpoint(
+                train_utils.serialize(model, args.model_type, dataloader['train'].dataset), False, args.prune_metrics_dir, filename=f"{args.sparsity_ratio}_{weights_pruned}r/model_best.pth"
+        )
     prune_utils.run_expls(args, model, dataset, optimizer, criterion, dataloaders, device)
     eval_test = train_utils.run_eval(model, dataloaders['val'])
     

@@ -29,6 +29,7 @@ import train_utils
 sys.path.append("Analysis/")
 import pipelines as pipelines
 from prune import Pruner
+import prune_utils
 
 from transformers import BertTokenizer, BertModel, AdamW, get_linear_schedule_with_warmup
 
@@ -123,7 +124,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         model = train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, train, val, dataloaders, ft_epochs, prune_metrics_dir, device) #FINETUNE
         
         
-        final_weights_pruned = percent_pruned_weights(model)
+        final_weights_pruned = prune_utils.percent_pruned_weights(model)
         #stop pruning after max_thresh
         if final_weights_pruned >= args.max_thresh: break
     return pruned_percents, final_accs
@@ -136,9 +137,9 @@ def parse_args():
     )
 
    
-    parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/LH/bowman")
-    parser.add_argument("--model_dir", default="exp/snli/model_dir")
-    parser.add_argument("--store_exp_bkdown", default="exp/snli_1.0_dev-6-sentence-5/")
+    parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/lottery_ticket/bowman")
+    parser.add_argument("--model_dir", default="expls/snli/model_dir")
+    parser.add_argument("--store_exp_bkdown", default="expls/snli_1.0_dev-6-sentence-5/")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal", "bert"])
     parser.add_argument("--save_every", default=1, type=int)
     

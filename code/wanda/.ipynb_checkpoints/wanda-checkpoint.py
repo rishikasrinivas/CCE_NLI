@@ -349,8 +349,6 @@ def prune_wanda(args, model, seg, dataloader, device=torch.device("cuda:0"), pru
     if args.model_type == 'bert':
         model.config.use_cache = use_cache 
         
-    util.save_checkpoint(
-                train_utils.serialize(model, args.model_type, dataloader['train'].dataset), False, args.prune_metrics_dir, filename=f"0_Pruning_Iter/model_best.pth"
-        )
+    
     torch.cuda.empty_cache()
  
