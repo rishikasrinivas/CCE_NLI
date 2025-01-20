@@ -25,7 +25,7 @@ def percent_pruned_weights(model):
         if 'bias' in str(layer.name) or 'bn' in str(layer.name):
             continue
         layer = model.get_layer(layer.name)
-        final_weights_pruned += torch.where(layer.weights.detach() == 0,1,0).sum().item() / model.get_total_num_weights())
+        final_weights_pruned += torch.where(layer.weights.detach() == 0,1,0).sum().item() / model.get_total_num_weights()
     return final_weights_pruned
 
 
