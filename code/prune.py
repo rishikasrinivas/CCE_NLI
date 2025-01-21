@@ -6,16 +6,19 @@ class Pruner:
         self.model=model
         self.prunable_layers = collections.defaultdict()
         for layername, module in self.find_layers(self.model, self.model).items():
-            layername += ".weight"
+            if layername == 'encoder.rnn':
+                layername += '.weight_ih_l0'
+            else:
+                layername += ".weight"
             if 'mlp.3' not  in layername:
                 self.prunable_layers[layername] = 0.2
-                
+
                 
                 
             
             
             
-    def find_layers(self, model, module, layers=[nn.Linear], name=''):
+    def find_layers(self, model, module, layers=[nn.Linear, nn.Embedding, nn.LSTM], name=''):
     
         """
         Recursively find the layers of a certain type in a module.
@@ -78,11 +81,11 @@ class Pruner:
             
         #====Logging=======
             
-        for la in self.model.get_layer_names():
+        '''for la in self.model.get_layer_names():
             la=self.model.get_layer(la)
             if len(list(la.weights.shape)) <= 1:
                 continue
-            #print("Pruned at end ", la.name, ",  ", torch.where(la.pruning_mask==0,1,0).sum()/(la.weights.shape[0] * la.weights.shape[1]))
+            print("Pruned at end ", la.name, ",  ", torch.where(la.pruning_mask==0,1,0).sum()/(la.weights.shape[0] * la.weights.shape[1]))'''
             
         return self.model
         
