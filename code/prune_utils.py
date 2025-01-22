@@ -19,12 +19,15 @@ def make_folders(root_dir, prune_iter):
         os.makedirs(masks_after_finetuning_flder, exist_ok=True)
     return exp_after_finetuning_flder, masks_after_finetuning_flder
 
-def percent_pruned_weights(model):
-    final_weights_pruned = 0
+def percent_pruned_weights(model, layer_name=None):
+    if layer_name:
+        layer = model.get_layer(layer_name)
+        final_weights_pruned = torch.where(layer.weights.detach() == 0,1,0).sum().item() /(layer.weights.shape[0] * layer.weights.shape[1])
+        return final_weights_pruned
+ 
     for layer in model.layers:
-        if 'bias' in str(layer.name) or 'bn' in str(layer.name):
+        if 'bias' in str(layer.name) or 'bn' in str(layer.name) or layer.name == 'encoder.emb.weight':
             continue
-        print(layer.name)
         layer = model.get_layer(layer.name)
         final_weights_pruned = torch.where(layer.weights.detach() == 0,1,0).sum().item() /(layer.weights.shape[0] * layer.weights.shape[1])
         break
@@ -34,9 +37,7 @@ def percent_pruned_weights(model):
 def run_expls(
     args,
     model, 
-    dataset, 
-    optimizer, 
-    criterion, 
+    dataset,
     dataloaders,
     device, 
     ):
@@ -53,10 +54,9 @@ def run_expls(
     for prune_iter in tqdm(range(0,args.prune_iters)):
         print(f"==== PRUNING ITERATION {prune_iter}/{args.prune_iters+1} ====")
         
+        if f"{prune_iter}_Pruning_Iter" not in os.listdir(args.prune_metrics_dir): continue
+            
         prune_metrics_dir = os.path.join(args.prune_metrics_dir, f"{prune_iter}_Pruning_Iter")
-        if not os.path.exists(prune_metrics_dir):
-            os.makedirs(prune_metrics_dir,exist_ok=True)
-            os.makedirs(prune_metrics_dir,exist_ok=True)
         model.to(device)
         
         print(f"Loading from {prune_metrics_dir}/model_best.pth")

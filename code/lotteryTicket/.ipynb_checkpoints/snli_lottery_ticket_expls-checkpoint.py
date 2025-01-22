@@ -53,12 +53,9 @@ def main(args):
     
     dataset = analysis.AnalysisDataset(lines, vocab)
     
-    optimizer = optim.Adam(model.parameters())
-    criterion = nn.CrossEntropyLoss()
-    
     device = 'cuda' if settings.CUDA else 'cpu'
     
-    return prune_utils.run_expls(args, model,dataset, optimizer, criterion,dataloaders,device)
+    return prune_utils.run_expls(args, model,dataset, dataloaders,device)
     
 #running the expls using the already finetuned and precreated masks from before
 

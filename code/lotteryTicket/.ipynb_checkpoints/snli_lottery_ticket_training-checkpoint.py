@@ -123,7 +123,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         #finetune
         model = train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, train, val, dataloaders, ft_epochs, prune_metrics_dir, device) #FINETUNE
         
-        final_acc = run_eval(model, val)
+        final_acc = train_utils.run_eval(model, dataloaders['val'])
         
         
         final_weights_pruned = prune_utils.percent_pruned_weights(model)

@@ -3,7 +3,7 @@ import heapq
 import torch 
 import torch.nn as nn 
 from layerwrapper import WrappedGPT
-import util, train_utils
+import util, train_utils, prune_utils
 
 
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
@@ -220,7 +220,7 @@ def get_embedder(model):
         return module
 
 
-def prune_wanda(args, model, seg, dataloader, device=torch.device("cuda:0"), prune_n=0, prune_m=0):
+def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.device("cuda:0"), prune_n = 0, prune_m = 0):
     if args.model_type == 'bert':
         use_cache = model.config.use_cache 
         model.config.use_cache = False 
@@ -247,7 +247,7 @@ def prune_wanda(args, model, seg, dataloader, device=torch.device("cuda:0"), pru
     for layer in layers: 
         #get all the layers
         subset=find_layers(model, layer)
-        print(subset)
+  
         #if args.model_type=='bowman' and args.seg=='enc':
         #    inps = nn.utils.rnn.pack_padded_sequence(
         #       inps,
@@ -318,8 +318,8 @@ def prune_wanda(args, model, seg, dataloader, device=torch.device("cuda:0"), pru
                     alpha = 0.4
                     alpha_hist = [0., 0.8]
                     W_mask, cur_sparsity = return_given_alpha(alpha, sort_res, W_metric, tmp_metric, sum_before)
-                    while (torch.abs(cur_sparsity - args.sparsity_ratio)>0.001) and (alpha_hist[1]-alpha_hist[0]>=0.001):
-                        if cur_sparsity > args.sparsity_ratio:
+                    while (torch.abs(cur_sparsity - sparsity_ratio)>0.001) and (alpha_hist[1]-alpha_hist[0]>=0.001):
+                        if cur_sparsity > sparsity_ratio:
                             alpha_new = (alpha + alpha_hist[0]) / 2.0
                             alpha_hist[1] = alpha
                         else:
@@ -331,12 +331,14 @@ def prune_wanda(args, model, seg, dataloader, device=torch.device("cuda:0"), pru
                     print(f"alpha found {alpha} sparsity {cur_sparsity:.6f}")
                 else:
                     # unstructured pruning
-                    indices = sort_res[1][:,:int(W_metric.shape[1]*args.sparsity_ratio)]
+                    indices = sort_res[1][:,:int(W_metric.shape[1]*sparsity_ratio)]
                     W_mask.scatter_(1, indices, True)
             if args.model_type == 'bowman' and seg == 'enc':
                 subset[name].weight_ih_l0.data[W_mask] = 0  ## set weights to zero 
             else:
-                subset[name].weight.data[W_mask] = 0  ## set weights to zero 
+                subset[name].weight.data[W_mask] = 0  ## set weights to zero
+            
+            
             
         #passes the inps thru the lauer to get the inputs to thenext layer
         for j in range(nsamples):
@@ -346,8 +348,10 @@ def prune_wanda(args, model, seg, dataloader, device=torch.device("cuda:0"), pru
         inps, outs = outs, inps
         if seg == 'mlp':
             break
+    
     if args.model_type == 'bert':
-        model.config.use_cache = use_cache 
+        model.config.use_cache = use_cache
+        
         
     
     torch.cuda.empty_cache()

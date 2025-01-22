@@ -18,7 +18,7 @@ class Pruner:
             
             
             
-    def find_layers(self, model, module, layers=[nn.Linear, nn.Embedding, nn.LSTM], name=''):
+    def find_layers(self, model, module, layers=[nn.Linear, nn.LSTM], name=''):
     
         """
         Recursively find the layers of a certain type in a module.
