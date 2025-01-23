@@ -56,11 +56,12 @@ def main():
     else:
         max_data = None
     
-    prune_iter=1
-    for sparsity_ratio in settings.SPARSITY_RATIOS:
+ 
+    for i,sparsity_ratio in enumerate(settings.SPARSITY_RATIOS):
         os.makedirs(args.prune_metrics_dir, exist_ok=True)
-        os.makedirs(f"{args.prune_metrics_dir}/{sparsity_ratio:.2f}", exist_ok=True)
+        os.makedirs(f"{args.prune_metrics_dir}/{i+1}_Pruning_Iter", exist_ok=True)
         model,dataloaders = wanda_utils.get_model(args.model_type, args.ckpt)
+   
     
     # ==== BUILD VOCAB ====
         base_ckpt=torch.load(args.ckpt) #models/snli/bowman_random_inits.pth
@@ -95,7 +96,7 @@ def main():
         
         
         util.save_checkpoint(
-                    train_utils.serialize(model, args.model_type, dataloaders['train'].dataset), False, args.prune_metrics_dir,filename = f"{prune_iter}_Pruning_Iter/model_best.pth")
+                    train_utils.serialize(model, args.model_type, dataloaders['train'].dataset), False, args.prune_metrics_dir,filename = f"{i+1}_Pruning_Iter/model_best.pth")
         
         
         #prune_utils.run_expls(args, model, dataset, optimizer, criterion, dataloaders, device)
@@ -104,7 +105,7 @@ def main():
 
         print(f"After Pruning NLI Eval: {eval_test}")
         final_accs.append(eval_test)
-        prune_iter+=1
+      
     print("SPARSITIES: ", settings.SPARSITY_RATIOS )
     print("FINAL ACCS: ", final_accs)
 

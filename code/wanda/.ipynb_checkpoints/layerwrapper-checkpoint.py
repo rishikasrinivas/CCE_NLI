@@ -26,7 +26,7 @@ class WrappedGPT:
 
     def add_batch(self, inp, out):
         if len(inp.shape) == 2:
-            inp = inp.unsqueeze(0)
+            inp = inp.unsqueeze(0) 
         tmp = inp.shape[0]
         if isinstance(self.layer, nn.Linear) or isinstance(self.layer, nn.LSTM) :
             if len(inp.shape) == 3:

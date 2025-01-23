@@ -386,7 +386,6 @@ class BowmanEntailmentClassifier(BaseModel):
         s1enc = self.encoder(s1, s1len)
         s2enc = self.encoder(s2, s2len)
 
-        
         diffs = s1enc - s2enc
         prods = s1enc * s2enc
 

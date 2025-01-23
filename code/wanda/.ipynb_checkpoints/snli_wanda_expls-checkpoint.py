@@ -47,7 +47,7 @@ def main():
     
     
     for folder in os.listdir(args.prune_metrics_dir):
-        if folder ==  '.ipynb_checkpoints': continue
+        if folder ==  '.ipynb_checkpoints' or not folder[0].isdigit(): continue
         file_path = f"{args.prune_metrics_dir}/{folder}/model_best.pth"
         model,dataloaders = wanda_utils.get_model(args.model_type, file_path)
     
