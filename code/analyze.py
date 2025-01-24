@@ -844,11 +844,31 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, masks_saved, model_=None, dat
     
 from data.snli import SNLI
 def main():
-    os.makedirs(settings.RESULT, exist_ok=True)
+    from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+    import train_utils
+    from data import analysis
+    parser = ArgumentParser(
+        description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal", "bert"])
+   
+    parser.add_argument("--ckpt", default=settings.MODEL)
     
-    if args.default:
-        settings.NUM_CLUSTERS=1
-        states, weights = initiate_exp_run(save_exp_dir=settings.RESULT_EXP, save_masks_dir=settings.RESULT_MASK)
+    args = parser.parse_args()
+    train,_,_,dataloaders=train_utils.create_dataloaders(max_data=10000)
+    model = train_utils.load_model(max_data=10000, model_type=args.model_type, train=train, ckpt=args.ckpt)
+    
+    # ==== BUILD VOCAB ====
+    base_ckpt=torch.load(args.ckpt) #trained bowman/bert 
+    vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
+
+    with open(settings.DATA, "r") as f:
+        lines = f.readlines()
+    
+    dataset = analysis.AnalysisDataset(lines, vocab)
+    
+    device = 'cuda' if settings.CUDA else 'cpu'    
+    states, weights = initiate_exp_run(save_exp_dir = f"exp/random/expls/bowman",  save_masks_dir= f"exp/random/masks/bowman", masks_saved=False,model_=model, dataset=dataset)
     
     print("Load predictions")
     mbase = os.path.splitext(os.path.basename(settings.MODEL))[0]

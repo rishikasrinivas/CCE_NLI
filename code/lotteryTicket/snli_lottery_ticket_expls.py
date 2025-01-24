@@ -42,8 +42,6 @@ def main(args):
     train,_,_,dataloaders=train_utils.create_dataloaders(max_data=max_data)
     model = train_utils.load_model(max_data=max_data, model_type=args.model_type, train=train, ckpt=args.ckpt)
     
-    
-    
     # ==== BUILD VOCAB ====
     base_ckpt=torch.load(args.ckpt) #trained bowman/bert 
     vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
@@ -66,11 +64,11 @@ def parse_args():
         description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
     )
 
-    parser.add_argument("--expls_mask_root_dir", default="expls/bert/lottery_ticket/Run1")
+    parser.add_argument("--expls_mask_root_dir", default="exp/bert/lottery_ticket/Run1")
     parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/lottery_ticket/BERT/Run1")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal", "bert"])
     parser.add_argument("--save_every", default=1, type=int)
-    parser.add_argument("--max_thresh", default=0.95, type=float)
+    parser.add_argument("--max_thresh", default=95, type=float)
     
     parser.add_argument("--prune_epochs", default=10, type=int)
     parser.add_argument("--finetune_epochs", default=10, type=int)

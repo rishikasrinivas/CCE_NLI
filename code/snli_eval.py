@@ -83,12 +83,13 @@ def from_file(fpath):
 def main(args):
     print("using weights from ", settings.MODEL)
     nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger", "ner"])
-    ckpt = torch.load(settings.MODEL)
+    ckpt = torch.load("models/snli/bowman_trained_no_prune.pth")
     stoi = ckpt["stoi"]
-    
-
+    train,_,_,dataloaders=train_utils.create_dataloaders(max_data=10000)
     # ==== BUILD MODEL ====
-    model = train_utils.build_model(len(ckpt['stoi']), args.model_type)
+    model = train_utils.build_model(vocab_size=len(train.stoi), model_type=args.model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512)
+    
+    
     
 
     
@@ -96,38 +97,17 @@ def main(args):
 
     if settings.CUDA:
         model = model.cuda()
-    if args.debug:
-        max_data=1000
-    else:
-        max_data=10000
-    # ==== EVAL ON VAL SET ====
-    val = SNLI(
-        args.eval_data_path,
-        "test",
-        vocab=(ckpt['stoi'], ckpt['itos']),
-        max_data=None,
-        unknowns=True,
-    )
-    
-    test_loader = DataLoader(
-        val,
-        batch_size=100,
-        shuffle=False,
-        pin_memory=True,
-        num_workers=0,
-        collate_fn=data.snli.pad_collate,
-    )
+    val_loader = dataloaders['val']
     pruned_percents=[0.0,20.0,36.0,48.8,59.04,67.232,73.786,79.028,83.223,86.578,89.263,91.41,93.128,94.502,95.602]
-    weights_dir="models/snli/prune_metrics/LH/Run1/"
+    weights_dir="models/snli/prune_metrics/lottery_ticket/bowman/Run2_WithoutPruningEmbedding/"
     for i,direct in enumerate(os.listdir(weights_dir)):
-        if direct == '.ipynb_checkpoints':
+        if direct == '.ipynb_checkpoints' or not direct[0].isdigit():
             continue
         print(direct)
         model.load_state_dict(torch.load(weights_dir+direct+"/model_best.pth")['state_dict'])
-
         all_preds = []
         all_targets = []
-        for (s1, s1len, s2, s2len, targets) in test_loader:
+        for (s1, s1len, s2, s2len, targets) in val_loader:
             if settings.CUDA:
                 s1 = s1.cuda()
                 s1len = s1len.cuda()
@@ -148,29 +128,6 @@ def main(args):
         print(f"Val acc: {acc:.3f}")
 
 
-        # Save predictions
-        preds_file = f"Analysis/LHExpls/Run1/Expls{pruned_percents[i-1]}_Pruning_Iter/Min_Acts_500_No_Filters/Preds.csv"
-        if pruned_percents[i-1] < 92:
-            continue
-        print(weights_dir+direct+"/model_best.pth\n", preds_file)
-        gt_labels = [val.label_itos.get(i, "UNK") for i in val.labels]
-
-        preds = [val.label_itos[i] for i in all_preds]
-        hits = [i == j for i, j in zip(val.labels, all_preds)]
-        print(len(gt_labels), len(preds), len(hits))
-        ws=[]
-        for sent in test_loader.dataset:
-            for i in sent:
-                word=[]
-                if type(i) != torch.Tensor:
-                    continue
-                for w in i:
-                    word.append(ckpt['itos'][w.item()])
-                ws.append(" ".join(word))
-        print(len(ws))
-        ws=[ '\n'.join(x) for x in zip(ws[0::2], ws[1::2]) ]
-        preds_df = pd.DataFrame({'sentences': ws, "gt": gt_labels, "pred": preds, "correct": hits})
-        preds_df.to_csv(preds_file, index=False)
 
     # ==== INTERACTIVE ====
     

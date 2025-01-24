@@ -39,7 +39,7 @@ def run_expls(
     model, 
     dataset,
     dataloaders,
-    device, 
+    device
     ):
     
     '''
@@ -51,20 +51,13 @@ def run_expls(
     pruned_percents, final_accs = [], []
     
     
-    for prune_iter in tqdm(range(0,args.prune_iters)):
-        print(f"==== PRUNING ITERATION {prune_iter}/{args.prune_iters+1} ====")
-        
-        if f"{prune_iter}_Pruning_Iter" not in os.listdir(args.prune_metrics_dir): continue
-            
-        prune_metrics_dir = os.path.join(args.prune_metrics_dir, f"{prune_iter}_Pruning_Iter")
+    for prune_iter, prune_metrics_dir in enumerate(os.listdir(args.prune_metrics_dir)):
+        if not prune_metrics_dir[0].isdigit(): continue
         model.to(device)
         
         print(f"Loading from {prune_metrics_dir}/model_best.pth")
         model.load_state_dict(torch.load(f"{prune_metrics_dir}/model_best.pth")['state_dict']) #loading the already finetuned weights
         final_weights = model.mlp[0].weight.detach().cpu().numpy()
-        
-        
-        
         
         final_acc=train_utils.run_eval(model, dataloaders['val'])
         print(f"Accuracy: {final_acc}")
@@ -98,3 +91,34 @@ def run_expls(
         
         if final_weights_pruned >= args.max_thresh: break
     return  pruned_percents, final_accs
+
+
+def main():
+    if args.debug:
+        max_data = 1000
+    else:
+        max_data = None
+        
+    train,_,_,dataloaders=train_utils.create_dataloaders(max_data=max_data)
+    model = train_utils.load_model(max_data=max_data, model_type=args.model_type, train=train, ckpt=args.ckpt)
+    
+    # ==== BUILD VOCAB ====
+    base_ckpt=torch.load(args.ckpt) #trained bowman/bert 
+    vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
+
+    with open(settings.DATA, "r") as f:
+        lines = f.readlines()
+    
+    dataset = analysis.AnalysisDataset(lines, vocab)
+    
+    device = 'cuda' if settings.CUDA else 'cpu'
+
+    print(f"======RUNNING EXPLANATIONS WITH {settings.NUM_CLUSTERS} CLUSTERS")
+    _,final_layer_weights =initiate_exp_run(
+        save_exp_dir = f"exp/random/expls/bowman", 
+        save_masks_dir= f"exp/random/masks/bowman", 
+        masks_saved=False, 
+        model_=model,
+        dataset=dataset
+    )
+    

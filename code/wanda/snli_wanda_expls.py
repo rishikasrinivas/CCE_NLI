@@ -46,20 +46,20 @@ def main():
         max_data = None
     
     
-    for folder in os.listdir(args.prune_metrics_dir):
-        if folder ==  '.ipynb_checkpoints' or not folder[0].isdigit(): continue
-        file_path = f"{args.prune_metrics_dir}/{folder}/model_best.pth"
-        model,dataloaders = wanda_utils.get_model(args.model_type, file_path)
     
-    # ==== BUILD VOCAB ====
-        base_ckpt=torch.load(file_path) #models/snli/bowman_random_inits.pth
-        vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
+    file_path = f"models/snli/{args.model_type}_trained_no_prune.pth"
+    model,dataloaders = wanda_utils.get_model(args.model_type, file_path)
 
-        with open(settings.DATA, "r") as f:
-            lines = f.readlines()
+# ==== BUILD VOCAB ====
+    base_ckpt=torch.load(file_path) #trained but not pruned weights
+    vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
 
-        dataset = analysis.AnalysisDataset(lines, vocab)
-        prune_utils.run_expls(args, model,dataset, dataloaders,device='cuda')
+    with open(settings.DATA, "r") as f:
+        lines = f.readlines()
+
+    dataset = analysis.AnalysisDataset(lines, vocab)
+
+    prune_utils.run_expls(args, model,dataset, dataloaders,device='cuda')
         
         
         

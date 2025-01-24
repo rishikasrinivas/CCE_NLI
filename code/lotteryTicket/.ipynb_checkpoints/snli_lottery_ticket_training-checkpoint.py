@@ -115,7 +115,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         
             
         #create dir to store metrics for this pruning iteration
-        prune_metrics_dir = os.path.join(args.prune_metrics_dir,"Run1", f"{prune_iter}_Pruning_Iter")
+        prune_metrics_dir = os.path.join(args.prune_metrics_dir, f"{prune_iter}_Pruning_Iter")
         if not os.path.exists(prune_metrics_dir):
             os.makedirs(prune_metrics_dir,exist_ok=True)
             os.makedirs(prune_metrics_dir,exist_ok=True)
