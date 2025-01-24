@@ -99,7 +99,7 @@ def main(args):
         model = model.cuda()
     val_loader = dataloaders['val']
     pruned_percents=[0.0,20.0,36.0,48.8,59.04,67.232,73.786,79.028,83.223,86.578,89.263,91.41,93.128,94.502,95.602]
-    weights_dir="models/snli/prune_metrics/lottery_ticket/bowman/Run2_WithoutPruningEmbedding/"
+    weights_dir="models/snli/prune_metrics/wanda/bowman/"
     for i,direct in enumerate(os.listdir(weights_dir)):
         if direct == '.ipynb_checkpoints' or not direct[0].isdigit():
             continue
