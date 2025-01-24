@@ -8,7 +8,7 @@ import util, train_utils, prune_utils
 
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
-NUM_SAMPLES=100
+NUM_SAMPLES=200
 def find_layers(model, module, layers=[nn.Linear, nn.LSTM], name=''):
     
     """
