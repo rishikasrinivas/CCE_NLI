@@ -8,7 +8,7 @@ import util, train_utils, prune_utils
 
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
-NUM_SAMPLES=200
+NUM_SAMPLES=100
 def find_layers(model, module, layers=[nn.Linear, nn.LSTM], name=''):
     
     """
@@ -114,8 +114,6 @@ def get_inputs_bowman(model,embedder, dataloader, dtype, device):
     inps.requires_grad = False
     i=0
     for batch in dataloader:
-    
-        if i>=NUM_SAMPLES-1: break
         try:
             s1, s1len, s2, s2len, target = batch #s1 is longest sent x 100 since batch size is 100
 
@@ -176,9 +174,12 @@ def get_inputs_mlp(model, embedder, args, dataloader, dtype, device):
     i=0
     in_feats = model.mlp[0].in_features
     out_feats = model.mlp[0].out_features
-    inps = torch.zeros((1, 100, in_feats), dtype=dtype, device=device)
+    num_inps = NUM_SAMPLES/100 #100 is batch size
+    inps = torch.zeros((num_inps, 100, in_feats), dtype=dtype, device=device)
     inps.requires_grad = False
     for batch in dataloader:
+        if i == num_inps:
+            break
         try:
             s1, s1len, s2, s2len, target = batch #s1 is longest sent x 100 since batch size is 100
             s1 = s1.to(device)
@@ -200,8 +201,7 @@ def get_inputs_mlp(model, embedder, args, dataloader, dtype, device):
 
         except ValueError:
             print("Caught ValueError")  # Debug print '''
-        break
-    outs = torch.zeros(1,100,out_feats)
+    outs = torch.zeros(num_inps,100,out_feats)
     attention_mask = None
     position_ids = None
     return inps, outs, attention_mask, position_ids
