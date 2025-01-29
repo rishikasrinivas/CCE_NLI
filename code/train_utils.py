@@ -134,11 +134,6 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
                 if layer.weights.grad is not None:
                     layer.weights.grad *= layer.pruning_mask
             
-                    '''if layer.name == 'mlp.0.weight':
-                        print(layer.pruning_mask)
-                        assert(torch.equal(layer.weights.grad, model.mlp[0].weight.grad))
-                        print(layer.weights.grad, model.mlp[0].weight.grad, model.mlp[0].weight.grad.shape )'''
-                    
         
             optimizer.step()
             
@@ -156,11 +151,8 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
 
 def finetune_pruned_model(model,model_type, optimizer,criterion, train, val, dataloaders, finetune_epochs, prune_metrics_dir,device):
     metrics = {"best_val_acc": 0.0, "best_val_epoch": 0, "best_val_loss": np.inf, "train_loss": [], "train_acc": [], "val_loss": [], "val_acc": []}
+
     
-    fw_old=model.mlp[0].weight.detach().cpu().numpy().copy()
-    print("Bfore finetune In function finetune final weights pruned ", torch.where(torch.tensor(fw_old)==0,1,0).sum()/(fw_old.shape[1]*fw_old.shape[0]))
-    
-    print("Finetuning for ", finetune_epochs)
     for epoch in range(finetune_epochs):
         train_metrics = run(
             "train", epoch, model, model_type, optimizer, criterion, dataloaders, finetune_epochs, device
