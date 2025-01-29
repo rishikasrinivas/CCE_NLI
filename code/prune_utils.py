@@ -32,6 +32,7 @@ def percent_pruned_weights(model, layer_name=None):
         final_weights_pruned = torch.where(layer.weights.detach() == 0,1,0).sum().item() /(layer.weights.shape[0] * layer.weights.shape[1])
         break
     return final_weights_pruned
+
 def get_percent_pruned(model):
     final_weights = model.mlp[0].weight.detach().cpu().numpy()
     final_weights_pruned= np.round(100*torch.where(torch.tensor(final_weights) == 0,1,0).sum().item()/(model.mlp[0].weight.shape[0]*model.mlp[0].weight.shape[1]), 3)

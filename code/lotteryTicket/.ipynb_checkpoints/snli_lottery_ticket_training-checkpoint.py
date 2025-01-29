@@ -97,7 +97,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
             except:
                 continue
                 
-        model.load_state_dict(base_ckpt['state_dict']) # RELOAD INIT WEIGHTS (W/ APPLIED PRUNING MASK)                 
+        model.load_state_dict(base_ckpt['state_dict']) # RELOAD INIT RANDOM WEIGHTS (W/ APPLIED PRUNING MASK)                 
         
         if args.model_type=='bert':
             optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8)  # AdamW optimizer is recommended for BERT
@@ -110,16 +110,16 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         if prune_iter > 0:
             ft_epochs = int(args.finetune_epochs/2)
             model = pruner.prune() #PRUNE AND SAVE PRUNE MASK
+            
+            #create dir to store metrics for this pruning iteration
+            prune_metrics_dir = os.path.join(args.prune_metrics_dir, f"{prune_iter}_Pruning_Iter")
+            os.makedirs(prune_metrics_dir,exist_ok=True)
         else:
             ft_epochs = args.finetune_epochs
+            prune_metrics_dir = os.path.join(args.root_metrics_dir, "Original")
+            os.makedirs(prune_metrics_dir,exist_ok=True)
         
-            
-        #create dir to store metrics for this pruning iteration
-        prune_metrics_dir = os.path.join(args.prune_metrics_dir, f"{prune_iter}_Pruning_Iter")
-        if not os.path.exists(prune_metrics_dir):
-            os.makedirs(prune_metrics_dir,exist_ok=True)
-            os.makedirs(prune_metrics_dir,exist_ok=True)
-            
+              
         #finetune
         model = train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, train, val, dataloaders, ft_epochs, prune_metrics_dir, device) #FINETUNE
         
@@ -143,6 +143,7 @@ def parse_args():
 
    
     parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/lottery_ticket/bowman")
+    parser.add_argument("--root_metrics_dir", default="models/snli")
     parser.add_argument("--model_dir", default="expls/snli/model_dir")
     parser.add_argument("--store_exp_bkdown", default="expls/snli_1.0_dev-6-sentence-5/")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal", "bert"])
