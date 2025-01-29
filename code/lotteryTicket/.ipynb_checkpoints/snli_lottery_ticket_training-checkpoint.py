@@ -88,8 +88,6 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
     pruned_percents, final_accs, final_weights =[], [], model.mlp[0].weight.detach().cpu().numpy()
     
     for prune_iter in tqdm(range(0, args.prune_iters)):
-        print(f"==== PRUNING ITERATION {prune_iter}/{args.prune_iters+1} ====")
-        
         #Apply pruning mask to init weights
         for layer in base_ckpt['state_dict'].keys():
             try:
@@ -97,13 +95,13 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
             except:
                 continue
                 
-        model.load_state_dict(base_ckpt['state_dict']) # RELOAD INIT RANDOM WEIGHTS (W/ APPLIED PRUNING MASK)                 
+        # Reload random inits with pruned weights (that were prnued after fting) 0'd out
+        model.load_state_dict(base_ckpt['state_dict'])                 
         
         if args.model_type=='bert':
             optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8)  # AdamW optimizer is recommended for BERT
         else:
             optimizer = optim.Adam(model.parameters())
-            
         criterion = nn.CrossEntropyLoss()
         model.cuda()
         
@@ -115,7 +113,9 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
             prune_metrics_dir = os.path.join(args.prune_metrics_dir, f"{prune_iter}_Pruning_Iter")
             os.makedirs(prune_metrics_dir,exist_ok=True)
         else:
+            # If first iter, save it in a dif directory
             ft_epochs = args.finetune_epochs
+            
             prune_metrics_dir = os.path.join(args.root_metrics_dir, "Original")
             os.makedirs(prune_metrics_dir,exist_ok=True)
         
@@ -123,9 +123,8 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         #finetune
         model = train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, train, val, dataloaders, ft_epochs, prune_metrics_dir, device) #FINETUNE
         
+        #record accuracy
         final_acc = train_utils.run_eval(model, dataloaders['val'])
-        
-        
         final_weights_pruned = prune_utils.percent_pruned_weights(model)
         pruned_percents.append(final_weights_pruned)
         final_accs.append(final_acc)
