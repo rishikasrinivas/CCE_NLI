@@ -43,8 +43,6 @@ def main(args):
     train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data)
     model = train_utils.load_model(max_data=max_data, model_type=args.model_type, train=train, ckpt=args.ckpt)
     
-    
-    
     # ==== BUILD VOCAB ====
     base_ckpt=torch.load(args.ckpt)
     vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
@@ -54,6 +52,7 @@ def main(args):
     
     dataset = analysis.AnalysisDataset(lines, vocab)
     
+    # ==== TRAINING SET UP ====
     if args.model_type == 'bert':
         optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8)  # AdamW optimizer is recommended for BERT
     else:

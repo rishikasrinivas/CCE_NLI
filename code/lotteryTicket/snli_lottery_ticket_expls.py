@@ -53,7 +53,11 @@ def main(args):
     
     device = 'cuda' if settings.CUDA else 'cpu'
     
-    return prune_utils.run_expls(args, model,dataset, dataloaders,device)
+    all_fm_masks = prune_utils.run_expls(args, model,dataset, dataloaders,device='cuda')
+    with open(f"formula_masks/{args.model_type}/formula_masks.json", "w") as f:
+        json.dump(all_fm_masks, f)
+        
+    return all_fm_masks
     
 #running the expls using the already finetuned and precreated masks from before
 
@@ -86,5 +90,4 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    pruned_percents, final_accs = main(args)
-    print(f"pruned_percents: {pruned_percents}\nfinal_accs: {final_accs}")
+    main(args)
