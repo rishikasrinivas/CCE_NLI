@@ -93,6 +93,8 @@ def get_mask(feats, f, dataset, feat_type):
     Serializable/global version of get_mask for multiprocessing
     """
     # Mask has been cached
+    if f.mask is not None:
+        return f.mask
     
     if isinstance(f, FM.And):
         masks_l = get_mask(feats, f.left, dataset, feat_type)
@@ -316,7 +318,6 @@ def compute_best_sentence_iou(args):
     nonzero_iou = [k.val for k, v in formulas.items() if v > 0]
     formulas = dict(Counter(formulas).most_common(settings.BEAM_SIZE))
     best_noncomp = Counter(formulas).most_common(1)[0]
-
     
     #identifying the most common formula associated with a neuron then applying and/or/not on each neighbor until reaching
     # formula length of MAX Length
@@ -439,7 +440,7 @@ def extract_features(
     return all_srcs, all_states, all_feats, all_idxs
 
 
-def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =None, run=None, save_dir=None):
+def search_feats(acts, states, feats, weights, dataset, formula_masks, cluster, save_dir=None):
     if save_dir is None:
         return "Invalid save_dir"
     
@@ -459,10 +460,7 @@ def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =No
         #print(feats[0][sentence_num].reshape(1,-1).shape)
     GLOBALS["dataset"] = feats[1]
     feats_vocab = feats[1]
-    if sentence_num != None:
-        GLOBALS["feats"] = feats[0][sentence_num].reshape(1,-1)
-    else:
-        GLOBALS["feats"] = feats[0]
+    GLOBALS["feats"] = feats[0]
     
         
     
@@ -502,6 +500,7 @@ def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =No
             unit = res["unit"]
             
             best_lab, best_iou = res["best"]
+            formula_masks[unit] = best_lab
             best_name = best_lab.to_str(namer, sort=True)
 
             best_cat = best_lab.to_str(cat_namer, sort=True) 
@@ -517,8 +516,13 @@ def search_feats(acts, states, feats, weights, dataset, cluster,sentence_num =No
                 intersection, num_samples_active_for_form, samples_cvg = metrics.samples_coverage(acts[:,unit],best_lab.mask)
                 _, num_active_in_range, expl_cvg = metrics.explanation_coverage(acts[:,unit],best_lab.mask)
                 samples_entailing_formulas=np.where(best_lab.mask==1)
+                
                 tqdm.write(f"{unit:02d}\t{best_name}\t{best_iou:.3f}\tSample_Covg:{samples_cvg}\tExpl_Cvg:{expl_cvg}")
-                write_to_file(unit, f"{save_dir}/Cluster{cluster}IOUS1024N.csv", ["unit", "best_name", "best_iou", "samples_entailing_formulas", "activation_value_for_samples", 'intersection', 'sample_coverage', 'len_samples_entailing_formula', 'explanation_coverage', "num_active_in_range"], [unit, best_name, best_iou, samples_entailing_formulas, [torch.tensor(states)[activated_samples,unit].min(),torch.tensor(states)[activated_samples,unit].max()] , intersection, samples_cvg, num_samples_active_for_form, expl_cvg, num_active_in_range])
+                
+                labels = ["unit", "best_name", "best_iou", "samples_entailing_formulas", "activation_value_for_samples", 'intersection', 'sample_coverage', 'len_samples_entailing_formula', 'explanation_coverage', "num_active_in_range"]
+                values = [unit, best_name, best_iou, samples_entailing_formulas, [torch.tensor(states)[activated_samples,unit].min(),torch.tensor(states)[activated_samples,unit].max()] , intersection, samples_cvg, num_samples_active_for_form, expl_cvg, num_active_in_range]
+                
+                write_to_file(unit, f"{save_dir}/Cluster{cluster}IOUS1024N.csv",labels ,values)
             
                 r = {
                     "cluster": cluster,
@@ -743,7 +747,7 @@ def searching_dead_neurons(states, threshold, model, weights, val_loader):
         print(f"{thresh}: {acc}\nNum dead: {len(dead_neurons)}")
 
     
-def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, masks_saved):
+def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, formula_masks, masks_saved):
     activations= torch.from_numpy(np.array(states)).t() #1024x10000
     
     if not masks_saved:
@@ -777,7 +781,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
         assert type(states)==list and len(states)==10000 and len(states[0]) == 1024 #should be list 100000 ittems ach of len 1024
      
         assert(acts.shape[0] == 10000 and acts.shape[1]==1024), acts.shape
-        records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, run = 0, save_dir=save_exp_dir)
+        records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, formula_masks, cluster=cluster_num, save_dir=save_exp_dir, )
     return activations
 
             
@@ -818,6 +822,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, masks_saved, model_=None, dat
         dataset,
         save_masks_dir
     )
+    formula_masks = {}
     
     
     with open(f"{save_masks_dir}/OrigActivations.pkl",'wb') as f:
@@ -835,12 +840,22 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, masks_saved, model_=None, dat
         print("Mask search")
         print(acts.shape)
         assert type(states)==list and len(states)==10000 and len(states[0]) == 1024
-        search_feats(acts, states, (tok_feats, tok_feats_vocab), classification_weights, dataset, cluster=None, save_dir=save_exp_dir)
+        search_feats(acts, states, (tok_feats, tok_feats_vocab), classification_weights, dataset, cluster=None, save_dir=save_exp_dir, formula_masks=formula_masks)
+   
     else:
         print("Verfieid pruning % ", torch.where(torch.tensor(final_weights)==0,1,0).sum()/(1024*2048))
-        acts = clustered_NLI(tok_feats, tok_feats_vocab,states,feats, classification_weights, dataset, save_exp_dir, save_masks_dir, masks_saved=masks_saved)
+        acts = clustered_NLI(tok_feats, 
+                             tok_feats_vocab,
+                             states,
+                             feats, 
+                             classification_weights, 
+                             dataset, 
+                             save_exp_dir, 
+                             save_masks_dir, 
+                             formula_masks,
+                             masks_saved=masks_saved)
     
-    return acts, final_weights
+    return acts, formula_masks
     
 from data.snli import SNLI
 def main():

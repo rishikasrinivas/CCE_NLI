@@ -48,9 +48,8 @@ def main():
     parser.add_argument("--eval_zero_shot", action="store_true")
     args = parser.parse_args()
     
-    #prune_n,prune_m=0,0
+
     final_accs = []
-    #os.makedirs(args.expls_mask_root_dir, exist_ok=True)
     if args.debug:
         max_data = 1000
     else:
@@ -60,11 +59,13 @@ def main():
     for i,sparsity_ratio in enumerate(settings.SPARSITY_RATIOS):
         os.makedirs(args.prune_metrics_dir, exist_ok=True)
         os.makedirs(f"{args.prune_metrics_dir}/{i+1}_Pruning_Iter", exist_ok=True)
+        
+        # === Getting model ===
         model,dataloaders = wanda_utils.get_model(args.model_type, args.ckpt)
    
     
-    # ==== BUILD VOCAB ====
-        base_ckpt=torch.load(args.ckpt) #models/snli/bowman_random_inits.pth
+        # ==== BUILD VOCAB ====
+        base_ckpt=torch.load(args.ckpt) #trained model
         vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
 
         with open(settings.DATA, "r") as f:
@@ -75,13 +76,16 @@ def main():
         optimizer = optim.Adam(model.parameters())
         criterion = nn.CrossEntropyLoss()
         
+        #===== Debugging: Initial Eval =====
         eval_test = train_utils.run_eval(model, dataloaders['val'])
 
         print(f"Before Pruning NLI Eval: {eval_test}")
 
-        
+        #===== Pruning =====
         device = torch.device("cuda:0")
         wanda.prune_wanda(args, model, 'enc', dataloaders, sparsity_ratio, device)
+        
+        #===== Debugging: Pruning Verification =====
         weights_pruned = prune_utils.percent_pruned_weights(model, 'encoder.rnn.weight_ih_l0')
         print("IN RNN: ", weights_pruned, " weights pruned")
         wanda.prune_wanda(args, model, 'mlp', dataloaders, sparsity_ratio, device)
@@ -90,19 +94,13 @@ def main():
         
         
         
-        
-
-
-        
-        
+        # ===== Saving model =====
         util.save_checkpoint(
                     train_utils.serialize(model, args.model_type, dataloaders['train'].dataset), False, args.prune_metrics_dir,filename = f"{i+1}_Pruning_Iter/model_best.pth")
-        
-        
-        #prune_utils.run_expls(args, model, dataset, optimizer, criterion, dataloaders, device)
-        
-        eval_test = train_utils.run_eval(model, dataloaders['val'])
 
+        
+        #===== Recording Acc =====
+        eval_test = train_utils.run_eval(model, dataloaders['val'])
         print(f"After Pruning NLI Eval: {eval_test}")
         final_accs.append(eval_test)
       
