@@ -106,10 +106,7 @@ def build_masks(activations, activation_ranges, num_clusters, save_dir):
     for cluster_num in range(1,num_clusters+1):
         act_masks=[]
         for i, activ_for_neuron in enumerate(activations):
-            #if torch.all(activ_for_sample >= 0):
-                #activ_for_sample=activ_for_sample[activ_for_sample>0]
-            #handling case with no unique non-0 activation
-            
+
             mask=build_act_mask(activ_for_neuron.squeeze(),activation_ranges[i], cluster_num)
             act_masks.append(mask)
 

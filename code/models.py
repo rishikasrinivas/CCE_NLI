@@ -8,7 +8,6 @@ import numpy as np
 import settings
 import collections
 from typing import Union
-from prune import Pruner
 from transformers import AutoTokenizer, AutoModel
 class SentimentClassifier(nn.Module):
     def __init__(self, encoder):
@@ -269,7 +268,6 @@ class BertEntailmentClassifier(BaseModel):
         self.output_dim = 3
         self.initialize()
         
-        self.p=Pruner(self)
 
     def forward(self, s1, s1len, s2, s2len):
         device = s1.device
@@ -349,10 +347,6 @@ class BertEntailmentClassifier(BaseModel):
         self.encoder = self.encoder.to(device)
         return super().to(device)
     
-    def prune(self):
-        self.p.prune()
-        return self
-    
 
 class BowmanEntailmentClassifier(BaseModel):
     """
@@ -379,7 +373,7 @@ class BowmanEntailmentClassifier(BaseModel):
         
         self.initialize()
         
-        self.p = Pruner(self)
+       
         
         
     def forward(self, s1, s1len, s2, s2len):
@@ -398,14 +392,6 @@ class BowmanEntailmentClassifier(BaseModel):
 
         return preds
     
-    def check_pruned(self, layer='default'):
-        if layer == 'default':
-            layer = self.mlp[:-1]
-        return prune.is_pruned(layer)
-    
-    def prune(self):
-        self.p.prune()
-        return self
     
         
    

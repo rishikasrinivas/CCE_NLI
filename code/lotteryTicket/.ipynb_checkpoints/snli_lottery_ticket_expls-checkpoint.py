@@ -39,9 +39,7 @@ def main(args):
     else:
         max_data = None
         
-    train,_,_,dataloaders=train_utils.create_dataloaders(max_data=max_data)
-    model = train_utils.load_model(max_data=max_data, model_type=args.model_type, train=train, ckpt=args.ckpt)
-    
+    model, dataloaders = lottery_ticket_utils.get_model(args.model_type, args.ckpt)
     # ==== BUILD VOCAB ====
     base_ckpt=torch.load(args.ckpt) #trained bowman/bert 
     vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}

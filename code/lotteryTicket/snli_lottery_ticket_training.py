@@ -28,7 +28,7 @@ import importlib.util
 import train_utils
 sys.path.append("Analysis/")
 import pipelines as pipelines
-from prune import Pruner
+from Pruner import Pruner_
 import prune_utils
 
 from transformers import BertTokenizer, BertModel, AdamW, get_linear_schedule_with_warmup
@@ -66,7 +66,7 @@ def main(args):
         device='cpu'
     model.to(device)
     
-    pruner = Pruner(model)
+    pruner = Pruner_(model)
     return run_prune(
         model,
         pruner,

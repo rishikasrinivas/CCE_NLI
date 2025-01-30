@@ -547,7 +547,7 @@ def search_feats(acts, states, feats, weights, dataset, formula_masks, cluster, 
             pd.DataFrame(records).to_csv(rfile, index=False)
 
     pd.DataFrame(records).to_csv(rfile, index=False)
-    return records
+    return formula_masks
 
 #no filters
 def to_sentence(toks, feats, dataset, tok_feats_vocab=None):
@@ -781,8 +781,8 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
         assert type(states)==list and len(states)==10000 and len(states[0]) == 1024 #should be list 100000 ittems ach of len 1024
      
         assert(acts.shape[0] == 10000 and acts.shape[1]==1024), acts.shape
-        records = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, formula_masks, cluster=cluster_num, save_dir=save_exp_dir, )
-    return activations
+        formula_masks = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, formula_masks, cluster=cluster_num, save_dir=save_exp_dir, )
+    return formula_masks
 
             
 

@@ -8,6 +8,11 @@ from tqdm import tqdm
 import train_utils
 import settings
 
+def get_model(model_name, ckpt):
+    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=10000)
+    model = train_utils.load_model(10000, model_name, train, ckpt=ckpt, device='cuda')
+    return model, dataloaders
+
 def make_folders(root_dir, prune_iter):
     #masks and explanation storing paths after finetuning
     exp_after_finetuning_flder = f"{root_dir}/Expls/{prune_iter}_Pruning_Iter/"
