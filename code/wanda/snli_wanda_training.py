@@ -14,7 +14,7 @@ import torch.nn as nn
 import settings
 import util
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-import wanda_utils
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -37,10 +37,6 @@ def main():
     parser.add_argument("--save_every", default=1, type=int)
     parser.add_argument("--max_thresh", default=95, type=float)
     
-    parser.add_argument("--prune_epochs", default=10, type=int)
-    parser.add_argument("--finetune_epochs", default=10, type=int)
-    parser.add_argument("--prune_iters", default=1, type=int)
-    
     parser.add_argument("--embedding_dim", default=300, type=int)
     parser.add_argument("--hidden_dim", default=512, type=int)
     parser.add_argument("--debug", action="store_true")
@@ -61,7 +57,7 @@ def main():
         os.makedirs(f"{args.prune_metrics_dir}/{i+1}_Pruning_Iter", exist_ok=True)
         
         # === Getting model ===
-        model,dataloaders = wanda_utils.get_model(args.model_type, args.ckpt)
+        model,dataloaders = prune_utils.get_model(args.model_type, args.ckpt)
    
     
         # ==== BUILD VOCAB ====
@@ -85,10 +81,9 @@ def main():
         device = torch.device("cuda:0")
         wanda.prune_wanda(args, model, 'enc', dataloaders, sparsity_ratio, device)
         
-        #===== Debugging: Pruning Verification =====
-        weights_pruned = prune_utils.percent_pruned_weights(model, 'encoder.rnn.weight_ih_l0')
-        print("IN RNN: ", weights_pruned, " weights pruned")
         wanda.prune_wanda(args, model, 'mlp', dataloaders, sparsity_ratio, device)
+        
+        #===== Debugging: Pruning Verification =====
         weights_pruned = prune_utils.percent_pruned_weights(model, 'mlp.0.weight')
         print("IN MLP: ", weights_pruned, " weights pruned")
         

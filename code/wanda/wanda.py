@@ -87,7 +87,6 @@ def get_inputs_bert(model, embedder, dataloader, dtype, device):
                 s1_tokens_embed = embedder(s1_tokens['input_ids'])
                 inps[i][:s1_tokens_embed.shape[1], :] = s1_tokens_embed.squeeze(0)
                 attention_mask[i][:s1_tokens['attention_mask'].shape[1]] = s1_tokens['attention_mask']
-    
                 i+=1
                 
                 if i >= NUM_SAMPLES-1: break
@@ -97,7 +96,6 @@ def get_inputs_bert(model, embedder, dataloader, dtype, device):
                 s2_tokens_embed = embedder(s2_tokens['input_ids'])
                 inps[i][:s2_tokens_embed.shape[1], :] = s2_tokens_embed.squeeze(0)
                 attention_mask[i][:s2_tokens['attention_mask'].shape[1]] = s2_tokens['attention_mask']
-    
                 i+=1
                 
                 
@@ -123,35 +121,32 @@ def get_inputs_bowman(model,embedder, dataloader, dtype, device):
             s2 = s2.to(device)
             
             for sentence1, sentence2 in zip(s1, s2):
+                
+                #saving encoding s1
                 sentence1 = sentence1.unsqueeze(0)
                 s1_enc= model.encoder.emb(sentence1)
                 s1_enc.transpose(0, 1) 
                 s1length = torch.tensor([s1_enc.shape[1]]).cpu()
                 
                 spk_s1 = pack_padded_sequence(s1_enc, s1length, enforce_sorted=False) #removes all padding making it total-num-tokens-in-batch x 300
-                
                 inps[i][:spk_s1.data.shape[0],:]= spk_s1.data
-                
                 i+=1
                 
                 if i >= NUM_SAMPLES-1: break
+                    
+                #saving encoding s2
                 sentence2 = sentence2.unsqueeze(0)
                 s2_enc= model.encoder.emb(sentence2)
                 s2_enc.transpose(0, 1) 
                 s2length = torch.tensor([s2_enc.shape[1]]).cpu()
                 spk_s2 = pack_padded_sequence(s2_enc,  s2length, enforce_sorted=False) #removes all padding making it total-num-tokens-in-batch x 300
                 inps[i][:spk_s2.data.shape[0],:]= spk_s2.data
-                
                 i+=1
                 
                 
-            
-           
         except ValueError:
             print("Caught ValueError")  
         outs = torch.zeros((NUM_SAMPLES, 100, 512), dtype=dtype, device=device)
-        
-        #NEED TO USE LENGTHS AS NEEDED 
     return inps, outs, lengths
 
 def get_bert_encodings(model, embedder, s1, s2, device):
@@ -171,13 +166,12 @@ def get_bert_encodings(model, embedder, s1, s2, device):
     return s1enc, s2enc
 
 def get_inputs_mlp(model, embedder, args, dataloader, dtype, device):
-    i=0
     in_feats = model.mlp[0].in_features
     out_feats = model.mlp[0].out_features
-    num_inps = NUM_SAMPLES/100 #100 is batch size
+    num_inps = NUM_SAMPLES//100 #100 is batch size
     inps = torch.zeros((num_inps, 100, in_feats), dtype=dtype, device=device)
     inps.requires_grad = False
-    for batch in dataloader:
+    for i, batch in enumerate(dataloader):
         if i == num_inps:
             break
         try:
@@ -197,7 +191,6 @@ def get_inputs_mlp(model, embedder, args, dataloader, dtype, device):
             mlp_input = torch.cat([s1enc, s2enc, diffs, prods], 1)
 
             inps[i][:mlp_input.shape[0],:]= mlp_input
-            i+=1
 
         except ValueError:
             print("Caught ValueError")  # Debug print '''

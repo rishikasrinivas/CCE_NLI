@@ -81,9 +81,9 @@ def from_file(fpath):
 
     
 def main(args):
-    print("using weights from ", settings.MODEL)
+    print("using weights from ", args.ckpt)
     nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger", "ner"])
-    ckpt = torch.load("models/snli/bowman_trained_no_prune.pth")
+    ckpt = torch.load(args.ckpt)
     stoi = ckpt["stoi"]
     train,_,_,dataloaders=train_utils.create_dataloaders(max_data=10000)
     # ==== BUILD MODEL ====
@@ -99,12 +99,12 @@ def main(args):
         model = model.cuda()
     val_loader = dataloaders['val']
     pruned_percents=[0.0,20.0,36.0,48.8,59.04,67.232,73.786,79.028,83.223,86.578,89.263,91.41,93.128,94.502,95.602]
-    weights_dir="models/snli/prune_metrics/wanda/bowman/"
-    for i,direct in enumerate(os.listdir(weights_dir)):
+
+    for i,direct in enumerate(os.listdir(args.root_dir)):
         if direct == '.ipynb_checkpoints' or not direct[0].isdigit():
             continue
         print(direct)
-        model.load_state_dict(torch.load(weights_dir+direct+"/model_best.pth")['state_dict'])
+        model.load_state_dict(torch.load(args.root_dir+direct+"/model_best.pth")['state_dict'])
         all_preds = []
         all_targets = []
         for (s1, s1len, s2, s2len, targets) in val_loader:
@@ -145,8 +145,9 @@ def parse_args():
         default="test.txt",
         help="Data to eval interactively (pairs of sentences); use - for stdin",
     )
-    parser.add_argument("--model", default="models/snli/model_best.pth")
-    parser.add_argument("--model_type", default="bowman", choices=["bowman", "snli"])
+    parser.add_argument("--root_dir", default="models/snli/model_best.pth")
+    parser.add_argument("--ckpt", default="models/snli/model_best.pth")
+    parser.add_argument("--model_type", default="bowman", choices=["bowman", "bert"])
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--eval_data_path", default="data/snli_1.0/")
     parser.add_argument("--cuda", action="store_true")
