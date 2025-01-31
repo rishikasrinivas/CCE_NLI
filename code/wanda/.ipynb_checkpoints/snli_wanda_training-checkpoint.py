@@ -29,6 +29,7 @@ def main():
     parser.add_argument("--prune_method", type=str, choices=["magnitude", "wanda", "sparsegpt", 
                         "ablate_mag_seq", "ablate_wanda_seq", "ablate_mag_iter", "ablate_wanda_iter", "search"])
     parser.add_argument("--ckpt", default=None, type=str )
+    parser.add_argument("--offset", default=0, type=int )
 
     parser.add_argument('--use_variant', default=False, action="store_true", help="whether to use the wanda variant described in the appendix")
     
@@ -51,17 +52,19 @@ def main():
     else:
         max_data = None
     
- 
-    for i,sparsity_ratio in enumerate(settings.SPARSITY_RATIOS):
+    ckpt = f"models/snli/prune_metrics/lottery_ticket/bert/{args.offset}_Pruning_Iter/model_best.pth"
+    for i,sparsity_ratio in enumerate(settings.SPARSITY_RATIOS[args.offset:]):
+        torch.cuda.empty_cache()
         os.makedirs(args.prune_metrics_dir, exist_ok=True)
-        os.makedirs(f"{args.prune_metrics_dir}/{i+1}_Pruning_Iter", exist_ok=True)
+        os.makedirs(f"{args.prune_metrics_dir}/{i+args.offset+1}_Pruning_Iter", exist_ok=True)
         
         # === Getting model ===
-        model,dataloaders = prune_utils.get_model(args.model_type, args.ckpt)
+        
+        model,dataloaders = prune_utils.get_model(args.model_type, ckpt)
    
     
         # ==== BUILD VOCAB ====
-        base_ckpt=torch.load(args.ckpt) #trained model
+        base_ckpt=torch.load(ckpt) #trained model
         vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
 
         with open(settings.DATA, "r") as f:
@@ -85,13 +88,13 @@ def main():
         
         #===== Debugging: Pruning Verification =====
         weights_pruned = prune_utils.percent_pruned_weights(model, 'mlp.0.weight')
-        print("IN MLP: ", weights_pruned, " weights pruned")
+        print(f"IN MLP: {format(100*weights_pruned, '.2f')}% weights pruned")
         
         
         
         # ===== Saving model =====
         util.save_checkpoint(
-                    train_utils.serialize(model, args.model_type, dataloaders['train'].dataset), False, args.prune_metrics_dir,filename = f"{i+1}_Pruning_Iter/model_best.pth")
+                    train_utils.serialize(model, args.model_type, dataloaders['train'].dataset), False, args.prune_metrics_dir,filename = f"{i+args.offset+1}_Pruning_Iter/model_best.pth")
 
         
         #===== Recording Acc =====

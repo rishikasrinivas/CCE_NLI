@@ -241,9 +241,6 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
         model.encoder.config.use_cache = False 
         
     dataloaders=dataloader['val']
-    print("loading calibdation data")
-    
-    print("dataset loading complete")
     embedder = get_embedder(model)
     with torch.no_grad():
         inps, outs, lengths, attention_mask, position_ids = prepare_calibration_input(model, args, seg, dataloaders, embedder, device)
@@ -264,9 +261,7 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
         subset=find_layers(model, layer)
         
         if not subset:
-            print("Continuing")
             continue
-        print("SUBSET ", subset)
         
         
         #inps, outs, attention_mask, position_ids = inps.to(device), outs.to(device), attention_mask.to(device), position_ids.to(device)
@@ -301,7 +296,7 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
             
             
         for name in subset:
-            print(f"pruning layer {type(layer)} name {name}, {subset[name]}")
+            #print(f"pruning layer {name}: {subset[name]}")
             subset_value = subset[name]
             if args.model_type == 'bowman' and seg == 'enc':
                 W_metric = torch.abs(subset_value.weight_ih_l0.data) * torch.sqrt(wrapped_layers[subset_value].scaler_row.reshape((1,-1)))
