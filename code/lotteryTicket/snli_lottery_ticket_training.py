@@ -107,18 +107,12 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         if prune_iter > 0:
             ft_epochs = int(args.finetune_epochs/2)
             model = pruner.prune() #PRUNE AND SAVE PRUNE MASK
-            
-            #create dir to store metrics for this pruning iteration
-            prune_metrics_dir = os.path.join(args.prune_metrics_dir, f"{prune_iter}_Pruning_Iter")
-            os.makedirs(prune_metrics_dir,exist_ok=True)
         else:
-            # If first iter, save it in a dif directory
             ft_epochs = args.finetune_epochs
             
-            prune_metrics_dir = os.path.join(args.root_metrics_dir, "Original")
-            os.makedirs(prune_metrics_dir,exist_ok=True)
-        
-              
+        #create dir to store metrics for this pruning iteration
+        prune_metrics_dir = os.path.join(args.prune_metrics_dir, f"{prune_iter}_Pruning_Iter")
+        os.makedirs(prune_metrics_dir,exist_ok=True)    
         #finetune
         model = train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, train, val, dataloaders, ft_epochs, prune_metrics_dir, device) #FINETUNE
         
