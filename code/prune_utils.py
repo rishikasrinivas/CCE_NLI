@@ -84,6 +84,7 @@ def run_expls(
             _, formulaMasks =initiate_exp_run(
                 save_exp_dir = exp_after_finetuning_flder, 
                 save_masks_dir= masks_after_finetuning_flder, 
+                activations_dir=os.path.join(args.activations_root_dir, prune_metrics_dir),
                 masks_saved=False, 
                 model_=model,
                 dataset=dataset

@@ -389,7 +389,7 @@ def pairs(x):
 def extract_features(
     model,
     dataset,
-    save_masks_dir,
+    save_activations_dir,
 ):
     model.eval()
     loader = DataLoader(
@@ -400,7 +400,6 @@ def extract_features(
     )
 
     all_srcs = []
-    all_states = []
     all_feats = []
     all_multifeats = []
     all_idxs = []
@@ -416,13 +415,6 @@ def extract_features(
             src_one = src.squeeze(2)
             src_one_comb = pairs(src_one)
             src_lengths_comb = pairs(src_lengths)
-            s1 = src_one_comb[:, :, 0]
-            s1len = src_lengths_comb[:, 0]
-            s2 = src_one_comb[:, :, 1]
-            s2len = src_lengths_comb[:, 1]
-
-            final_reprs = model.get_final_reprs(s1, s1len, s2, s2len)
-            torch.save(final_reprs, f"{save_masks_dir}/final_layer_activations.pth")
         # Pack the sequence
         all_srcs.extend(list(np.transpose(src_one_comb.cpu().numpy(), (1, 2, 0))))
         
@@ -432,11 +424,16 @@ def extract_features(
         all_multifeats.extend(
             list(np.transpose(pairs(src_multifeats).cpu().numpy(), (1, 2, 0, 3)))
         )
-        all_states.extend(list(final_reprs.cpu().numpy()))
+        
+        #always
         all_idxs.extend(list(pairs(idx).cpu().numpy()))
 
     all_feats = {"onehot": all_feats, "multi": all_multifeats}
     
+    with open(f'{save_activations_dir}/final_layer_activations.pkl', 'rb') as file:
+        print(f"Loading activations from {save_activations_dir}/final_layer_activations.pkl")
+        all_states = pickle.load(file)
+        
     return all_srcs, all_states, all_feats, all_idxs
 
 
@@ -720,33 +717,7 @@ def load_sents(path):
 
 import pickle
 
-def searching_dead_neurons(states, threshold, model, weights, val_loader):
-    activations= torch.from_numpy(np.array(states)).t()
-    accs=[]
-    acc=snli_eval.run_eval(model, val_loader)
-    accs.append(acc)
-    print(f"defult: {acc}")
-    
-    for thresh in threshold:
-        dead_neurons =[]
-        for i,a in enumerate(activations):
-            if a.sum() < thresh or a.sum() == 0:
-                dead_neurons.append(i)
 
-        weights=model.mlp[0].weight.detach()
-
-        assert weights.shape[0] == 1024 and weights.shape[1] == 2048
-        weights[dead_neurons]= torch.zeros((1,2048)).cuda()
-        model.mlp[:-1][0].weight.detach().copy_(weights)
-
-        assert torch.equal(model.mlp[:-1][0].weight.detach()[dead_neurons],torch.zeros((len(dead_neurons),2048)).cuda())
-
-
-        acc=snli_eval.run_eval(model, val_loader)
-        accs.append(acc)
-        print(f"{thresh}: {acc}\nNum dead: {len(dead_neurons)}")
-
-    
 def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, formula_masks, masks_saved):
     activations= torch.from_numpy(np.array(states)).t() #1024x10000
     
@@ -786,7 +757,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
 
             
 
-def initiate_exp_run(save_exp_dir, save_masks_dir, masks_saved, model_=None, dataset=None):
+def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved, model_=None, dataset=None):
     os.makedirs(save_masks_dir, exist_ok=True)
     os.makedirs(save_exp_dir, exist_ok=True)
     
@@ -820,7 +791,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, masks_saved, model_=None, dat
     toks, states, feats, idxs = extract_features(
         model,
         dataset,
-        save_masks_dir
+        activations_dir
     )
     formula_masks = {}
     
