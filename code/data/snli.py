@@ -25,17 +25,20 @@ def load_for_analysis(
 ):
     ckpt = torch.load(ckpt_path, map_location="cpu")
     enc = models.TextEncoder(len(ckpt["stoi"]), **kwargs)
+    vocab = {"itos": ckpt["itos"], "stoi": ckpt["stoi"]}
+    
     if model_type == "minimal":
         clf = models.EntailmentClassifier
     elif model_type == "bowman":
         clf = models.BowmanEntailmentClassifier
+        model = clf(enc)
+    elif model_type == 'bert':
+        clf = models.BertEntailmentClassifier
+        model = clf(vocab=vocab)
     else:
         raise NotImplementedError
-
-    model = clf(enc)
+        
     model.load_state_dict(ckpt["state_dict"])
-
-    vocab = {"itos": ckpt["itos"], "stoi": ckpt["stoi"]}
     with open(analysis_path, "r") as f:
         lines = f.readlines()
 
