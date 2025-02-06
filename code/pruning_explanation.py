@@ -23,7 +23,10 @@ from data import analysis
 import importlib.util
 import train_utils
 import prune_utils
-
+import sys
+sys.path.append("CCE_NLI/Analysis/")
+#import ..Analysis as Analysis
+import alignment
 def main(args):
     os.makedirs(args.expls_mask_root_dir, exist_ok=True)
     if args.debug:
@@ -31,9 +34,15 @@ def main(args):
     else:
         max_data = None
         
-    model, dataloaders = prune_utils.get_model(args.model_type, args.ckpt)
+    if args.cuda:
+        device = 'cuda'
+    else:
+        device = 'cpu'
+        
+    model, dataloaders = prune_utils.get_model(args.model_type, args.ckpt, device)
     # ==== BUILD VOCAB ====
-    base_ckpt=torch.load(args.ckpt) #trained bowman/bert 
+    base_ckpt=torch.load(args.ckpt, map_location = torch.device(device)) #trained bowman/bert 
+        
     vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
 
     with open(settings.DATA, "r") as f:
@@ -41,12 +50,10 @@ def main(args):
     
     dataset = analysis.AnalysisDataset(lines, vocab)
     
-    device = 'cuda' if settings.CUDA else 'cpu'
-    
-    all_fm_masks = prune_utils.run_expls(args, model,dataset, dataloaders,device='cuda')
-    with open(f"formula_masks/{args.model_type}/formula_masks.json", "w") as f:
-        json.dump(all_fm_masks, f)
-        
+    all_fm_masks = prune_utils.run_expls(args, model,dataset, dataloaders,device)
+    #with open(f"formula_masks/{args.model_type}/formula_masks.json", "w") as f:
+        #json.dump(all_fm_masks, f)
+    alignment.calculate_alignment(all_fm_masks, "cpu2gpu")  
     return all_fm_masks
     
 #running the expls using the already finetuned and precreated masks from before

@@ -23,6 +23,7 @@ import formula as FM
 from formula import BinaryNode
 import settings
 import util
+import json
 from vis import report, pred_report
 import data
 import data.snli
@@ -279,7 +280,7 @@ def compute_iou(unit, cluster, formula, acts, feats, dataset, feat_type="word", 
         raise NotImplementedError(f"metric: {settings.METRIC}")
     comp_iou = (settings.COMPLEXITY_PENALTY ** (len(formula) - 1)) * comp_iou
     
-    return comp_iou
+    return comp_iou, masks
 
 #call this for each activ range from search_feats
 def compute_best_sentence_iou(args):
@@ -288,19 +289,22 @@ def compute_best_sentence_iou(args):
     acts = GLOBALS["acts"][:,unit]
     if acts.sum() < settings.MIN_ACTS:
         null_f = (FM.Leaf(0), 0)
-        return {"unit": unit, "best": null_f, "best_noncomp": null_f}
+        return {"unit": unit, "best": null_f, "best_mask": None,  "best_noncomp": null_f}
     feats = GLOBALS["feats"] 
     dataset = GLOBALS["dataset"] #holds each concept ex: hyp:tok:dog
 
 
     feats_to_search = list(range(feats.shape[1]))
     formulas = {}
+    masks = {}
     for fval in feats_to_search:
         formula = FM.Leaf(fval)
         
-        formulas[formula] = compute_iou(
+        init_iou, init_mask = compute_iou(
             unit, cluster, formula, acts, feats, dataset, feat_type="sentence"
         )
+        formulas[formula] = init_iou
+        masks[formula] = init_mask
         for op, negate in OPS["lemma"]:
             # FIXME: Don't evaluate on neighbors if they don't exist
             new_formula = formula
@@ -310,19 +314,27 @@ def compute_best_sentence_iou(args):
             #handling if neightbors dont exist --added
             new_formula = op(new_formula)
             
-            new_iou = compute_iou(unit, cluster,
+            new_iou, new_masks = compute_iou(unit, cluster,
                 new_formula, acts, feats, dataset, feat_type="sentence"
             )
-            formulas[new_formula] = new_iou  
-    
+            formulas[new_formula] = new_iou
+            masks[new_formula] = new_masks
+  
     nonzero_iou = [k.val for k, v in formulas.items() if v > 0]
     formulas = dict(Counter(formulas).most_common(settings.BEAM_SIZE))
+    
+    selected_masks = {}
+    for k in formulas.keys():
+        selected_masks[k] = masks[k]
+    masks = selected_masks
+    
     best_noncomp = Counter(formulas).most_common(1)[0]
     
     #identifying the most common formula associated with a neuron then applying and/or/not on each neighbor until reaching
     # formula length of MAX Length
     for i in range(settings.MAX_FORMULA_LENGTH - 1):
         new_formulas = {}
+        selected_masks = {}
         for formula in formulas:
             # Generic binary ops
             for feat in nonzero_iou:
@@ -334,20 +346,28 @@ def compute_best_sentence_iou(args):
                     if negate:
                         new_formula = FM.Not(new_formula)
                     new_formula = op(formula, new_formula)
-                    new_iou = compute_iou(unit, cluster,
+                    new_iou, new_mask = compute_iou(unit, cluster,
                         new_formula, acts, feats, dataset, feat_type="sentence"
                     )
                     new_formulas[new_formula] = new_iou
-    
+                    masks[new_formula] = new_mask
 
         formulas.update(new_formulas)
         # Trim the beam
         formulas = dict(Counter(formulas).most_common(settings.BEAM_SIZE))
-
+        
+        for k in formulas.keys():
+            selected_masks[k] = masks[k]
+        masks = selected_masks
+ 
     best = Counter(formulas).most_common(1)[0]
+    best_mask = masks[best[0]]
+
+    
     return {
         "unit": unit,
         "best": best,
+        "best_mask": best_mask,
         "best_noncomp": best_noncomp
     }
 
@@ -389,6 +409,7 @@ def pairs(x):
 def extract_features(
     model,
     dataset,
+    device,
     save_activations_dir,
 ):
     model.eval()
@@ -406,7 +427,7 @@ def extract_features(
     for src, src_feats, src_multifeats, src_lengths, idx in tqdm(loader):
       
         #  words = dataset.to_text(src)
-        if settings.CUDA:
+        if device == 'cuda':
             src = src.cuda()
             src_lengths = src_lengths.cuda()
         # Memory bank - hidden states for each step
@@ -495,10 +516,10 @@ def search_feats(acts, states, feats, weights, dataset, formula_masks, cluster, 
         #do for each neuron and for each range
         for res in pool.imap_unordered(ioufunc, mp_args):
             unit = res["unit"]
-            
+     
             best_lab, best_iou = res["best"]
-            formula_masks[unit] = best_lab
-            best_name = best_lab.to_str(namer, sort=True)
+            
+            
 
             best_cat = best_lab.to_str(cat_namer, sort=True) 
             best_cat_fine =  best_lab.to_str(cat_namer_fine, sort=True)
@@ -509,6 +530,8 @@ def search_feats(acts, states, feats, weights, dataset, formula_masks, cluster, 
             contra_weight = weights[unit, 2]
 
             if best_iou > 0:
+                formula_masks[unit] = res["best_mask"]
+                best_name = best_lab.to_str(namer, sort=True)
                 activated_samples= np.where(acts[:,unit]==1)
                 intersection, num_samples_active_for_form, samples_cvg = metrics.samples_coverage(acts[:,unit],best_lab.mask)
                 _, num_active_in_range, expl_cvg = metrics.explanation_coverage(acts[:,unit],best_lab.mask)
@@ -757,7 +780,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
 
             
 
-def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved, model_=None, dataset=None):
+def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved, device, model_=None, dataset=None):
     os.makedirs(save_masks_dir, exist_ok=True)
     os.makedirs(save_exp_dir, exist_ok=True)
     
@@ -774,8 +797,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
         dataset =dataset
         
         
-        if settings.CUDA:
-            model=model.to('cuda')
+        model=model.to(device)
             
 
  
@@ -786,11 +808,12 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
         classification_weights = model.mlp[-1].weight.t().detach().cpu().numpy()
         final_weights = model.mlp[0].weight.detach().cpu().numpy()
 
-    print("Extracting features")
+    print("Extracting features, ", activations_dir)
     
     toks, states, feats, idxs = extract_features(
         model,
         dataset,
+        device,
         activations_dir
     )
     formula_masks = {}

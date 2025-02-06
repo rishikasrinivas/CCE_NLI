@@ -22,7 +22,7 @@ def calculate_alignment(all_fm_masks, save_dir):
 
         
 #========testng alignment code=====
-neurons = range(0,10)
+'''neurons = range(0,10)
 
 fm_masks=[]
 for i in range(3):
@@ -32,7 +32,7 @@ for i in range(3):
     fm_masks.append(fm_mask)
 print(fm_masks)
 
-calculate_alignment(fm_masks, "Test")
+calculate_alignment(fm_masks, "Test")'''
 
 
     

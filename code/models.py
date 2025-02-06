@@ -128,7 +128,7 @@ class BaseModel(torch.nn.Module):
         self.layers = None
         
 
-    def initialize(self) -> None:
+    def initialize(self, device) -> None:
         """Initializes the model. It initializes the weights of the model using Xavier Normal (equivalent to Gaussian Glorot used in the original
         Lottery Ticket Hypothesis paper). It also creates an initial pruning mask for the layers of the model. These are initialized with all ones. A
         pruning mask with all ones does nothing. This method must be called by all sub-classes at the end of their constructor.
@@ -145,7 +145,8 @@ class BaseModel(torch.nn.Module):
             init_weights=parameter.clone()
                 
             # Initializes the pruning masks of the layer, which are used for pruning as well as freezing the pruned weights during training
-            pruning_mask = torch.ones_like(init_weights, dtype=torch.uint8).to('cuda')  # pylint: disable=no-member
+            pruning_mask = torch.ones_like(init_weights, dtype=torch.uint8)
+            pruning_mask.to(device)  # pylint: disable=no-member
             # Adds the layer to the internal list of layers
          
         
@@ -244,7 +245,7 @@ class BaseModel(torch.nn.Module):
         raise NotImplementedError()
 
 class BertEntailmentClassifier(BaseModel):
-    def __init__(self, encoder_name="bert-base-uncased", vocab=None, freeze_bert=False):
+    def __init__(self, encoder_name="bert-base-uncased", vocab=None, freeze_bert=False, device='cuda'):
         super().__init__()
         self.vocab = vocab
         self.encoder_name = encoder_name
@@ -266,7 +267,7 @@ class BertEntailmentClassifier(BaseModel):
             nn.Linear(1024, 3),
         )
         self.output_dim = 3
-        self.initialize()
+        self.initialize(device)
         
 
     def forward(self, s1, s1len, s2, s2len):
@@ -353,7 +354,7 @@ class BowmanEntailmentClassifier(BaseModel):
     The RNN-based entailment model of Bowman et al 2017
     """
 
-    def __init__(self, encoder):
+    def __init__(self, encoder, device):
         super().__init__()
 
         self.encoder = encoder
@@ -371,7 +372,7 @@ class BowmanEntailmentClassifier(BaseModel):
         #self.mlp[:-1][0] = prune.ln_structured(self.mlp[:-1][0], name="weight", amount=0.05, dim=1, n=float('-inf'))
         self.output_dim = 3
         
-        self.initialize()
+        self.initialize(device)
         
        
         

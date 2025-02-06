@@ -192,27 +192,26 @@ def finetune_pruned_model(model,model_type, optimizer,criterion, train, val, dat
     return model
 
 
-def build_model(vocab_size, model_type, vocab, embedding_dim=300, hidden_dim=512):
+def build_model(vocab_size, model_type, vocab, embedding_dim=300, hidden_dim=512, device='cuda'):
     """
     Build a bowman-style SNLI model
     """
-    enc = models.TextEncoder(
-        vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim
-    )
-    if model_type == "minimal":
-        model = models.EntailmentClassifier(enc)
-    elif model_type=='bert':
-        model=models.BertEntailmentClassifier(vocab=vocab)
+    
+    if model_type=='bert':
+        model=models.BertEntailmentClassifier(vocab=vocab, device=device)
     else:
-        model = models.BowmanEntailmentClassifier(enc)
+        enc = models.TextEncoder(
+            vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim
+        )
+        model = models.BowmanEntailmentClassifier(enc, device)
     return model
 
 def load_model(max_data, model_type, train, ckpt=None, device='cuda'):
-    model = build_model(vocab_size=len(train.stoi), model_type=model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512)
+    model = build_model(vocab_size=len(train.stoi), model_type=model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512, device=device)
     
     if ckpt:
         if type(ckpt) == str:
-            ckpt = torch.load(ckpt)
+            ckpt = torch.load(ckpt, map_location = torch.device(device))
         model.load_state_dict(ckpt["state_dict"])
     else:
         util.save_checkpoint(

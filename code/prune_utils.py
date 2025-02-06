@@ -7,10 +7,10 @@ from analyze import initiate_exp_run
 from tqdm import tqdm
 import train_utils
 import settings
-
-def get_model(model_name, ckpt):
+import json
+def get_model(model_name, ckpt, device):
     train,val,test,dataloaders=train_utils.create_dataloaders(max_data=10000)
-    model = train_utils.load_model(10000, model_name, train, ckpt=ckpt, device='cuda')
+    model = train_utils.load_model(10000, model_name, train, ckpt=ckpt, device=device)
     return model, dataloaders
 
 def make_folders(root_dir, prune_iter):
@@ -71,7 +71,7 @@ def run_expls(
         
         #=== Loading weights ===
         print(f"Loading from {filepath}")
-        model.load_state_dict(torch.load(filepath)['state_dict']) #loading the already finetuned weights
+        model.load_state_dict(torch.load(filepath, map_location=torch.device(device))['state_dict']) #loading the already finetuned weights
         
         # === Recording Accs and Pruned Percents
         final_weights_pruned = get_percent_pruned(model)
@@ -85,13 +85,17 @@ def run_expls(
                 save_exp_dir = exp_after_finetuning_flder, 
                 save_masks_dir= masks_after_finetuning_flder, 
                 activations_dir=os.path.join(args.activations_root_dir, prune_metrics_dir),
+                device=device,
                 masks_saved=False, 
                 model_=model,
                 dataset=dataset
             )
             
             all_fm_masks.append(formulaMasks)
-    
+            os.makedirs(f"formula_masks/{args.model_type}/{args.pruning_method}", exist_ok=True)
+            #with open(f"formula_masks/{args.model_type}/{args.pruning_method}/formula_masks_{final_weights_pruned:.2f}.json", "w") as f:
+                #json.dump(formulaMasks, f)
+    #ERROR IN WRITING {1:NPARRAY} TO A JSON
          
         else:
             break
