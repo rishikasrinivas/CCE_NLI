@@ -458,10 +458,10 @@ def extract_features(
     return all_srcs, all_states, all_feats, all_idxs
 
 
-def search_feats(acts, states, feats, weights, dataset, formula_masks, cluster, save_dir=None):
+def search_feats(acts, states, feats, weights, dataset, cluster, save_dir=None):
     if save_dir is None:
         return "Invalid save_dir"
-    
+    formula_masks={}
     rfile = os.path.join(save_dir, "result.csv")
     #if os.path.exists(rfile):
         #print(f"Loading cached {rfile}")
@@ -530,7 +530,7 @@ def search_feats(acts, states, feats, weights, dataset, formula_masks, cluster, 
             contra_weight = weights[unit, 2]
 
             if best_iou > 0:
-                formula_masks[unit] = res["best_mask"]
+                formula_masks[unit] = res["best_mask"].tolist()
                 best_name = best_lab.to_str(namer, sort=True)
                 activated_samples= np.where(acts[:,unit]==1)
                 intersection, num_samples_active_for_form, samples_cvg = metrics.samples_coverage(acts[:,unit],best_lab.mask)
@@ -743,7 +743,7 @@ import pickle
 
 def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, formula_masks, masks_saved):
     activations= torch.from_numpy(np.array(states)).t() #1024x10000
-    
+    formula_masks = {}
     if not masks_saved:
         print("creating masks storing in ",save_masks_dir )#check how many ones per row here
         
@@ -775,7 +775,10 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
         assert type(states)==list and len(states)==10000 and len(states[0]) == 1024 #should be list 100000 ittems ach of len 1024
      
         assert(acts.shape[0] == 10000 and acts.shape[1]==1024), acts.shape
-        formula_masks = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, formula_masks, cluster=cluster_num, save_dir=save_exp_dir, )
+        formula_mask = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, save_dir=save_exp_dir)
+        print("========UPDATING FORMULA MASK!=============")
+        formula_masks[cluster_num] = formula_mask
+        print("ALL MASKS ", formula_masks.keys(), "\nFOR CLUSTER ", cluster_num, ": ", formula_mask.keys())
     return formula_masks
 
             

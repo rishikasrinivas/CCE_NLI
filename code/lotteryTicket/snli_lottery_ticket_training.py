@@ -85,9 +85,43 @@ def main(args):
 #running the expls using the already finetuned and precreated masks from before
 def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, test, dataloaders):
     pruned_percents, final_accs, final_weights =[], [], model.mlp[0].weight.detach().cpu().numpy()
-    
+    #train, prune, apply prune mask to init, train
     for prune_iter in tqdm(range(0, args.prune_iters)):
-        #Apply pruning mask to init weights
+        if prune_iter == 0:
+            #use the already training inital model
+            model.load_state_dict(torch.load("models/snli/prune_metrics/lottery_ticket/bowman/Run1/0_Pruning_Iter/model_best.pth", map_location=torch.device('cuda')))
+        #=====SETTINGS AND TRAIN======
+        else: #otherwise take the inital weights that are pruned off and retrain that 
+            if args.model_type=='bert':
+                optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8)  # AdamW optimizer is recommended for BERT
+            else:
+                optimizer = optim.Adam(model.parameters())
+                
+            criterion = nn.CrossEntropyLoss()
+            model.cuda()
+            
+            prune_metrics_dir = os.path.join(args.prune_metrics_dir, f"{prune_iter}_Pruning_Iter")
+            os.makedirs(prune_metrics_dir,exist_ok=True)
+            
+            ft_epochs = int(args.finetune_epochs/2) if prune_iter > 0 else args.finetune_epochs
+
+            model = train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, train, val, dataloaders, ft_epochs, prune_metrics_dir, device)
+
+        #record accuracy
+        final_acc = train_utils.run_eval(model, dataloaders['val'])
+        final_weights_pruned = prune_utils.percent_pruned_weights(model)
+        pruned_percents.append(final_weights_pruned)
+        final_accs.append(final_acc)
+        
+        #stop pruning after max_thresh
+        if final_weights_pruned >= args.max_thresh: break
+            
+        
+        #====PRUNE=====
+        
+        model = pruner.prune() #PRUNE AND SAVE PRUNE MASK
+
+        #===== APPLY PRUNING MASK TO INIT WEIGHTS ====== 
         for layer in base_ckpt['state_dict'].keys():
             try:
                 base_ckpt['state_dict'][layer] *= model.get_layer(layer).pruning_mask.cpu()
@@ -97,33 +131,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         # Reload random inits with pruned weights (that were prnued after fting) 0'd out
         model.load_state_dict(base_ckpt['state_dict'])                 
         
-        if args.model_type=='bert':
-            optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8)  # AdamW optimizer is recommended for BERT
-        else:
-            optimizer = optim.Adam(model.parameters())
-        criterion = nn.CrossEntropyLoss()
-        model.cuda()
         
-        if prune_iter > 0:
-            ft_epochs = int(args.finetune_epochs/2)
-            model = pruner.prune() #PRUNE AND SAVE PRUNE MASK
-        else:
-            ft_epochs = args.finetune_epochs
-            
-        #create dir to store metrics for this pruning iteration
-        prune_metrics_dir = os.path.join(args.prune_metrics_dir, f"{prune_iter}_Pruning_Iter")
-        os.makedirs(prune_metrics_dir,exist_ok=True)    
-        #finetune
-        model = train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, train, val, dataloaders, ft_epochs, prune_metrics_dir, device) #FINETUNE
-        
-        #record accuracy
-        final_acc = train_utils.run_eval(model, dataloaders['val'])
-        final_weights_pruned = prune_utils.percent_pruned_weights(model)
-        pruned_percents.append(final_weights_pruned)
-        final_accs.append(final_acc)
-        
-        #stop pruning after max_thresh
-        if final_weights_pruned >= args.max_thresh: break
     return pruned_percents, final_accs
 
 def parse_args():
@@ -167,3 +175,4 @@ if __name__ == "__main__":
     #wandb_ = wandb_init("CCE_NLI_Pruned_Model_Accs", "Run")
     #for i,acc in enumerate(final_accs):
       #  wandb_.log({"prune_iter": i, "accuracy_test": acc})
+python3 code/snli_lottery_ticket_training.py --prune_metrics_dir models/snli/prune_metrics/lottery_ticket/bowman/RunFIXED/ --root_metrics_dir models/snli model_type bowman ckpt models/snli/prune_metrics/lottery_ticket/bowman/Run1/0_Pruning_Iter/model_best.pth

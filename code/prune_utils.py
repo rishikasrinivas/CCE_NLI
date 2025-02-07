@@ -61,7 +61,7 @@ def run_expls(
     
     # Gets the ckpt and numeric pruning iter
     for prune_iter in range(len(os.listdir(args.prune_metrics_dir))):
-            
+        print("Number of ckpts ", len(os.listdir(args.prune_metrics_dir)))
         prune_metrics_dir  = f"{prune_iter}_Pruning_Iter"
         filepath = os.path.join(args.prune_metrics_dir, prune_metrics_dir,"model_best.pth" )
         
@@ -81,7 +81,7 @@ def run_expls(
             exp_after_finetuning_flder, masks_after_finetuning_flder = make_folders(args.expls_mask_root_dir, final_weights_pruned)
             print(f"======Running Explanations for {final_weights_pruned}% pruned=======")
             
-            _, formulaMasks =initiate_exp_run(
+            formulaMasks =initiate_exp_run(
                 save_exp_dir = exp_after_finetuning_flder, 
                 save_masks_dir= masks_after_finetuning_flder, 
                 activations_dir=os.path.join(args.activations_root_dir, prune_metrics_dir),
@@ -93,9 +93,9 @@ def run_expls(
             
             all_fm_masks.append(formulaMasks)
             os.makedirs(f"formula_masks/{args.model_type}/{args.pruning_method}", exist_ok=True)
-            #with open(f"formula_masks/{args.model_type}/{args.pruning_method}/formula_masks_{final_weights_pruned:.2f}.json", "w") as f:
-                #json.dump(formulaMasks, f)
-    #ERROR IN WRITING {1:NPARRAY} TO A JSON
+            with open(f"formula_masks/{args.model_type}/{args.pruning_method}/formula_masks_1{final_weights_pruned:.2f}.json", "w") as f:
+               
+                json.dump(formulaMasks, f)
          
         else:
             break

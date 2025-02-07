@@ -53,7 +53,7 @@ def main(args):
     all_fm_masks = prune_utils.run_expls(args, model,dataset, dataloaders,device)
     #with open(f"formula_masks/{args.model_type}/formula_masks.json", "w") as f:
         #json.dump(all_fm_masks, f)
-    alignment.calculate_alignment(all_fm_masks, "cpu2gpu")  
+    alignment.calculate_alignment(all_fm_masks, f"overlap/{args.model_type}/{args.pruning_method}")  
     return all_fm_masks
     
 #running the expls using the already finetuned and precreated masks from before

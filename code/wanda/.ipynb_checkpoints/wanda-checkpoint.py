@@ -4,11 +4,12 @@ import torch
 import torch.nn as nn 
 from layerwrapper import WrappedGPT
 import util, train_utils, prune_utils
-
+import math
 
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 NUM_SAMPLES=100
+
 def find_layers(model, module, layers=[nn.Linear, nn.LSTM], name=''):
     
     """
@@ -168,8 +169,9 @@ def get_bert_encodings(model, embedder, s1, s2, device):
 def get_inputs_mlp(model, embedder, args, dataloader, dtype, device):
     in_feats = model.mlp[0].in_features
     out_feats = model.mlp[0].out_features
-    num_inps = NUM_SAMPLES//100 #100 is batch size
-    inps = torch.zeros((num_inps, 100, in_feats), dtype=dtype, device=device)
+    batch_size=100
+    num_inps = math.ceil(NUM_SAMPLES/batch_size) #100 is batch size
+    inps = torch.zeros((num_inps, batch_size, in_feats), dtype=dtype, device=device)
     inps.requires_grad = False
     for i, batch in enumerate(dataloader):
         if i == num_inps:
@@ -194,7 +196,7 @@ def get_inputs_mlp(model, embedder, args, dataloader, dtype, device):
 
         except ValueError:
             print("Caught ValueError")  # Debug print '''
-    outs = torch.zeros(num_inps,100,out_feats)
+    outs = torch.zeros(num_inps,batch_size,out_feats)
     attention_mask = None
     position_ids = None
     return inps, outs, attention_mask, position_ids
