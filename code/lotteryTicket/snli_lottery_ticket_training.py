@@ -87,10 +87,13 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
     pruned_percents, final_accs, final_weights =[], [], model.mlp[0].weight.detach().cpu().numpy()
     #train, prune, apply prune mask to init, train
     for prune_iter in tqdm(range(0, args.prune_iters)):
+        
+            
+        #=====SETTINGS AND TRAIN======
         if prune_iter == 0:
             #use the already training inital model
             model.load_state_dict(torch.load("models/snli/prune_metrics/lottery_ticket/bowman/Run1/0_Pruning_Iter/model_best.pth", map_location=torch.device('cuda')))
-        #=====SETTINGS AND TRAIN======
+            
         else: #otherwise take the inital weights that are pruned off and retrain that 
             if args.model_type=='bert':
                 optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8)  # AdamW optimizer is recommended for BERT
@@ -175,4 +178,6 @@ if __name__ == "__main__":
     #wandb_ = wandb_init("CCE_NLI_Pruned_Model_Accs", "Run")
     #for i,acc in enumerate(final_accs):
       #  wandb_.log({"prune_iter": i, "accuracy_test": acc})
-python3 code/snli_lottery_ticket_training.py --prune_metrics_dir models/snli/prune_metrics/lottery_ticket/bowman/RunFIXED/ --root_metrics_dir models/snli model_type bowman ckpt models/snli/prune_metrics/lottery_ticket/bowman/Run1/0_Pruning_Iter/model_best.pth
+python3 code/snli_lottery_ticket_training.py --prune_metrics_dir models/snli/prune_metrics/lottery_ticket/bowman/RunFIXED/ --root_metrics_dir models/snli model_type bowman ckpt None
+
+models/snli/prune_metrics/lottery_ticket/bowman/Run1/0_Pruning_Iter/model_best.pth

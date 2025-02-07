@@ -30,6 +30,7 @@ def calculate_alignment(all_fm_masks, save_dir):
 
         
 #========testing alignment code=====
+for 
 '''fm_masks = []
 for l in range(2):
     mask_dict = {}
