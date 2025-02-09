@@ -62,8 +62,10 @@ def main(args):
     
     if settings.CUDA:
         device='cuda'
+        print("On cuda")
     else:
         device='cpu'
+        print("On CPU")
     model.to(device)
     
     pruner = Pruner_(model)
@@ -90,25 +92,21 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         
             
         #=====SETTINGS AND TRAIN======
-        if prune_iter == 0:
-            #use the already training inital model
-            model.load_state_dict(torch.load("models/snli/prune_metrics/lottery_ticket/bowman/Run1/0_Pruning_Iter/model_best.pth", map_location=torch.device('cuda')))
-            
-        else: #otherwise take the inital weights that are pruned off and retrain that 
-            if args.model_type=='bert':
-                optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8)  # AdamW optimizer is recommended for BERT
-            else:
-                optimizer = optim.Adam(model.parameters())
-                
-            criterion = nn.CrossEntropyLoss()
-            model.cuda()
-            
-            prune_metrics_dir = os.path.join(args.prune_metrics_dir, f"{prune_iter}_Pruning_Iter")
-            os.makedirs(prune_metrics_dir,exist_ok=True)
-            
-            ft_epochs = int(args.finetune_epochs/2) if prune_iter > 0 else args.finetune_epochs
+         #otherwise take the inital weights that are pruned off and retrain that 
+        if args.model_type=='bert':
+            optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8)  # AdamW optimizer is recommended for BERT
+        else:
+            optimizer = optim.Adam(model.parameters())
 
-            model = train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, train, val, dataloaders, ft_epochs, prune_metrics_dir, device)
+        criterion = nn.CrossEntropyLoss()
+        model.cuda()
+
+        prune_metrics_dir = os.path.join(args.prune_metrics_dir, f"{prune_iter}_Pruning_Iter")
+        os.makedirs(prune_metrics_dir,exist_ok=True)
+
+        ft_epochs = int(args.finetune_epochs/2) if prune_iter > 0 else args.finetune_epochs
+
+        model = train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, train, val, dataloaders, ft_epochs, prune_metrics_dir, device)
 
         #record accuracy
         final_acc = train_utils.run_eval(model, dataloaders['val'])
@@ -119,7 +117,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         #stop pruning after max_thresh
         if final_weights_pruned >= args.max_thresh: break
             
-        
+        model.cuda()
         #====PRUNE=====
         
         model = pruner.prune() #PRUNE AND SAVE PRUNE MASK
@@ -128,7 +126,10 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         for layer in base_ckpt['state_dict'].keys():
             try:
                 base_ckpt['state_dict'][layer] *= model.get_layer(layer).pruning_mask.cpu()
+                masks = model.get_layer(layer).pruning_mask.cpu()
+                print(torch.where(masks== 0,1,0).sum()/(masks.shape[0]*masks.shape[1]))
             except:
+                print("Not able to prune this layer ", layer)
                 continue
                 
         # Reload random inits with pruned weights (that were prnued after fting) 0'd out
@@ -167,7 +168,7 @@ def parse_args():
     parser.add_argument("--test_iters", default=1, type=int)
     parser.add_argument("--log", action='store_true')
     parser.add_argument("--baseline", action='store_true')
-    parser.add_argument("--ckpt", default=settings.MODEL)
+    parser.add_argument("--ckpt", default=None)
     return parser.parse_args()
 
 
@@ -178,6 +179,3 @@ if __name__ == "__main__":
     #wandb_ = wandb_init("CCE_NLI_Pruned_Model_Accs", "Run")
     #for i,acc in enumerate(final_accs):
       #  wandb_.log({"prune_iter": i, "accuracy_test": acc})
-python3 code/snli_lottery_ticket_training.py --prune_metrics_dir models/snli/prune_metrics/lottery_ticket/bowman/RunFIXED/ --root_metrics_dir models/snli model_type bowman ckpt None
-
-models/snli/prune_metrics/lottery_ticket/bowman/Run1/0_Pruning_Iter/model_best.pth

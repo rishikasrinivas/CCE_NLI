@@ -113,7 +113,7 @@ class Layer:
         self.weights = weights
         self.initial_weights = initial_weights
         self.pruning_mask = pruning_mask
-
+   
 # referenced from: https://github.com/lecode-official/pytorch-lottery-ticket-hypothesis/blob/main/source/lth/models/__init__.py
 class BaseModel(torch.nn.Module):
     """Represents the base class for all models."""
@@ -555,7 +555,6 @@ class TextEncoder(nn.Module):
         semb = self.emb(s)
         spk = pack_padded_sequence(semb, slen.cpu(), enforce_sorted=False)
         _, (hidden, cell) = self.rnn(spk)
-        
         #retunr get all cell states w a param for the cell state # 
         return hidden[-1]
         

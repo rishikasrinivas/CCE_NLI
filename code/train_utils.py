@@ -111,6 +111,7 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
 
     loss_meter = util.AverageMeter()
     acc_meter = util.AverageMeter()
+
     for (s1, s1len, s2, s2len, targets) in ranger:
         if device == 'cuda':
             s1 = s1.cuda()
@@ -131,8 +132,9 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
             optimizer.zero_grad()
             loss.backward()
             for layer in model.layers:
+                layer.pruning_mask.cuda()
                 if layer.weights.grad is not None:
-                    layer.weights.grad *= layer.pruning_mask
+                    layer.weights.grad *= layer.pruning_mask.to(device)
             
         
             optimizer.step()

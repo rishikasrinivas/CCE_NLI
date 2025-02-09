@@ -31,10 +31,10 @@ def load_for_analysis(
         clf = models.EntailmentClassifier
     elif model_type == "bowman":
         clf = models.BowmanEntailmentClassifier
-        model = clf(enc)
+        model = clf(enc, device='cuda' if cuda else 'cpu')
     elif model_type == 'bert':
         clf = models.BertEntailmentClassifier
-        model = clf(vocab=vocab)
+        model = clf(vocab=vocab, device='cuda' if cuda else 'cpu')
     else:
         raise NotImplementedError
         

@@ -4,7 +4,7 @@
 python -c "print('Hello from command 1')"
 
 # Command 2
-python3 code/activation.py --model_type bowman --save_masks_dir activations/bowman/lottery_ticket/Run1 --prune_metrics_dir models/snli/prune_metrics/lottery_ticket/bowman/Run1 
+python3 code/activation.py --model_type bowman --save_masks_dir activations/bowman/lottery_ticket/RunFIXEDLTH --prune_metrics_dir models/snli/prune_metrics/lottery_ticket/bowman/RunFIXEDLTH 
 
 python3 code/activation.py --model_type bowman --save_masks_dir activations/bowman/wanda/Run1 --prune_metrics_dir models/snli/prune_metrics/wanda/bowman/Run1
 

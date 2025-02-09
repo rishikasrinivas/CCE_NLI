@@ -237,7 +237,7 @@ def get_embedder(model):
         return module
 
 
-def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.device("cuda:0"), prune_n = 0, prune_m = 0):
+def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.device("cuda:0"), prune_n = 0, prune_m = 0, wanda_var=True):
     if args.model_type == 'bert':
         use_cache = model.encoder.config.use_cache 
         model.encoder.config.use_cache = False 
@@ -301,7 +301,8 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
             #print(f"pruning layer {name}: {subset[name]}")
             subset_value = subset[name]
             if args.model_type == 'bowman' and seg == 'enc':
-                W_metric = torch.abs(subset_value.weight_ih_l0.data) * torch.sqrt(wrapped_layers[subset_value].scaler_row.reshape((1,-1)))
+                #here print subset_value and factor in pruining of weight_IH_data
+                W_metric = torch.abs(subset_value.weight_hh_l0.data) * torch.sqrt(wrapped_layers[subset_value].scaler_row.reshape((1,-1)))
             else:
                 W_metric = torch.abs(subset_value.weight.data) * torch.sqrt(wrapped_layers[subset_value].scaler_row.reshape((1,-1)))
 
@@ -315,7 +316,7 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
             else:
                 sort_res = torch.sort(W_metric, dim=-1, stable=True)
 
-                if args.use_variant:
+                if wanda_var:
                     # wanda variant 
                     tmp_metric = torch.cumsum(sort_res[0], dim=1)
                     sum_before = W_metric.sum(dim=1)
@@ -339,7 +340,8 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
                     indices = sort_res[1][:,:int(W_metric.shape[1]*sparsity_ratio)]
                     W_mask.scatter_(1, indices, True)
             if args.model_type == 'bowman' and seg == 'enc':
-                subset[name].weight_ih_l0.data[W_mask] = 0  ## set weights to zero 
+                #here also do the ih weights 
+                subset[name].weight_hh_l0.data[W_mask] = 0  ## set weights to zero 
             else:
                 subset[name].weight.data[W_mask] = 0  ## set weights to zero
             
