@@ -12,6 +12,8 @@ python3 code/activation.py --model_type bert --save_masks_dir activations/bert/l
 
 python3 code/activation.py --model_type bert --save_masks_dir activations/bert/wanda/Run1 --prune_metrics_dir models/snli/prune_metrics/wanda/bert/Run1
 
+python3 code/activation.py --model_type bert --save_masks_dir activations/bert/random --prune_metrics_dir models/snli
+python3 code/activation.py --model_type bowman --save_masks_dir activations/bowman/random --prune_metrics_dir models/snli
 
 # Command 3
 python -c "import pandas as pd; print(pd.__version__)"

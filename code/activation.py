@@ -91,9 +91,10 @@ def initiate_exp_run(args):
     os.makedirs(args.save_masks_dir, exist_ok=True)
   
     for ckpt_dir in os.listdir(args.prune_metrics_dir):
-        if not ckpt_dir[0].isdigit(): continue
-        
-        ckpt = os.path.join(args.prune_metrics_dir, ckpt_dir, "model_best.pth")
+        #if not ckpt_dir[0].isdigit(): continue
+            
+        if ckpt_dir[:6] != 'bowman': continue
+        ckpt = os.path.join(args.prune_metrics_dir, ckpt_dir)#, "model_best.pth")
         print(f"Loading model from {ckpt}")
         model, dataset = data.snli.load_for_analysis(
             ckpt,

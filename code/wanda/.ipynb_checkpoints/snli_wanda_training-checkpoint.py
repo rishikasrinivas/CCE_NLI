@@ -52,15 +52,17 @@ def main():
     else:
         max_data = None
     
-    ckpt = f"models/snli/prune_metrics/lottery_ticket/bert/{args.offset}_Pruning_Iter/model_best.pth"
+    ckpt = f"models/snli/prune_metrics/lottery_ticket/bert/RunFIXEDLTH/0_Pruning_Iter/model_best.pth"
+    
     for i,sparsity_ratio in enumerate(settings.SPARSITY_RATIOS[args.offset:]):
         torch.cuda.empty_cache()
+        print(sparsity_ratio)
         os.makedirs(args.prune_metrics_dir, exist_ok=True)
         os.makedirs(f"{args.prune_metrics_dir}/{i+args.offset+1}_Pruning_Iter", exist_ok=True)
         
         # === Getting model ===
         
-        model,dataloaders = prune_utils.get_model(args.model_type, ckpt)
+        model,dataloaders = prune_utils.get_model(args.model_type, ckpt, device='cuda')
    
     
         # ==== BUILD VOCAB ====
@@ -82,9 +84,9 @@ def main():
 
         #===== Pruning =====
         device = torch.device("cuda:0")
-        wanda.prune_wanda(args, model, 'enc', dataloaders, sparsity_ratio, device, wanda_var=True)
+        wanda.prune_wanda(args, model, 'enc', dataloaders, sparsity_ratio, device)
         
-        wanda.prune_wanda(args, model, 'mlp', dataloaders, sparsity_ratio, device, wanda_var=True)
+        wanda.prune_wanda(args, model, 'mlp', dataloaders, sparsity_ratio, device)
         
         #===== Debugging: Pruning Verification =====
         weights_pruned = prune_utils.percent_pruned_weights(model, 'mlp.0.weight')

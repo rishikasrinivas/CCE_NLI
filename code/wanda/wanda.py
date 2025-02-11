@@ -237,7 +237,7 @@ def get_embedder(model):
         return module
 
 
-def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.device("cuda:0"), prune_n = 0, prune_m = 0, wanda_var=True):
+def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.device("cuda:0"), prune_n = 0, prune_m = 0, wanda_var=False):
     if args.model_type == 'bert':
         use_cache = model.encoder.config.use_cache 
         model.encoder.config.use_cache = False 

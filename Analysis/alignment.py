@@ -30,14 +30,14 @@ def calculate_alignment(all_fm_masks, save_dir):
 
         
 #========testing alignment code=====
-fm_masks=[]
+'''fm_masks=[]
 import json,os
 for file in os.listdir("formula_masks/bert/wanda/"):
     with open (f"formula_masks/bert/wanda/{file}", 'r') as f:
         d=json.load(f)
     fm_masks.append(d)
 calculate_alignment(fm_masks, "Testing6")
-'''fm_masks = []
+fm_masks = []
 for l in range(2):
     mask_dict = {}
     for i in range(3):

@@ -880,7 +880,7 @@ def main():
     dataset = analysis.AnalysisDataset(lines, vocab)
     
     device = 'cuda' if settings.CUDA else 'cpu'    
-    states, weights = initiate_exp_run(save_exp_dir = f"exp/random/expls/bowman",  save_masks_dir= f"exp/random/masks/bowman", masks_saved=False,model_=model, dataset=dataset)
+    states, weights = initiate_exp_run(save_exp_dir = f"exp/random/expls/bowman_new_weightsforfixedlth",  save_masks_dir= f"exp/random/masks/bowman_new_weightsforfixedlth", masks_saved=False,model_=model, dataset=dataset, activations_dir = "activations/bowman/random/bowman_random_inits.pth", device='cuda')
     
     print("Load predictions")
     mbase = os.path.splitext(os.path.basename(settings.MODEL))[0]
