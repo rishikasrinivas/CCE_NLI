@@ -32,13 +32,12 @@ def calculate_alignment(all_fm_masks, save_dir):
 #========testing alignment code=====
 fm_masks=[]
 import json,os
-for file in sorted(os.listdir("formula_masks/bowman/lottery_ticket/Run1_")):
+for file in sorted(os.listdir("BERT/formula_masks/bert/wanda/Run2Full")):
     if '.ipy' in file: continue
-    with open (f"formula_masks/bowman/lottery_ticket/Run1_/{file}", 'r') as f:
+    with open (f"BERT/formula_masks/bert/wanda/Run2Full/{file}", 'r') as f:
         d=json.load(f)
     fm_masks.append(d)
-calculate_alignment(fm_masks, "Testing62")
-
+calculate_alignment(fm_masks, "BERT/overlap/bert/wanda/Run2Full/")
 
     
     

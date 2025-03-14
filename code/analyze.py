@@ -880,10 +880,10 @@ def main():
     dataset = analysis.AnalysisDataset(lines, vocab)
     
     device = 'cuda' if settings.CUDA else 'cpu'    
-    acts, formula_masks = initiate_exp_run(save_exp_dir = f"exp/random/bowman_new_weightsforfixedlth/expls",  save_masks_dir= f"exp/random/bowman_new_weightsforfixedlth/masks", masks_saved=False,model_=model, dataset=dataset, activations_dir = "activations/bowman/random/bowman_random_inits.pth", device='cuda')
-    with open(f"formula_masks/Random/{args.model_type}/formula_masks.json", "w") as f:
+    acts, formula_masks = initiate_exp_run(save_exp_dir = f"BERT/exp/random/expls",  save_masks_dir= f"BERT/exp/random/masks", masks_saved=False,model_=model, dataset=dataset, activations_dir = "BERT/activations/bert/random_1/bert_random_inits.pth", device='cpu')
+    with open(f"BERT/formula_masks/bert/random/formula_masks.json", "w") as f:
         json.dump(all_fm_masks, f)
-    alignment.calculate_alignment(formula_masks, f"overlap/{args.model_type}/Random") 
+    alignment.calculate_alignment(formula_masks, f"overlap/{args.model_type}/random") 
     
     print("Load predictions")
     mbase = os.path.splitext(os.path.basename(settings.MODEL))[0]
