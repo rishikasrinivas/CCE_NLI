@@ -2,7 +2,7 @@
 Settings
 """
 
-import os
+import os,random
 
 CUDA = True
 ALPHA = None  # Use "None" to use ReLU threshold (i.e., > 0)
@@ -25,7 +25,7 @@ PRUNE = {
     'mlp.3.weight': 0.0, 
     'mlp.3.bias': 0.0,
 }
-NEURONS = None
+NEURONS = random.sample(range(0,1024), 200)
 PARALLEL = 1
 PRUNE_METRICS_DIR='models/snli/'
 MIN_ACTS=500
