@@ -817,7 +817,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
         device,
         activations_dir
     )
-    formula_masks = {}
+
     
     
     with open(f"{save_masks_dir}/OrigActivations.pkl",'wb') as f:
@@ -839,7 +839,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
    
     else:
         print("Verfieid pruning % ", torch.where(torch.tensor(final_weights)==0,1,0).sum()/(1024*2048))
-        acts = clustered_NLI(tok_feats, 
+        formula_masks = clustered_NLI(tok_feats, 
                              tok_feats_vocab,
                              states,
                              feats, 
@@ -847,10 +847,10 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
                              dataset, 
                              save_exp_dir, 
                              save_masks_dir, 
-                             formula_masks,
+                             formula_masks={},
                              masks_saved=masks_saved)
     
-    return acts, formula_masks
+    return formula_masks
     
 from data.snli import SNLI
 def main():
@@ -879,9 +879,9 @@ def main():
     dataset = analysis.AnalysisDataset(lines, vocab)
     
     device = 'cuda' if settings.CUDA else 'cpu'    
-    acts, formula_masks = initiate_exp_run(save_exp_dir = f"BERT/exp/random/expls",  save_masks_dir= f"BERT/exp/random/masks", masks_saved=False,model_=model, dataset=dataset, activations_dir = "BERT/activations/bert/random_1/bert_random_inits.pth", device='cpu')
+    formula_masks = initiate_exp_run(save_exp_dir = f"BERT/exp/random/expls",  save_masks_dir= f"BERT/exp/random/masks", masks_saved=False,model_=model, dataset=dataset, activations_dir = "BERT/activations/bert/random_1/bert_random_inits.pth", device='cpu')
     with open(f"BERT/formula_masks/bert/random/formula_masks.json", "w") as f:
-        json.dump(all_fm_masks, f)
+        json.dump(formula_masks, f)
     alignment.calculate_alignment(formula_masks, f"overlap/{args.model_type}/random") 
     
     print("Load predictions")
