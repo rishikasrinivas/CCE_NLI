@@ -16,7 +16,7 @@ import os,fileio
 from transformers import BertTokenizer, BertModel, AdamW, get_linear_schedule_with_warmup
 
 def create_dataloaders(model_type, max_data):
-    root_dir=f"{model_type.upper()}/DataLoaders/"
+    root_dir=f"DataLoaders/"
     if not ('train_dataset.pth' in os.listdir(root_dir) and 'val_dataset.pth' in os.listdir(root_dir) and 'test_dataset.pth' in os.listdir(root_dir)):
         train = SNLI("data/snli_1.0", "train", max_data=None)
         train_loader = DataLoader(
