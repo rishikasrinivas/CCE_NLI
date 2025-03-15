@@ -9,8 +9,8 @@ import train_utils
 import settings
 import json
 def get_model(model_name, ckpt, device):
-    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=10000)
-    model,ckpt= train_utils.load_model(10000, model_name, train, ckpt=ckpt, device=device)
+    train,val,test,dataloaders=train_utils.create_dataloaders(model_name, max_data=10000)
+    model,ckpt= train_utils.load_model(10000, model_name, train, ckpt=None, device=device)
     return model, dataloaders,ckpt
 
 def make_folders(root_dir, prune_iter):

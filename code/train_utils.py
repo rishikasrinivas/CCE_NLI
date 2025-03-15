@@ -15,10 +15,10 @@ from collections import defaultdict
 import os,fileio
 from transformers import BertTokenizer, BertModel, AdamW, get_linear_schedule_with_warmup
 
-def create_dataloaders(max_data):
-    root_dir="BERT/DataLoaders/"
+def create_dataloaders(model_type, max_data):
+    root_dir=f"{model_type.upper()}/DataLoaders/"
     if not ('train_dataset.pth' in os.listdir(root_dir) and 'val_dataset.pth' in os.listdir(root_dir) and 'test_dataset.pth' in os.listdir(root_dir)):
-        train = SNLI("data/snli_1.0", "train", max_data=max_data)
+        train = SNLI("data/snli_1.0", "train", max_data=None)
         train_loader = DataLoader(
             train,
             batch_size=100,
@@ -222,15 +222,18 @@ def build_model(vocab_size, model_type, vocab, embedding_dim=300, hidden_dim=512
 def load_model(max_data, model_type, train, ckpt=None, device='cuda'):
     model = build_model(vocab_size=len(train.stoi), model_type=model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512, device=device)
     
+    
     if ckpt:
         if type(ckpt) == str:
+            print(f"Loading from {ckpt} with model {model_type}")
             ckpt_ = torch.load(ckpt, map_location = torch.device(device))
         model.load_state_dict(ckpt_["state_dict"])
     else:
+        print("train itos = ", len(train.stoi))
         util.save_checkpoint(
-                serialize(model, model_type, train), False, settings.PRUNE_METRICS_DIR, filename=f"Run2_{model_type}_random_inits.pth"
+                serialize(model, model_type, train), False, "BOWMAN/models/random", filename=f"Run2Full_{model_type}_random_inits.pth"
         )
-        ckpt=f"models/snli/LLAMA/{model_type}_random_inits.pth"
+        ckpt=f"BOWMAN/models/random/Run2Full_{model_type}_random_inits.pth"
     
     return model, ckpt
 

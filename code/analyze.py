@@ -798,8 +798,6 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
     else:
         model= model_
         dataset =dataset
-        
-        
         model=model.to(device)
             
 
@@ -866,9 +864,10 @@ def main():
    
     parser.add_argument("--ckpt", default=settings.MODEL)
     
+    
     args = parser.parse_args()
-    train,_,_,dataloaders=train_utils.create_dataloaders(max_data=10000)
-    model = train_utils.load_model(max_data=10000, model_type=args.model_type, train=train, ckpt=args.ckpt)
+    train,_,_,dataloaders=train_utils.create_dataloaders(args.model_type, max_data=10000)
+    model,ckpt = train_utils.load_model(max_data=10000, model_type=args.model_type, train=train, ckpt=args.ckpt)
     
     # ==== BUILD VOCAB ====
     base_ckpt=torch.load(args.ckpt) #trained bowman/bert 

@@ -46,7 +46,7 @@ def create_clusters(activations, num_clusters):
     if activations.requires_grad:
         activations=activations.detach()
     # ensure activations is the right shape 
-    print(activations.shape)
+
     if activations.shape[0] == 10000 and activations.shape[1] == 1024:
         activations=activations.t()
     assert activations.shape[0] == 1024 and activations.shape[1] == 10000
@@ -61,6 +61,7 @@ def create_clusters(activations, num_clusters):
             dead_neurons.append(i)
             activation_ranges.append([])
             continue
+            
         #account for non-0 only 1 unique value neurons at high pruning
         if len(torch.unique(neurons_acts)) < num_clusters:
             print("Found repeated activation at neuron: ", i)

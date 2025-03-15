@@ -7,9 +7,8 @@
 ```python -m spacy download en_core_web_sm```
 
 ```pip install -r requirements.txt```
-mv CCE_NLI/BERT CCE_NLI/BERT.gz
-gunzip CCE_NLI/BERT.gz
-tar -xf CCE_NLI/BERT -C CCE_NLI/
+mkdir -p BERT
+tar -xvf BERT.tar.gz -C BERT
 
 To Run Explanations:
 

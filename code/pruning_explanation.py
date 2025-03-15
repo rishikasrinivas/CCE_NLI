@@ -34,15 +34,16 @@ def main(args):
         max_data = 1000
     else:
         max_data = None
+  
         
     if args.cuda:
         device = 'cuda'
     else:
         device = 'cpu'
         
-    model, dataloaders, _ = prune_utils.get_model(args.model_type, args.ckpt, device)
+    model, dataloaders, ckpt = prune_utils.get_model(args.model_type, args.ckpt, device)
     # ==== BUILD VOCAB ====
-    base_ckpt=torch.load(args.ckpt, map_location = torch.device(device)) #trained bowman/bert 
+    base_ckpt=torch.load(ckpt, map_location = torch.device(device)) #trained bowman/bert 
         
     vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
 
@@ -83,7 +84,7 @@ def parse_args():
     parser.add_argument("--hidden_dim", default=512, type=int)
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--cuda", action="store_true")
-    parser.add_argument("--ckpt", default=settings.MODEL)
+    parser.add_argument("--ckpt", default=None)
     
     
     return parser.parse_args()
