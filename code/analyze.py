@@ -519,7 +519,6 @@ def search_feats(acts, states, feats, weights, dataset, cluster, save_dir=None):
      
             best_lab, best_iou = res["best"]
             
-            
 
             best_cat = best_lab.to_str(cat_namer, sort=True) 
             best_cat_fine =  best_lab.to_str(cat_namer_fine, sort=True)
@@ -860,9 +859,9 @@ def main():
     parser = ArgumentParser(
         description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal", "bert"])
+    parser.add_argument("--model_type", default="bert", choices=["bowman", "minimal", "bert"])
    
-    parser.add_argument("--ckpt", default=settings.MODEL)
+    parser.add_argument("--ckpt", default="BOWMAN/models/random/Run2Full_bert_random_inits.pth")
     
     
     args = parser.parse_args()
@@ -879,7 +878,7 @@ def main():
     dataset = analysis.AnalysisDataset(lines, vocab)
     
     device = 'cuda' if settings.CUDA else 'cpu'    
-    formula_masks = initiate_exp_run(save_exp_dir = f"BERT/exp/random/expls",  save_masks_dir= f"BERT/exp/random/masks", masks_saved=False,model_=model, dataset=dataset, activations_dir = "BERT/activations/bert/random_1/bert_random_inits.pth", device='cpu')
+    formula_masks = initiate_exp_run(save_exp_dir = f"BERT/exp/random/expls_",  save_masks_dir= f"BERT/exp/random/masks_", masks_saved=False,model_=model, dataset=dataset, activations_dir = "BERT/activations/bert/random_1/bert_random_inits.pth", device='cpu')
     with open(f"BERT/formula_masks/bert/random/formula_masks.json", "w") as f:
         json.dump(formula_masks, f)
     alignment.calculate_alignment(formula_masks, f"overlap/{args.model_type}/random") 

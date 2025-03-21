@@ -26,18 +26,19 @@ def calculate_alignment(all_fm_masks, save_dir):
                     'iou': alignments
                 }
                 df = pd.DataFrame(data)
-                df.to_csv(f"{save_dir}/{i+1}Iter_{cluster}Cluster_Alignment.csv")
+                os.makedirs(f"{save_dir}/Cluster{cluster}/", exist_ok=True)
+                df.to_csv(f"{save_dir}/Cluster{cluster}/{i+1}Iter_{cluster}Cluster_Alignment.csv")
 
         
 #========testing alignment code=====
 fm_masks=[]
 import json,os
-for file in sorted(os.listdir("BERT/formula_masks/bert/wanda/Run2Full")):
+for file in sorted(os.listdir("BOWMAN/formula_masks/bowman/lottery_ticket/Run2FULL")):
     if '.ipy' in file: continue
-    with open (f"BERT/formula_masks/bert/wanda/Run2Full/{file}", 'r') as f:
+    with open (f"BOWMAN/formula_masks/bowman/lottery_ticket/Run2FULL/{file}", 'r') as f:
         d=json.load(f)
     fm_masks.append(d)
-calculate_alignment(fm_masks, "BERT/overlap/bert/wanda/Run2Full/")
+calculate_alignment(fm_masks, "BOWMAN/overlap/bowman/lottery_ticket/Run2Full")
 
     
     

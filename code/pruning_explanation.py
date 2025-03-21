@@ -53,8 +53,7 @@ def main(args):
     dataset = analysis.AnalysisDataset(lines, vocab)
     
     all_fm_masks = prune_utils.run_expls(args, model,dataset, dataloaders,device)
-    with open(os.path.join(args.form_mask_root_dir,"formula_masks.json"), "w") as f:
-        json.dump(all_fm_masks, f)
+    
     alignment.calculate_alignment(all_fm_masks, f"{args.model_type.upper()}/overlap/Run2FIXEDLTH/{args.pruning_method}")  
     return all_fm_masks
     

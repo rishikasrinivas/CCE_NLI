@@ -8,7 +8,7 @@
 
 ```pip install -r requirements.txt```
 mkdir -p BERT
-tar -xvf BERT.tar.gz -C BERT
+tar -xvf BOWMAN.tar.gz -C BOWMAN/
 
 To Run Explanations:
 

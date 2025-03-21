@@ -92,10 +92,10 @@ def run_expls(
             )
             
             all_fm_masks.append(formulaMasks)
-            os.makedirs(f"formula_masks/{args.model_type}/{args.pruning_method}", exist_ok=True)
-            with open(f"formula_masks/{args.model_type}/{args.pruning_method}/formula_masks_1{final_weights_pruned:.2f}.json", "w") as f:
-               
-                json.dump(formulaMasks, f)
+            path_store_fm_mask=f"{args.model_type.upper()}/formula_masks/{args.pruning_method}"
+            os.makedirs(path_store_fm_mask, exist_ok=True)
+            fm_mask_file = os.path.join(path_store_fm_mask,f"formula_masks_{final_weights_pruned}.npy")
+            np.save(fm_mask_file, formulaMasks)
          
         else:
             break
