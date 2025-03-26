@@ -7,6 +7,7 @@
 ```python -m spacy download en_core_web_sm```
 
 ```pip install -r requirements.txt```
+
 mkdir -p BERT
 tar -xvf BOWMAN.tar.gz -C BOWMAN/
 
@@ -14,7 +15,7 @@ To Run Explanations:
 
 ```
 pip install pyparsing==2.4.2
-python3 code/pruning_explanation.py --expls_mask_root_dir <dir to store explanations and masks> --prune_metrics_dir <dir to store ckpts> --model_type <bowman/bert> --pruning_method <lottery_ticket or wanda> --ckpt <ckpt to load model from>
+python3 code.pruning_explanation.py --model_type [bowman or bert] --filename [folder name in which to store masks/expls/weights]
 ```
 
 Lottery Ticket Pruning
