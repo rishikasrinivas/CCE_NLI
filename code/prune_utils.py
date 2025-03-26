@@ -58,15 +58,25 @@ def run_expls(
         Runs through each ckpt in the directory and applies CCE 
     '''
     all_fm_masks = []
+    path_to_weights = os.path.join(args.model_type.upper(), "models", args.pruning_method, args.filename)
+    path_to_explanations = os.path.join(args.model_type.upper(), "exp", args.pruning_method, args.filename, 'Expls')
+    path_to_activation_masks = os.path.join(args.model_type.upper(), "exp", args.pruning_method, args.filename, 'Masks')
+    path_to_activations = os.path.join(args.model_type.upper(), "activations", args.pruning_method, args.filename)
+    path_to_formula_masks = os.path.join(args.model_type.upper(), "formula_masks", args.pruning_method, args.filename)
+    print(path_to_weights)
+    os.makedirs(path_to_explanations, exist_ok=True)
+    os.makedirs(path_to_activation_masks, exist_ok=True)
+    os.makedirs(path_to_activations, exist_ok=True)
+    os.makedirs(path_to_formula_masks, exist_ok=True)
     
     # Gets the ckpt and numeric pruning iter
-    for prune_iter in range(len(os.listdir(args.prune_metrics_dir))):
-        print("Number of ckpts ", len(os.listdir(args.prune_metrics_dir)))
+    for prune_iter in range(len(os.listdir(path_to_weights))):
+        print("Number of ckpts ", len(os.listdir(path_to_weights)))
         prune_metrics_dir  = f"{prune_iter}_Pruning_Iter"
-        filepath = os.path.join(args.prune_metrics_dir, prune_metrics_dir,"model_best.pth" )
+        filepath = os.path.join(path_to_weights, prune_metrics_dir,"model_best.pth" )
         
         #ignores invalid flders/files
-        if prune_metrics_dir not in os.listdir(args.prune_metrics_dir): continue
+        if prune_metrics_dir not in os.listdir(path_to_weights): continue
         model.to(device)
         
         #=== Loading weights ===
@@ -78,23 +88,22 @@ def run_expls(
     
         # === Runs explanations ===
         if final_weights_pruned < args.max_thresh: #or :
-            exp_after_finetuning_flder, masks_after_finetuning_flder = make_folders(args.expls_mask_root_dir, final_weights_pruned)
+            
             print(f"======Running Explanations for {final_weights_pruned}% pruned=======")
             
             formulaMasks =initiate_exp_run(
-                save_exp_dir = exp_after_finetuning_flder, 
-                save_masks_dir= masks_after_finetuning_flder, 
-                activations_dir=os.path.join(args.activations_root_dir, prune_metrics_dir),
+                save_exp_dir = os.path.join(path_to_explanations, f"{final_weights_pruned}%Pruned"), 
+                save_masks_dir= os.path.join(path_to_activation_masks, f"{final_weights_pruned}%Pruned"), 
+                activations_dir=os.path.join(path_to_activations, prune_metrics_dir),
                 device=device,
-                masks_saved=False, 
+                masks_saved=True, 
                 model_=model,
                 dataset=dataset
             )
             
             all_fm_masks.append(formulaMasks)
-            path_store_fm_mask=f"{args.model_type.upper()}/formula_masks/{args.pruning_method}"
-            os.makedirs(path_store_fm_mask, exist_ok=True)
-            fm_mask_file = os.path.join(path_store_fm_mask,f"formula_masks_{final_weights_pruned}.npy")
+            os.makedirs(path_to_formula_masks, exist_ok=True)
+            fm_mask_file = os.path.join(path_to_formula_masks,f"formula_masks_{final_weights_pruned}.npy")
             np.save(fm_mask_file, formulaMasks)
          
         else:

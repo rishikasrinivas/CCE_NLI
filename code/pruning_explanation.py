@@ -28,8 +28,6 @@ sys.path.append("CCE_NLI/Analysis/")
 #import ..Analysis as Analysis
 import alignment
 def main(args):
-    os.makedirs(args.expls_mask_root_dir, exist_ok=True)
-    os.makedirs(args.form_mask_root_dir, exist_ok=True)
     if args.debug:
         max_data = 1000
     else:
@@ -40,7 +38,9 @@ def main(args):
         device = 'cuda'
     else:
         device = 'cpu'
-        
+    path_to_overlap = os.path.join(args.model_type.upper(), "overlap", args.pruning_method, args.filename)
+    
+      
     model, dataloaders, ckpt = prune_utils.get_model(args.model_type, args.ckpt, device)
     # ==== BUILD VOCAB ====
     base_ckpt=torch.load(ckpt, map_location = torch.device(device)) #trained bowman/bert 
@@ -54,7 +54,7 @@ def main(args):
     
     all_fm_masks = prune_utils.run_expls(args, model,dataset, dataloaders,device)
     
-    alignment.calculate_alignment(all_fm_masks, f"{args.model_type.upper()}/overlap/Run2FIXEDLTH/{args.pruning_method}")  
+    #alignment.calculate_alignment(all_fm_masks, path_to_overlap)  
     return all_fm_masks
     
 #running the expls using the already finetuned and precreated masks from before
@@ -66,12 +66,14 @@ def parse_args():
         description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
     )
 
-    parser.add_argument("--expls_mask_root_dir", default="exp/bert/lottery_ticket/Run1")
-    parser.add_argument("--form_mask_root_dir", default="formula_masks/bowman/Run2FIXEDLTH")
-    parser.add_argument("--activations_root_dir", default="activations/bert/lottery_ticket/Run1")
-    parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/lottery_ticket/BERT/Run1")
+    #parser.add_argument("--expls_mask_root_dir", default="exp/bert/lottery_ticket/Run1")
+    #parser.add_argument("--form_mask_root_dir", default="formula_masks/bowman/Run2FIXEDLTH")
+    #parser.add_argument("--activations_root_dir", default="activations/bert/lottery_ticket/Run1")
+    #parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/lottery_ticket/BERT/Run1")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal", "bert", 'llama'])
-    parser.add_argument("--pruning_method", default="bowman", choices=["lottery_ticket", "wanda", "osscar"])
+    parser.add_argument("--filename", default="Run_Test")
+    
+    parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "osscar"])
     parser.add_argument("--save_every", default=1, type=int)
     parser.add_argument("--max_thresh", default=95, type=float)
     

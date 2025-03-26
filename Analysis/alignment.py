@@ -2,13 +2,15 @@ import sys
 sys.path.append('code/')
 import metrics, random, torch,os
 import pandas as pd
+import numpy as np
 #{clus1: {neuon: mask}}
 def calculate_alignment(all_fm_masks, save_dir):
     os.makedirs(save_dir, exist_ok=True)
-    
-    initial_masks = all_fm_masks[0][0] #formula masks for without pruning
+
+    initial_masks = all_fm_masks[0] #formula masks for without pruning
 
     for i, fm_mask in enumerate(all_fm_masks[1:]):
+        
         for mask_dict in fm_mask:
             for cluster, pair in mask_dict.items():
                 neurons,alignments=[],[]
@@ -32,13 +34,14 @@ def calculate_alignment(all_fm_masks, save_dir):
         
 #========testing alignment code=====
 fm_masks=[]
+flder="BERT/formula_masks/bert/lottery_ticket/Run2Full"
 import json,os
-for file in sorted(os.listdir("BOWMAN/formula_masks/bowman/lottery_ticket/Run2FULL")):
+for file in sorted(os.listdir(flder)):
     if '.ipy' in file: continue
-    with open (f"BOWMAN/formula_masks/bowman/lottery_ticket/Run2FULL/{file}", 'r') as f:
-        d=json.load(f)
+    d = np.load(f"{flder}/{file}", allow_pickle=True)
+    print(d.shape)
     fm_masks.append(d)
-calculate_alignment(fm_masks, "BOWMAN/overlap/bowman/lottery_ticket/Run2Full")
+calculate_alignment(fm_masks, "BERT/overlap/bert/lottery_ticket/Run2Full")
 
     
     
