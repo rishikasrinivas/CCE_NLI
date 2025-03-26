@@ -8,11 +8,7 @@ class Pruner_:
         self.prunable_layers = collections.defaultdict()
         for layername, module in self.find_layers(self.model, self.model).items():
             if layername == 'encoder.rnn':
-                layername_hh = layername + '.weight_hh_l0'
-                self.prunable_layers[layername_hh] = 0.2
-                layername_ih = layername + '.weight_ih_l0'
-                self.prunable_layers[layername_ih] = 0.2
-                
+                continue #don't prune rnn
             else:
                 layername += ".weight"
                 if 'mlp.3' not  in layername:

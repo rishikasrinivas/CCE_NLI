@@ -33,7 +33,7 @@ def calculate_alignment(all_fm_masks, save_dir):
 
         
 #========testing alignment code=====
-fm_masks=[]
+'''fm_masks=[]
 flder="BERT/formula_masks/bert/lottery_ticket/Run2Full"
 import json,os
 for file in sorted(os.listdir(flder)):
@@ -41,7 +41,7 @@ for file in sorted(os.listdir(flder)):
     d = np.load(f"{flder}/{file}", allow_pickle=True)
     print(d.shape)
     fm_masks.append(d)
-calculate_alignment(fm_masks, "BERT/overlap/bert/lottery_ticket/Run2Full")
+calculate_alignment(fm_masks, "BERT/overlap/bert/lottery_ticket/Run2Full")'''
 
     
     

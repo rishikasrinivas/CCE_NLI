@@ -73,6 +73,8 @@ def run_expls(
     for prune_iter in range(len(os.listdir(path_to_weights))):
         print("Number of ckpts ", len(os.listdir(path_to_weights)))
         prune_metrics_dir  = f"{prune_iter}_Pruning_Iter"
+        if prune_iter < 11: continue
+        
         filepath = os.path.join(path_to_weights, prune_metrics_dir,"model_best.pth" )
         
         #ignores invalid flders/files
@@ -85,7 +87,7 @@ def run_expls(
         
         # === Recording Accs and Pruned Percents
         final_weights_pruned = get_percent_pruned(model)
-    
+        print("Explaining: ", final_weights_pruned)
         # === Runs explanations ===
         if final_weights_pruned < args.max_thresh: #or :
             
@@ -96,7 +98,7 @@ def run_expls(
                 save_masks_dir= os.path.join(path_to_activation_masks, f"{final_weights_pruned}%Pruned"), 
                 activations_dir=os.path.join(path_to_activations, prune_metrics_dir),
                 device=device,
-                masks_saved=True, 
+                masks_saved=False, 
                 model_=model,
                 dataset=dataset
             )

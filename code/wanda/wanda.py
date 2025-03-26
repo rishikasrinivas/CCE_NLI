@@ -311,9 +311,9 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
     
     nsamples = len(inps)
     
-    if args.model_type == 'bowman':
-        layers = [model.encoder.rnn]  
-    elif args.model_type == 'bert':
+    #if args.model_type == 'bowman':
+        #layers = [model.encoder.rnn]  
+    if args.model_type == 'bert':
         layers = model.encoder.encoder.layer
     
     if seg == 'mlp':
@@ -333,17 +333,18 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
         wrapped_layers = {}
         for name in subset:
             if args.model_type == 'bowman' and seg=='enc':
-                layer_name = 'lstm'
+                #layer_name = 'lstm'
+                raise Exception("Cannot prune bowman LSTM")
             else:
                 layer_name = 'linear'
             wrapped_layers[subset[name]] = WrappedGPT(subset[name], layer_name = layer_name)
 
         def add_batch(name):
             def tmp(_, inp, out):
-                if args.model_type == 'bowman' and seg == 'enc':
-                    wrapped_layers[name].add_batch(inp[0].data, out[0].data)
-                else:
-                    wrapped_layers[name].add_batch(inp[0].data, out.data)
+                #if args.model_type == 'bowman' and seg == 'enc':
+                   # wrapped_layers[name].add_batch(inp[0].data, out[0].data)
+                #else:
+                wrapped_layers[name].add_batch(inp[0].data, out.data)
             return tmp
 
         handles = []
@@ -364,17 +365,17 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
         for name in subset:
             print(f"pruning layer {name}: {subset[name]}")
             subset_value = subset[name]
-            if args.model_type == 'bowman' and seg == 'enc':
+            #if args.model_type == 'bowman' and seg == 'enc':
                 #here print subset_value and factor in pruining of weight_IH_data
-                W_metric_ih= torch.abs(subset_value.weight_ih_l0.data) * torch.sqrt(wrapped_layers[subset_value].scaler_row_ih.reshape((1,-1)))
-                W_metric_hh= torch.abs(subset_value.weight_hh_l0.data) * torch.sqrt(wrapped_layers[subset_value].scaler_row_hh.reshape((1,-1)))
-                W_mask1, W_mask2 = pruneLSTM(W_metric_ih, W_metric_hh, subset, name, sparsity_ratio)
-                subset[name].weight_ih_l0.data[W_mask1] = 0
-                subset[name].weight_hh_l0.data[W_mask2] = 0
-            else:
-                W_metric = torch.abs(subset_value.weight.data) * torch.sqrt(wrapped_layers[subset_value].scaler_row.reshape((1,-1)))
-                W_mask = pruneLayer(W_metric, subset, name, sparsity_ratio)
-                subset[name].weight.data[W_mask] = 0
+                #W_metric_ih= torch.abs(subset_value.weight_ih_l0.data) * torch.sqrt(wrapped_layers[subset_value].scaler_row_ih.reshape((1,-1)))
+                #W_metric_hh= torch.abs(subset_value.weight_hh_l0.data) * torch.sqrt(wrapped_layers[subset_value].scaler_row_hh.reshape((1,-1)))
+                #W_mask1, W_mask2 = pruneLSTM(W_metric_ih, W_metric_hh, subset, name, sparsity_ratio)
+                #subset[name].weight_ih_l0.data[W_mask1] = 0
+                #subset[name].weight_hh_l0.data[W_mask2] = 0
+            #else:
+            W_metric = torch.abs(subset_value.weight.data) * torch.sqrt(wrapped_layers[subset_value].scaler_row.reshape((1,-1)))
+            W_mask = pruneLayer(W_metric, subset, name, sparsity_ratio)
+            subset[name].weight.data[W_mask] = 0
             
             
             

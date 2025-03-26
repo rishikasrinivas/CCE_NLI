@@ -848,7 +848,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
                              save_masks_dir, 
                              formula_masks={},
                              masks_saved=masks_saved)
-    
+
     return formula_masks
     
 from data.snli import SNLI
