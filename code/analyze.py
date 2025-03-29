@@ -541,7 +541,7 @@ def search_feats(acts, states, feats, weights, dataset, cluster, save_dir=None):
                 labels = ["unit", "best_name", "best_iou", "samples_entailing_formulas", "activation_value_for_samples", 'intersection', 'sample_coverage', 'len_samples_entailing_formula', 'explanation_coverage', "num_active_in_range"]
                 values = [unit, best_name, best_iou, samples_entailing_formulas, [torch.tensor(states)[activated_samples,unit].min(),torch.tensor(states)[activated_samples,unit].max()] , intersection, samples_cvg, num_samples_active_for_form, expl_cvg, num_active_in_range]
                 
-                write_to_file(unit, f"{save_dir}/Cluster{cluster}IOUS1024N.csv",labels ,values)
+                write_to_file(unit, os.path.join(save_dir, f"Cluster{cluster}IOUS1024N.csv"),labels ,values)
             
                 r = {
                     "cluster": cluster,

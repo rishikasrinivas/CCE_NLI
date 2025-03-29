@@ -25,7 +25,7 @@ PRUNE = {
     'mlp.3.weight': 0.0, 
     'mlp.3.bias': 0.0,
 }
-NEURONS = [0]#None
+NEURONS = None
 PARALLEL = 4
 PRUNE_METRICS_DIR='models/snli/'
 MIN_ACTS=500
