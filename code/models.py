@@ -10,117 +10,7 @@ import collections
 from typing import Union
 from transformers import AutoTokenizer, AutoModel
 from llm2vec.models import LlamaBiModel
-class LLAMAEntailmentClassifier(nn.Module):
-    def __init__(self, encoder_name="knowledgator/Llama-encoder-1.0B", vocab=None, freeze_encoder=False):
-        super().__init__()
-        self.vocab = vocab
-        self.encoder_name = encoder_name
-        self.encoder = LlamaBiModel.from_pretrained(encoder_name)
-        self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
-        self.tokenizer.model_max_length = 512
-        
-        if "pad_token" not in self.tokenizer.special_tokens_map:
-            num_new_tokens = self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        else:
-            num_new_tokens = 0
-            
-        if num_new_tokens > 0:
-            self.encoder.resize_token_embeddings(len(self.tokenizer))
-        
-        if freeze_encoder:
-            for param in self.encoder.parameters():
-                param.requires_grad = False
-        
-        self.encoder_dim = 2048 #not sure how to get this through a code version
-        self.mlp_input_dim = self.encoder_dim * 4
-        self.dropout = nn.Dropout(0.1)
-        self.bn = nn.BatchNorm1d(self.mlp_input_dim)
-        self.mlp = nn.Sequential(
-            nn.Linear(self.mlp_input_dim, 1024),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(1024, 3),
-        )
-        self.output_dim = 3
 
-    def forward(self, s1, s1len, s2, s2len):
-        device = s1.device
-        
-        s1 = s1.transpose(1, 0)
-        s2 = s2.transpose(1, 0)
-        
-        s1_tokens = self.indices_to_bert_tokens(s1)
-        s2_tokens = self.indices_to_bert_tokens(s2)
-        
-        s1_tokens = {k: v.to(device) for k, v in s1_tokens.items()}
-        s2_tokens = {k: v.to(device) for k, v in s2_tokens.items()}
-        
-        s1enc = self.encode_sentence(s1_tokens)
-        s2enc = self.encode_sentence(s2_tokens)
-        
-        diffs = s1enc - s2enc
-        prods = s1enc * s2enc
-        
-        mlp_input = torch.cat([s1enc, s2enc, diffs, prods], 1)
-        mlp_input = self.bn(mlp_input)
-        mlp_input = self.dropout(mlp_input)
-        preds = self.mlp(mlp_input)
-        
-        return preds
-
-    def get_final_reprs(self, s1, s1len, s2, s2len):
-        device = s1.device
-        
-        s1 = s1.transpose(1, 0)
-        s2 = s2.transpose(1, 0)
-        
-        s1_tokens = self.indices_to_bert_tokens(s1)
-        s2_tokens = self.indices_to_bert_tokens(s2)
-        
-        s1_tokens = {k: v.to(device) for k, v in s1_tokens.items()}
-        s2_tokens = {k: v.to(device) for k, v in s2_tokens.items()}
-        
-        s1enc = self.encode_sentence(s1_tokens)
-        s2enc = self.encode_sentence(s2_tokens)
-        
-        diffs = s1enc - s2enc
-        prods = s1enc * s2enc
-        
-        mlp_input = torch.cat([s1enc, s2enc, diffs, prods], 1)
-        mlp_input = self.bn(mlp_input)
-        mlp_input = self.dropout(mlp_input)
-        rep = self.mlp[:-1](mlp_input)
-        
-        return rep
-
-    def forward_from_final(self, rep):
-        preds = self.mlp[-1:](rep)
-        return preds
-
-    def indices_to_bert_tokens(self, indices):
-        batch_size, seq_len = indices.shape
-        words = []
-        for i in range(batch_size):
-            sentence = []
-            for idx in indices[i]:
-                if idx.item() in self.vocab['itos']:
-                    word = self.vocab['itos'][idx.item()]
-                    if word not in ("[PAD]", "<pad>", "PAD"): 
-                        sentence.append(word)
-                else:
-                    break
-            words.append(sentence)
-        
-        return self.tokenizer(words, is_split_into_words=True, return_tensors="pt", padding=True, truncation=True)
-
-    def encode_sentence(self, tokens):
-        outputs = self.encoder(**tokens).last_hidden_state.mean(dim=1) 
-        return outputs
-
-    def to(self, device):
-        self.encoder = self.encoder.to(device)
-        return super().to(device)
-    
 class SentimentClassifier(nn.Module):
     def __init__(self, encoder):
         super().__init__()
@@ -355,7 +245,119 @@ class BaseModel(torch.nn.Module):
         """
 
         raise NotImplementedError()
+class LLAMAEntailmentClassifier(BaseModel):
+    def __init__(self, encoder_name="knowledgator/Llama-encoder-1.0B", vocab=None, freeze_encoder=False, device='cuda'):
+        super().__init__()
+        self.vocab = vocab
+        self.encoder_name = encoder_name
+        self.encoder = LlamaBiModel.from_pretrained(encoder_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
+        self.tokenizer.model_max_length = 512
+        
+        if "pad_token" not in self.tokenizer.special_tokens_map:
+            num_new_tokens = self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        else:
+            num_new_tokens = 0
+            
+        if num_new_tokens > 0:
+            self.encoder.resize_token_embeddings(len(self.tokenizer))
+        
+        if freeze_encoder:
+            for param in self.encoder.parameters():
+                param.requires_grad = False
+        
+        self.encoder_dim = 2048 #not sure how to get this through a code version
+        self.mlp_input_dim = self.encoder_dim * 4
+        self.dropout = nn.Dropout(0.1)
+        self.bn = nn.BatchNorm1d(self.mlp_input_dim)
+        self.mlp = nn.Sequential(
+            nn.Linear(self.mlp_input_dim, 1024),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(1024, 3),
+        )
+        self.output_dim = 3
+        self.initialize(device)
 
+    def forward(self, s1, s1len, s2, s2len):
+        device = s1.device
+        
+        s1 = s1.transpose(1, 0)
+        s2 = s2.transpose(1, 0)
+        
+        s1_tokens = self.indices_to_bert_tokens(s1)
+        s2_tokens = self.indices_to_bert_tokens(s2)
+        
+        s1_tokens = {k: v.to(device) for k, v in s1_tokens.items()}
+        s2_tokens = {k: v.to(device) for k, v in s2_tokens.items()}
+        
+        s1enc = self.encode_sentence(s1_tokens)
+        s2enc = self.encode_sentence(s2_tokens)
+        
+        diffs = s1enc - s2enc
+        prods = s1enc * s2enc
+        
+        mlp_input = torch.cat([s1enc, s2enc, diffs, prods], 1)
+        mlp_input = self.bn(mlp_input)
+        mlp_input = self.dropout(mlp_input)
+        preds = self.mlp(mlp_input)
+        
+        return preds
+
+    def get_final_reprs(self, s1, s1len, s2, s2len):
+        device = s1.device
+        
+        s1 = s1.transpose(1, 0)
+        s2 = s2.transpose(1, 0)
+        
+        s1_tokens = self.indices_to_bert_tokens(s1)
+        s2_tokens = self.indices_to_bert_tokens(s2)
+        
+        s1_tokens = {k: v.to(device) for k, v in s1_tokens.items()}
+        s2_tokens = {k: v.to(device) for k, v in s2_tokens.items()}
+        
+        s1enc = self.encode_sentence(s1_tokens)
+        s2enc = self.encode_sentence(s2_tokens)
+        
+        diffs = s1enc - s2enc
+        prods = s1enc * s2enc
+        
+        mlp_input = torch.cat([s1enc, s2enc, diffs, prods], 1)
+        mlp_input = self.bn(mlp_input)
+        mlp_input = self.dropout(mlp_input)
+        rep = self.mlp[:-1](mlp_input)
+        
+        return rep
+
+    def forward_from_final(self, rep):
+        preds = self.mlp[-1:](rep)
+        return preds
+
+    def indices_to_bert_tokens(self, indices):
+        batch_size, seq_len = indices.shape
+        words = []
+        for i in range(batch_size):
+            sentence = []
+            for idx in indices[i]:
+                if idx.item() in self.vocab['itos']:
+                    word = self.vocab['itos'][idx.item()]
+                    if word not in ("[PAD]", "<pad>", "PAD"): 
+                        sentence.append(word)
+                else:
+                    break
+            words.append(sentence)
+        
+        return self.tokenizer(words, is_split_into_words=True, return_tensors="pt", padding=True, truncation=True)
+
+    def encode_sentence(self, tokens):
+        outputs = self.encoder(**tokens).last_hidden_state.mean(dim=1) 
+        return outputs
+
+    def to(self, device):
+        self.encoder = self.encoder.to(device)
+        return super().to(device)
+    
+    
 class BertEntailmentClassifier(BaseModel):
     def __init__(self, encoder_name="bert-base-uncased", vocab=None, freeze_bert=False, device='cuda'):
         super().__init__()

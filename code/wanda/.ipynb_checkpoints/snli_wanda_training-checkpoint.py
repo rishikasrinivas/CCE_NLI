@@ -13,6 +13,7 @@ import torch.optim as optim
 import torch.nn as nn
 import settings
 import util
+
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 
@@ -55,11 +56,12 @@ def main():
     
     ckpt = args.ckpt
     if not ckpt or 'random' in ckpt:
+        
         print(f"====Training {args.model_type} from {ckpt} and storing weights in {args.prune_metrics_dir}====")
-        model,dataloaders,ckpt = prune_utils.get_model(args.model_type, ckpt, device='cuda')
-        optimizer = optim.Adam(model.parameters())
-        criterion = nn.CrossEntropyLoss()
-        finetune_pruned_model(model,args.model_type, optimizer,criterion, dataloaders['train'].dataset, dataloaders['val'].dataset, dataloaders, 10, args.prune_metrics_dir,device='cuda')
+        #model,dataloaders,ckpt = prune_utils.get_model(args.model_type, ckpt, device='cuda')
+        #optimizer = optim.Adam(model.parameters())
+        #criterion = nn.CrossEntropyLoss()
+        #train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, dataloaders['train'].dataset, dataloaders['val'].dataset, dataloaders, 10, args.prune_metrics_dir,device='cuda')
         
     print(f"====Done training. Going to prune from {args.prune_metrics_dir}/{args.offset} Pruning Iter====")
     for i,sparsity_ratio in enumerate(settings.SPARSITY_RATIOS[args.offset:]):
@@ -71,8 +73,7 @@ def main():
         # === Getting model ===
         
         model,dataloaders,ckpt = prune_utils.get_model(args.model_type, ckpt, device='cuda')
-   
-    
+        print(model.encoder.config)
         # ==== BUILD VOCAB ====
         base_ckpt=torch.load(ckpt) #trained model
 
@@ -80,9 +81,9 @@ def main():
         criterion = nn.CrossEntropyLoss()
         
         #===== Debugging: Initial Eval =====
-        eval_test = train_utils.run_eval(model, dataloaders['val'])
+        #eval_test = train_utils.run_eval(model, dataloaders['val'])
 
-        print(f"Before Pruning NLI Eval: {eval_test}")
+        #print(f"Before Pruning NLI Eval: {eval_test}")
 
         #===== Pruning =====
         device = torch.device("cuda:0")

@@ -11,7 +11,7 @@ MAX_FORMULA_LENGTH = 5
 COMPLEXITY_PENALTY = 1.00
 TOPN = 5
 DEBUG = False
-
+NUM_SAMPLES=100
 # Choices: iou, precision, recall
 METRIC = "iou"
 

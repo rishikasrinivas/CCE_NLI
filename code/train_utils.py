@@ -15,7 +15,7 @@ from collections import defaultdict
 import os,fileio
 from transformers import BertTokenizer, BertModel, AdamW, get_linear_schedule_with_warmup
 
-def create_dataloaders(model_type, max_data):
+def create_dataloaders(max_data):
     root_dir=f"DataLoaders/"
     if not ('train_dataset.pth' in os.listdir(root_dir) and 'val_dataset.pth' in os.listdir(root_dir) and 'test_dataset.pth' in os.listdir(root_dir)):
         train = SNLI("data/snli_1.0", "train", max_data=None)
@@ -231,9 +231,9 @@ def load_model(max_data, model_type, train, ckpt=None, device='cuda'):
     else:
         print("train itos = ", len(train.stoi))
         util.save_checkpoint(
-                serialize(model, model_type, train), False, "BOWMAN/models/random", filename=f"Run2Full_{model_type}_random_inits.pth"
+                serialize(model, model_type, train), False, f"{model_type.upper()}/models/random", filename=f"Run2Full_{model_type}_random_inits.pth"
         )
-        ckpt=f"BOWMAN/models/random/Run2Full_{model_type}_random_inits.pth"
+        ckpt=f"{model_type.upper()}/models/random/Run2Full_{model_type}_random_inits.pth"
     
     return model, ckpt
 

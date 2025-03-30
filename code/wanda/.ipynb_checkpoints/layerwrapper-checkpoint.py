@@ -1,0 +1,58 @@
+import torch
+import torch.nn as nn
+
+# Define WrappedGPT class
+class WrappedGPT:
+    """
+    This class wraps a GPT layer for specific operations.
+    """
+
+    def __init__(self, layer, layer_id=0, layer_name="none"):
+        self.layer = layer
+        if layer_name=='lstm':
+                self.dev = self.layer.weight_ih_l0.device
+                self.rows = layer.weight_ih_l0.data.shape[0]
+                self.columns = layer.weight_ih_l0.data.shape[1]
+                self.scaler_row_ih = torch.zeros((self.columns), device=self.dev)
+                
+
+                self.dev = self.layer.weight_hh_l0.device
+                self.rows = layer.weight_hh_l0.data.shape[0]
+                self.columns = layer.weight_hh_l0.data.shape[1]
+                self.scaler_row_hh = torch.zeros((self.columns), device=self.dev)
+        else:
+            self.dev = self.layer.weight.device
+            self.rows = layer.weight.data.shape[0]
+            self.columns = layer.weight.data.shape[1]
+            self.scaler_row = torch.zeros((self.columns), device=self.dev)
+        self.nsamples = 0
+
+        self.layer_id = layer_id 
+        self.layer_name = layer_name
+
+    def add_batch(self, inp, out):
+        if len(inp.shape) == 2:
+            inp = inp.unsqueeze(0) 
+        tmp = inp.shape[0]
+        if isinstance(self.layer, nn.Linear) or isinstance(self.layer, nn.LSTM) :
+            if len(inp.shape) == 3:
+                inp = inp.reshape((-1, inp.shape[-1]))
+            inp = inp.t()
+
+        if self.layer_name == 'linear':
+            self.scaler_row *= self.nsamples / (self.nsamples+tmp)
+            self.nsamples += tmp
+
+            inp = inp.type(torch.float32)
+            self.scaler_row += torch.norm(inp, p=2, dim=1) ** 2  / self.nsamples
+        else:
+            self.scaler_row_ih *= self.nsamples / (self.nsamples+tmp)
+            inp = inp.type(torch.float32)
+            self.scaler_row_ih += torch.norm(inp, p=2, dim=1) ** 2  / (self.nsamples+tmp)
+            
+            self.scaler_row_hh *= self.nsamples / (self.nsamples+tmp)
+            out = out.type(torch.float32)
+            self.scaler_row_hh += torch.norm(out.unsqueeze(0).reshape((-1, out.shape[-1])).t(), p=2, dim=1) ** 2  / (self.nsamples+tmp)
+            
+            self.nsamples += tmp
+            
