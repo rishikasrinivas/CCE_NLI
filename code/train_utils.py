@@ -233,8 +233,9 @@ def load_model(max_data, model_type, train, ckpt=None, device='cuda'):
         util.save_checkpoint(
                 serialize(model, model_type, train), False, f"{model_type.upper()}/models/random", filename=f"Run2Full_{model_type}_random_inits.pth"
         )
-        ckpt=f"{model_type.upper()}/models/random/Run2Full_{model_type}_random_inits.pth"
-    
+        ckpt = os.path.join(model_type.upper(), "models", "Random", args.filename, f"{model_type}_random_inits.pth")
+            
+        
     return model, ckpt
 
 

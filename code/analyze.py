@@ -31,6 +31,7 @@ import data.analysis
 from activation_utils import compute_activ_ranges, create_clusters, build_act_mask, active_neurons, build_masks
 from data.DataLoading import load_masks
 import snli_eval
+import activation
 GLOBALS = {}
 
 def get_feat_vec_for_concept(concept_num, feats, vocab):
@@ -450,10 +451,16 @@ def extract_features(
         all_idxs.extend(list(pairs(idx).cpu().numpy()))
 
     all_feats = {"onehot": all_feats, "multi": all_multifeats}
-    
-    with open(f'{save_activations_dir}/final_layer_activations.pkl', 'rb') as file:
-        print(f"Loading activations from {save_activations_dir}/final_layer_activations.pkl")
-        all_states = pickle.load(file)
+    try:
+        with open(f'{save_activations_dir}/final_layer_activations.pkl', 'rb') as file:
+            print(f"Loading activations from {save_activations_dir}/final_layer_activations.pkl")
+            all_states = pickle.load(file)
+    except:
+        all_states = activation.save_features(
+            model,
+            dataset,
+            save_activations_dir,
+        )
         
     return all_srcs, all_states, all_feats, all_idxs
 
@@ -860,13 +867,15 @@ def main():
         description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("--model_type", default="bert", choices=["bowman", "minimal", "bert"])
-   
-    parser.add_argument("--ckpt", default="BOWMAN/models/random/Run2Full_bert_random_inits.pth")
+    parser.add_argument("--filename", default="RAndom")
+    parser.add_argument("--ckpt", default=None)
+    
     
     
     args = parser.parse_args()
+
     train,_,_,dataloaders=train_utils.create_dataloaders(args.model_type, max_data=10000)
-    model,ckpt = train_utils.load_model(max_data=10000, model_type=args.model_type, train=train, ckpt=args.ckpt)
+    model,ckpt = train_utils.load_model(max_data=10000, model_type=args.model_type, train=train, ckpt=None)
     
     # ==== BUILD VOCAB ====
     base_ckpt=torch.load(args.ckpt) #trained bowman/bert 
@@ -878,10 +887,10 @@ def main():
     dataset = analysis.AnalysisDataset(lines, vocab)
     
     device = 'cuda' if settings.CUDA else 'cpu'    
-    formula_masks = initiate_exp_run(save_exp_dir = f"BERT/exp/random/expls_",  save_masks_dir= f"BERT/exp/random/masks_", masks_saved=False,model_=model, dataset=dataset, activations_dir = "BERT/activations/bert/random_1/bert_random_inits.pth", device='cpu')
-    with open(f"BERT/formula_masks/bert/random/formula_masks.json", "w") as f:
+    formula_masks = initiate_exp_run(save_exp_dir = f"{args.model_type.upper()}/exp/{args.filename}",  save_masks_dir= f"{args.model_type.upper()}/masks/{args.filename}", masks_saved=False,model_=model, dataset=dataset, activations_dir = f"{args.model_type.upper()}/activations/{args.filename}", device='cpu')
+    with open(os.path.join({args.model_type.upper()},"formula_masks",{args.filename},"formula_masks.json"), "w") as f:
         json.dump(formula_masks, f)
-    alignment.calculate_alignment(formula_masks, f"overlap/{args.model_type}/random") 
+    alignment.calculate_alignment(formula_masks, f"{args.model_type.upper()}/overlap/{args.filename}") 
     
     print("Load predictions")
     mbase = os.path.splitext(os.path.basename(settings.MODEL))[0]

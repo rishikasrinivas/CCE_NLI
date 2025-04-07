@@ -148,8 +148,8 @@ def parse_args():
 
    
     parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/lottery_ticket/bowman")
-    parser.add_argument("--root_metrics_dir", default="models/snli")
-    parser.add_argument("--model_dir", default="expls/snli/model_dir")
+    #parser.add_argument("--root_metrics_dir", default="models/snli")
+    #parser.add_argument("--model_dir", default="expls/snli/model_dir")
     parser.add_argument("--store_exp_bkdown", default="expls/snli_1.0_dev-6-sentence-5/")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal", "bert", "llama"])
     parser.add_argument("--save_every", default=1, type=int)

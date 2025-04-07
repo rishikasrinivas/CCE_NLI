@@ -43,7 +43,7 @@ def pairs(x):
         return x.unsqueeze(2).view(x.shape[0], -1, 2, *x.shape[2:])
 
     
-def extract_features(
+def save_features(
     model,
     dataset,
     save_activs_dir,
@@ -103,7 +103,7 @@ def initiate_exp_run(args):
         
         model.cuda()
 
-        extract_features(
+        save_features(
             model,
             dataset,
             f"{args.save_activs_dir}/{ckpt_dir}/final_layer_activations.pkl"
