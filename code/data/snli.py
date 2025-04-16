@@ -129,10 +129,11 @@ class SNLI:
                         continue
                 else:
                     label_i = self.label_stoi[label]
-                self.labels.append(label_i)
+                
 
                 if self.max_data is not None and i >= self.max_data:
                     break
+                self.labels.append(label_i)
 
                 s1_doc = self.spacy(s1)
                 s1_tok = [t.lower_ for t in s1_doc]
