@@ -120,5 +120,5 @@ def main():
     parser.add_argument("--cuda", action="store_true")
     
     initiate_exp_run(parser.parse_args())
-main()
+#main()
 

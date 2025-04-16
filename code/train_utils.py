@@ -93,6 +93,7 @@ def create_dataloaders(max_data):
 
 
 def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_epochs, device='cuda'):
+    torch.cuda.empty_cache()
     training = split == "train"
     if training:
         ctx = nullcontext
@@ -145,7 +146,7 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
         loss_meter.update(loss.item(), batch_size)
         acc_meter.update(acc.item(), batch_size)
         
-        if args.model_type in ['bert', 'llama']:
+        if model_type in ['bert', 'llama']:
             # scaler.scale(loss).backward()
             # scaler.step(optimizer)
             # scaler.update()
@@ -231,9 +232,9 @@ def load_model(max_data, model_type, train, ckpt=None, device='cuda'):
     else:
         print("train itos = ", len(train.stoi))
         util.save_checkpoint(
-                serialize(model, model_type, train), False, f"{model_type.upper()}/models/random", filename=f"Run2Full_{model_type}_random_inits.pth"
+                serialize(model, model_type, train), False, os.path.join(model_type.upper(), "models", "random"), f"{model_type}_random_inits.pth"
         )
-        ckpt = os.path.join(model_type.upper(), "models", "Random", args.filename, f"{model_type}_random_inits.pth")
+        ckpt = os.path.join(model_type.upper(), "models", "random", f"{model_type}_random_inits.pth")
             
         
     return model, ckpt

@@ -457,10 +457,11 @@ def extract_features(
             all_states = pickle.load(file)
     except:
         all_states = activation.save_features(
-            model,
+            model.cuda(),
             dataset,
             save_activations_dir,
         )
+        model.cpu()
         
     return all_srcs, all_states, all_feats, all_idxs
 
@@ -874,8 +875,8 @@ def main():
     
     args = parser.parse_args()
 
-    train,_,_,dataloaders=train_utils.create_dataloaders(args.model_type, max_data=10000)
-    model,ckpt = train_utils.load_model(max_data=10000, model_type=args.model_type, train=train, ckpt=None)
+    train,_,_,dataloaders=train_utils.create_dataloaders(max_data=10000)
+    model,ckpt = train_utils.load_model(max_data=10000, model_type=args.model_type, train=train, ckpt=args.ckpt)
     
     # ==== BUILD VOCAB ====
     base_ckpt=torch.load(args.ckpt) #trained bowman/bert 

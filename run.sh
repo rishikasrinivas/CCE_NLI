@@ -1,6 +1,6 @@
 #!/bin/bash
 python -c "import os; print(os.path.abspath('analyze.py'))"
-python3 code/analyze.py --model_type bert --filename Run3
+python3 code/analyze.py --model_type bert --filename Run3 --ckpt BERT/models/random/bert_random_inits.pth
 
 
 python3 code/lotteryTicket/snli_lottery_ticket_training.py --prune_metrics_dir BERT/models/lottery_ticket/Run3 --model_type bert --ckpt BERT/models/Random/Run3/bert_random_inits.pth
