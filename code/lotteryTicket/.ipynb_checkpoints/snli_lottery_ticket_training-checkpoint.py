@@ -66,7 +66,7 @@ def main(args):
     else:
         device='cpu'
         print("On CPU")
-    model.to(device)
+
     
     pruner = Pruner_(model)
 
@@ -118,7 +118,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         #stop pruning after max_thresh
         if final_weights_pruned >= args.max_thresh: break
             
-        model.cuda()
+        #model.cuda()
         #====PRUNE=====
         
         model = pruner.prune() #PRUNE AND SAVE PRUNE MASK
@@ -134,7 +134,8 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
                 continue
                 
         # Reload random inits with pruned weights (that were prnued after fting) 0'd out
-        model.load_state_dict(base_ckpt['state_dict'])                 
+        model.load_state_dict(base_ckpt['state_dict'])  
+        model.cpu()
         
         
     return pruned_percents, final_accs

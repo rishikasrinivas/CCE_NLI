@@ -71,9 +71,7 @@ def run_expls(
     
     # Gets the ckpt and numeric pruning iter
     for prune_iter in range(len(os.listdir(path_to_weights))):
-        print("Number of ckpts ", len(os.listdir(path_to_weights)))
         prune_metrics_dir  = f"{prune_iter}_Pruning_Iter"
-        if prune_iter < 11: continue
         
         filepath = os.path.join(path_to_weights, prune_metrics_dir,"model_best.pth" )
         

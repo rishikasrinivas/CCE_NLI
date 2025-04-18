@@ -118,7 +118,11 @@ class SNLI:
                 if self.c:
                     s1, s2, label = line.strip().split("\t")
                 else:
-                    label, _, _, _, _, s1, s2, *_ = line.strip().split("\t")
+                    try:
+                        label, _, _, _, _, s1, s2, *_ = line.strip().split("\t")
+                    except:
+                        print(line)
+                        return
 
                 if label not in self.label_stoi:  # Hard example
                     assert label == "-"

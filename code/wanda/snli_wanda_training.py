@@ -34,7 +34,6 @@ def main():
 
     parser.add_argument('--use_variant', default=False, action="store_true", help="whether to use the wanda variant described in the appendix")
     
-    #parser.add_argument("--expls_mask_root_dir", default="exp/bert/wanda/Run1")
     parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/wanda/BERT/Run1")
     parser.add_argument("--save_every", default=1, type=int)
     parser.add_argument("--max_thresh", default=95, type=float)
