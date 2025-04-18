@@ -8,8 +8,6 @@
 
 ```pip install -r requirements.txt```
 
-mkdir -p BERT
-tar -xvf BERT.tar.gz -C BERT/
 
 To Run Explanations:
 
@@ -29,5 +27,5 @@ python3 code/lotteryTicket/snli_lottery_ticket_training.py --model_type [bert or
 Wanda Pruning
 
 ```
-python3 code/wanda/snli_wanda_training.py --model_type <bert/bowman> --ckpt <initially trained weights file path> --prune_metrics_dir <dir to store ckpts> --offset <int for which iteration to resume pruning from>
+python3 code/wanda/snli_wanda_training.py --prune_metrics_dir <directory to store weights> --model_type bert --ckpt <dir to trained, unpruned model weights>
 ```
