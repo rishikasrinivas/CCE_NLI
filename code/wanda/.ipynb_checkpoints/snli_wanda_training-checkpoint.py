@@ -57,10 +57,10 @@ def main():
     if not ckpt or 'random' in ckpt:
         
         print(f"====Training {args.model_type} from {ckpt} and storing weights in {args.prune_metrics_dir}====")
-        #model,dataloaders,ckpt = prune_utils.get_model(args.model_type, ckpt, device='cuda')
-        #optimizer = optim.Adam(model.parameters())
-        #criterion = nn.CrossEntropyLoss()
-        #train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, dataloaders['train'].dataset, dataloaders['val'].dataset, dataloaders, 10, args.prune_metrics_dir,device='cuda')
+        model,dataloaders,ckpt = prune_utils.get_model(args.model_type, ckpt, device='cuda')
+        optimizer = optim.Adam(model.parameters())
+        criterion = nn.CrossEntropyLoss()
+        train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, dataloaders['train'].dataset, dataloaders['val'].dataset, dataloaders, 10, args.prune_metrics_dir,device='cuda')
         
     print(f"====Done training. Going to prune from {args.prune_metrics_dir}/{args.offset} Pruning Iter====")
     for i,sparsity_ratio in enumerate(settings.SPARSITY_RATIOS[args.offset:]):
