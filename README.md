@@ -8,8 +8,6 @@
 
 ```pip install -r requirements.txt```
 
-mkdir -p BERT
-tar -xvf BERT.tar.gz -C BERT/
 
 To Run Explanations:
 
