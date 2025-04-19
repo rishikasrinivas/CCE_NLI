@@ -1,7 +1,7 @@
 # CCE_NLI
 
 ```
-git clone 
+git clone https://github.com/rishikasrinivas/CCE_NLI.git
 cd CCE_NLI
 ./downloads.sh
 ```
