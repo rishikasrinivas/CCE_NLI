@@ -40,7 +40,7 @@ def main(args):
     else:
         max_data = None
         
-    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, args.debug)
+    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, debug=args.debug)
     model,ckpt = train_utils.load_model(max_data=max_data, model_type=args.model_type, train=train, ckpt=args.ckpt)
     
     # ==== BUILD VOCAB ====

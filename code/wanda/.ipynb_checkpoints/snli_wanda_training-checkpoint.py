@@ -58,7 +58,7 @@ def main():
     print(f"On device: {device}")
     
     #========== Set up model & dataset ===========
-    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, args.debug)
+    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, debug=args.debug)
     model,ckpt= train_utils.load_model(max_data, args.model_type, train, ckpt=args.ckpt, device=device)
     
     #========== Train model if ckpt dne ===========
