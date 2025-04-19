@@ -9,17 +9,6 @@ import os
 import json
 import fileio
 import sys
-# Define the path to the module you want to import
-analysis_path = os.path.abspath("Analysis/pipelines.py")
-
-# Load the module dynamically
-import importlib
-spec = importlib.util.spec_from_file_location("pipelines", analysis_path)
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-
-sys.path.append("Analysis/")
-import pipelines as pipelines
 
 def record_stats(prune_metrics_dir, identifier, files, marker):
     prunedBeforeRT_expls =files[0]
