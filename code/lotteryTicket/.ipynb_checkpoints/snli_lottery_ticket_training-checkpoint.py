@@ -40,7 +40,7 @@ def main(args):
     else:
         max_data = None
         
-    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data)
+    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, args.debug)
     model,ckpt = train_utils.load_model(max_data=max_data, model_type=args.model_type, train=train, ckpt=args.ckpt)
     
     # ==== BUILD VOCAB ====
@@ -88,6 +88,7 @@ def main(args):
 #running the expls using the already finetuned and precreated masks from before
 def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, test, dataloaders):
     pruned_percents, final_accs, final_weights =[], [], model.mlp[0].weight.detach().cpu().numpy()
+    prune_metrics_dir_base = os.path.join(args.model_type, "models", "lottery_ticket", args.filename)
     #train, prune, apply prune mask to init, train
     for prune_iter in tqdm(range(0, args.prune_iters)):
         
@@ -102,10 +103,11 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         criterion = nn.CrossEntropyLoss()
         model.cuda()
 
-        prune_metrics_dir = os.path.join(args.prune_metrics_dir, f"{prune_iter}_Pruning_Iter")
+        prune_metrics_dir = os.path.join(prune_metrics_dir_base, f"{prune_iter}_Pruning_Iter")
+      
         os.makedirs(prune_metrics_dir,exist_ok=True)
 
-        ft_epochs = int(args.finetune_epochs/2) if prune_iter > 0 else args.finetune_epochs
+        ft_epochs = max(1,int(args.finetune_epochs/2)) if prune_iter > 0 else args.finetune_epochs
 
         model = train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, train, val, dataloaders, ft_epochs, prune_metrics_dir, device)
 
@@ -124,14 +126,15 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         model = pruner.prune() #PRUNE AND SAVE PRUNE MASK
 
         #===== APPLY PRUNING MASK TO INIT WEIGHTS ====== 
+        not_pruneable_layers = []
         for layer in base_ckpt['state_dict'].keys():
             try:
                 base_ckpt['state_dict'][layer] *= model.get_layer(layer).pruning_mask.cpu()
                 masks = model.get_layer(layer).pruning_mask.cpu()
-                print(torch.where(masks== 0,1,0).sum()/(masks.shape[0]*masks.shape[1]))
             except:
-                print("Not able to prune this layer ", layer)
+                not_pruneable_layers.append(layer)
                 continue
+        assert all(any(kw in x for kw in ['bias', 'bn', 'embeddings', 'LayerNorm']) for x in not_pruneable_layers)
                 
         # Reload random inits with pruned weights (that were prnued after fting) 0'd out
         model.load_state_dict(base_ckpt['state_dict'])  
@@ -152,6 +155,7 @@ def parse_args():
     #parser.add_argument("--root_metrics_dir", default="models/snli")
     #parser.add_argument("--model_dir", default="expls/snli/model_dir")
     parser.add_argument("--store_exp_bkdown", default="expls/snli_1.0_dev-6-sentence-5/")
+    parser.add_argument("--filename", type=str)
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal", "bert", "llama"])
     parser.add_argument("--save_every", default=1, type=int)
     

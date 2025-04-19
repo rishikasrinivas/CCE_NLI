@@ -20,7 +20,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_type', type=str)
-    parser.add_argument('--seg', type=str, choices=["enc", "mlp"])
+    parser.add_argument('--filename', type=str)
     
   
     parser.add_argument('--seed', type=int, default=0, help='Seed for sampling the calibration data.')
@@ -33,8 +33,7 @@ def main():
     parser.add_argument("--offset", default=0, type=int )
 
     parser.add_argument('--use_variant', default=False, action="store_true", help="whether to use the wanda variant described in the appendix")
-    
-    parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/wanda/BERT/Run1")
+
     parser.add_argument("--save_every", default=1, type=int)
     parser.add_argument("--max_thresh", default=95, type=float)
     
@@ -51,30 +50,33 @@ def main():
         max_data = 1000
     else:
         max_data = None
-        
     
-    ckpt = args.ckpt
+    #========== Set up Env ===========
+    prune_metrics_dir = os.path.join(args.model_type, "models", args.prune_method, args.filename)
+    os.makedirs(prune_metrics_dir, exist_ok=True)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print(f"On device: {device}")
+    
+    #========== Set up model & dataset ===========
+    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, args.debug)
+    model,ckpt= train_utils.load_model(max_data, args.model_type, train, ckpt=args.ckpt, device=device)
+    
+    #========== Train model if ckpt dne ===========
     if not ckpt or 'random' in ckpt:
-        
-        print(f"====Training {args.model_type} from {ckpt} and storing weights in {args.prune_metrics_dir}====")
-        model,dataloaders,ckpt = prune_utils.get_model(args.model_type, ckpt, device='cuda')
+        print(f"====Training {args.model_type} from {ckpt} and storing weights in {prune_metrics_dir}====")
         optimizer = optim.Adam(model.parameters())
         criterion = nn.CrossEntropyLoss()
-        train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, dataloaders['train'].dataset, dataloaders['val'].dataset, dataloaders, 10, args.prune_metrics_dir,device='cuda')
+        train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, dataloaders['train'].dataset, dataloaders['val'].dataset, dataloaders, 10, prune_metrics_dir,device='cuda')
         
-    print(f"====Done training. Going to prune from {args.prune_metrics_dir}/{args.offset} Pruning Iter====")
+    #========== Prune ===========
+    print(f"====Done training. Going to prune from {prune_metrics_dir}/{args.offset} Pruning Iter====")
     for i,sparsity_ratio in enumerate(settings.SPARSITY_RATIOS[args.offset:]):
         torch.cuda.empty_cache()
-        print(sparsity_ratio)
-        os.makedirs(args.prune_metrics_dir, exist_ok=True)
-        os.makedirs(f"{args.prune_metrics_dir}/{i+args.offset+1}_Pruning_Iter", exist_ok=True)
+        os.makedirs(f"{prune_metrics_dir}/{i+args.offset+1}_Pruning_Iter", exist_ok=True)
         
-        # === Getting model ===
+        # === Getting original (unpruned) model ===
         
-        model,dataloaders,ckpt = prune_utils.get_model(args.model_type, ckpt, device='cuda')
-        print(model.encoder.config)
-        # ==== BUILD VOCAB ====
-        base_ckpt=torch.load(ckpt) #trained model
+        model.load_state_dict(torch.load(ckpt)['state_dict'])
 
         optimizer = optim.Adam(model.parameters())
         criterion = nn.CrossEntropyLoss()
@@ -92,13 +94,13 @@ def main():
         
         #===== Debugging: Pruning Verification =====
         weights_pruned = prune_utils.percent_pruned_weights(model, 'mlp.0.weight')
-        print(f"IN MLP: {format(100*weights_pruned, '.2f')}% weights pruned")
+        print(f"MLP: {format(100*weights_pruned, '.2f')}% weights pruned")
         
         
         
         # ===== Saving model =====
         util.save_checkpoint(
-                    train_utils.serialize(model, args.model_type, dataloaders['train'].dataset), False, args.prune_metrics_dir,filename = f"{i+args.offset+1}_Pruning_Iter/model_best.pth")
+                    train_utils.serialize(model, args.model_type, dataloaders['train'].dataset), False, prune_metrics_dir,filename = f"{i+args.offset+1}_Pruning_Iter/model_best.pth")
 
         
         #===== Recording Acc =====

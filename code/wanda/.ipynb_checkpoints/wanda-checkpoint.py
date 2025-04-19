@@ -65,7 +65,7 @@ def check_sparsity(model, args):
         model.config.use_cache = use_cache 
     return float(count)/total_params 
 
-
+#NOT USING NOW (left in case)
 def get_inputs_bert(model, embedder, dataloader, dtype, device):
     #100 batches each eith 100 samples
     #so to store s1 and s2 from each batch of 100 we're stroing 2 samples
@@ -107,6 +107,7 @@ def get_inputs_bert(model, embedder, dataloader, dtype, device):
     outs = torch.zeros_like(inps)
         
     return inps, outs, attention_mask, None #position_ids
+
 #Using this to get bert and llama inputs
 def get_model_inputs(model, args, dataloader, dev, dev2, seqlen, layers):
     dtype = next(iter(model.parameters())).dtype
