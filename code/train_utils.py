@@ -231,10 +231,13 @@ def load_model(max_data, model_type, train, ckpt=None, device='cuda'):
         model.load_state_dict(ckpt_["state_dict"])
     else:
         print("train itos = ", len(train.stoi))
+        random_dir= os.path.join(model_type.upper(), "models", "random")
+        os.makedirs(random_dir, exist_ok=True)
         util.save_checkpoint(
-                serialize(model, model_type, train), False, os.path.join(model_type.upper(), "models", "random"), f"{model_type}_random_inits.pth"
+                serialize(model, model_type, train), False, random_dir, f"{model_type}_random_inits.pth"
         )
-        ckpt = os.path.join(model_type.upper(), "models", "random", f"{model_type}_random_inits.pth")
+        ckpt = os.path.join(random_dir, f"{model_type}_random_inits.pth")
+        
             
         
     return model, ckpt

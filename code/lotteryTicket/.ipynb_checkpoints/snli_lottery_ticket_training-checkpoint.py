@@ -26,8 +26,6 @@ import util
 from data import analysis
 import importlib.util
 import train_utils
-sys.path.append("Analysis/")
-import pipelines as pipelines
 from Pruner import Pruner_
 import prune_utils
 
@@ -89,6 +87,7 @@ def main(args):
 def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, test, dataloaders):
     pruned_percents, final_accs, final_weights =[], [], model.mlp[0].weight.detach().cpu().numpy()
     prune_metrics_dir_base = os.path.join(args.model_type, "models", "lottery_ticket", args.filename)
+    os.makedirs(prune_metrics_dir_base, exist_ok=True)
     #train, prune, apply prune mask to init, train
     for prune_iter in tqdm(range(0, args.prune_iters)):
         
