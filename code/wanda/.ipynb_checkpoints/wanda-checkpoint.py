@@ -130,6 +130,7 @@ def get_model_inputs(model, args, dataloader, dev, dev2, seqlen, layers):
                 cache['attention_mask'] = attention_mask
                 cache['position_embeddings'] = position_ids
                 cache['i'] += 1
+           
                 raise ValueError
             else:
                 # Already collected enough samples - proceed normally
@@ -150,7 +151,7 @@ def get_model_inputs(model, args, dataloader, dev, dev2, seqlen, layers):
             else:
                 # Already collected enough samples - proceed normally
                 return self.module(inp, **kwargs)
-            
+    
     if args.model_type == 'bert':      
         layers[0] = Catcher_BERT(layers[0])
     elif args.model_type == 'llama':
@@ -172,7 +173,7 @@ def get_model_inputs(model, args, dataloader, dev, dev2, seqlen, layers):
     torch.cuda.empty_cache()
 
     outs = torch.zeros_like(inps)
-
+    layers[0]= layers[0].module
         
     return inps, outs, layers, cache['attention_mask'], cache['position_embeddings']
 
@@ -292,7 +293,7 @@ def prepare_calibration_input(model, args, seg, dataloader, embedder, layers, de
             inps, outs, layers, attention_mask, position_ids = get_model_inputs(model,args, dataloader, device, device, model.encoder.config.hidden_size, layers)
         elif args.model_type == 'bowman':
             inps, outs, lengths = get_inputs_bowman(model, None, dataloader, dtype, device) 
-    else: #layer==mlp
+    else: #layer == mlp
         inps, outs, attention_mask, position_ids = get_inputs_mlp(model, embedder, args, dataloader, dtype, device)
     
 
@@ -353,7 +354,7 @@ def pruneLSTM(W_metric1, W_metric2, subset, name, sparsity_ratio, prune_n=0, wan
     return W_mask1, W_mask2
 
 def pruneLayer(W_metric, subset, name, sparsity_ratio, prune_n=0, wanda_var=False):
-    W_mask = (torch.zeros_like(W_metric) == 1)  ## initialize a mask to be all False
+    W_mask = (torch.zeros_like(W_metric) == 1).cpu()  ## initialize a mask to be all False
     
     if prune_n != 0:
         # structured n:m sparsity
@@ -364,7 +365,7 @@ def pruneLayer(W_metric, subset, name, sparsity_ratio, prune_n=0, wanda_var=Fals
     else:
         sort_res = torch.sort(W_metric, dim=-1, stable=True)
         indices = sort_res[1][:,:int(W_metric.shape[1]*sparsity_ratio)]
-        W_mask.scatter_(1, indices, True)
+        W_mask.scatter_(1, indices, True).cpu()
             
     
     return W_mask
@@ -396,7 +397,7 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
     nsamples = len(inps)
     
     
-    for layer in layers: 
+    for i,layer in enumerate(layers): 
         torch.cuda.empty_cache()
         #get all the layers
         subset=find_layers(model, layer)
@@ -404,8 +405,6 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
         if not subset:
             continue
         
-        
-        #inps, outs, attention_mask, position_ids = inps.to(device), outs.to(device), attention_mask.to(device), position_ids.to(device)
         inps, outs  = inps.to(device), outs.to(device)
         
         wrapped_layers = {}
@@ -419,9 +418,6 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
 
         def add_batch(name):
             def tmp(_, inp, out):
-                #if args.model_type == 'bowman' and seg == 'enc':
-                   # wrapped_layers[name].add_batch(inp[0].data, out[0].data)
-                #else:
                 wrapped_layers[name].add_batch(inp[0].data, out.data)
             return tmp
 
@@ -436,7 +432,10 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
                 if args.model_type == 'llama' and seg=='enc':
                     num_tokens = position_ids[0].shape[1]
                     
-                    outs[j][:num_tokens, :] = layer(inps[j][:num_tokens,:].unsqueeze(0), attention_mask=attention_mask[j][:num_tokens,:].unsqueeze(0),position_embeddings=position_ids)[0]
+                    inputs = inps[j][:num_tokens,:].unsqueeze(0)
+                    attn_masks = attention_mask[j][:num_tokens,:].unsqueeze(0)
+                    outs[j][:num_tokens, :] = layer(inputs, attention_mask=attn_masks ,position_embeddings=position_ids)[0]
+                    outs[j][num_tokens:, :] = 0
                 elif args.model_type=='bert' and seg == 'enc':
             
                     outs[j] = layer(inps[j].unsqueeze(0),attention_mask=None)[0]
@@ -447,34 +446,32 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
             h.remove()
                
         for name in subset:
-            print(f"pruning layer {name}: {subset[name]}")
+            #print(f"pruning layer {name}: {subset[name]}")
             subset_value = subset[name]
-            #if args.model_type == 'bowman' and seg == 'enc':
-                #here print subset_value and factor in pruining of weight_IH_data
-                #W_metric_ih= torch.abs(subset_value.weight_ih_l0.data) * torch.sqrt(wrapped_layers[subset_value].scaler_row_ih.reshape((1,-1)))
-                #W_metric_hh= torch.abs(subset_value.weight_hh_l0.data) * torch.sqrt(wrapped_layers[subset_value].scaler_row_hh.reshape((1,-1)))
-                #W_mask1, W_mask2 = pruneLSTM(W_metric_ih, W_metric_hh, subset, name, sparsity_ratio)
-                #subset[name].weight_ih_l0.data[W_mask1] = 0
-                #subset[name].weight_hh_l0.data[W_mask2] = 0
-            #else:
-            W_metric = torch.abs(subset_value.weight.data) * torch.sqrt(wrapped_layers[subset_value].scaler_row.reshape((1,-1)))
+            W_metric = torch.abs(subset_value.weight.data).cpu() * torch.sqrt(wrapped_layers[subset_value].scaler_row.reshape((1,-1))).cpu()
+        
             W_mask = pruneLayer(W_metric, subset, name, sparsity_ratio)
+        
             subset[name].weight.data[W_mask] = 0
             
             
             
+            
         #passes the inps thru the lauer to get the inputs to thenext layer
+       
         for j in range(NUM_SAMPLES):
-        
-            if args.model_type == 'llama' and seg=='enc':
-                    num_tokens = position_ids[0].shape[1]
-                    
-                    outs[j][:num_tokens, :] = layer(inps[j][:num_tokens,:].unsqueeze(0), attention_mask=attention_mask[j][:num_tokens,:].unsqueeze(0),position_embeddings=position_ids)[0]
-            elif args.model_type=='bert' and seg == 'enc':
-                seq_len = min(inps.shape[1], attention_mask.shape[-1])
-                outs[j] = layer(inps[j].unsqueeze(0), attention_mask=None)[0]
-            else:
-                outs[j]=layer(inps[j])[0]
+            with torch.no_grad():
+                if args.model_type == 'llama' and seg=='enc':
+                        num_tokens = position_ids[0].shape[1]
+                        inputs = inps[j][:num_tokens,:].unsqueeze(0)
+                        attn_masks = attention_mask[j][:num_tokens,:].unsqueeze(0)
+
+                        outs[j][:num_tokens, :] = layer(inputs, attention_mask=attn_masks,position_embeddings=position_ids)[0]
+                        outs[j][num_tokens:, :] = 0
+                elif args.model_type=='bert' and seg == 'enc':
+                    outs[j] = layer(inps[j].unsqueeze(0))[0]# attention_mask=None)[0]
+                else:
+                    outs[j]=layer(inps[j])[0]
               
         inps, outs = outs, inps
         if seg == 'mlp':

@@ -127,6 +127,7 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
         
         with ctx():
             logits = model(s1, s1len, s2, s2len)
+            print(logits)
             loss = criterion(logits, targets)
  
         if training:

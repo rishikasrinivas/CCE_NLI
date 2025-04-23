@@ -39,13 +39,12 @@ class WrappedGPT:
                 inp = inp.reshape((-1, inp.shape[-1]))
             inp = inp.t()
 
-        if self.layer_name == 'linear':
-            self.scaler_row *= self.nsamples / (self.nsamples+tmp)
-            self.nsamples += tmp
+        self.scaler_row *= self.nsamples / (self.nsamples+tmp)
+        self.nsamples += tmp
 
-            inp = inp.type(torch.float32)
-            self.scaler_row += torch.norm(inp, p=2, dim=1) ** 2  / self.nsamples
-        else:
+        inp = inp.type(torch.float32)
+        self.scaler_row += torch.norm(inp, p=2, dim=1) ** 2  / self.nsamples
+        '''else:
             self.scaler_row_ih *= self.nsamples / (self.nsamples+tmp)
             inp = inp.type(torch.float32)
             self.scaler_row_ih += torch.norm(inp, p=2, dim=1) ** 2  / (self.nsamples+tmp)
@@ -54,5 +53,5 @@ class WrappedGPT:
             out = out.type(torch.float32)
             self.scaler_row_hh += torch.norm(out.unsqueeze(0).reshape((-1, out.shape[-1])).t(), p=2, dim=1) ** 2  / (self.nsamples+tmp)
             
-            self.nsamples += tmp
+            self.nsamples += tmp'''
             
