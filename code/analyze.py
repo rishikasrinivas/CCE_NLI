@@ -769,7 +769,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
     
         activs = build_masks(activations, activation_ranges, settings.NUM_CLUSTERS, save_masks_dir) #how many ones per mask
         
-    for cluster_num in range(1,2):#settings.NUM_CLUSTERS+1): 
+    for cluster_num in range(1,settings.NUM_CLUSTERS+1): 
         if masks_saved:
             print(f"{cluster_num} found : {f'Cluster{cluster_num}masks.pt' in os.listdir(save_masks_dir)}")
             if f"Cluster{cluster_num}masks.pt" in os.listdir(save_masks_dir):
@@ -878,6 +878,14 @@ def main():
     
     args = parser.parse_args()
 
+    
+    path_to_activations = os.path.join(args.model_type.upper(), "activations", args.filename)
+    path_to_formula_masks = os.path.join(args.model_type.upper(), "formula_masks",  args.filename)
+    
+    
+    os.makedirs(path_to_activations, exist_ok=True)
+    os.makedirs(path_to_formula_masks, exist_ok=True)
+    
     train,_,_,dataloaders=train_utils.create_dataloaders(max_data=10000)
     model,ckpt = train_utils.load_model(max_data=10000, model_type=args.model_type, train=train, ckpt=args.ckpt)
     
@@ -893,7 +901,7 @@ def main():
     device = 'cuda' if settings.CUDA else 'cpu'    
     formula_masks = initiate_exp_run(save_exp_dir = f"{args.model_type.upper()}/exp/{args.filename}/expls",  save_masks_dir= f"{args.model_type.upper()}/exp/{args.filename}/masks", masks_saved=False,model_=model, dataset=dataset, activations_dir = f"{args.model_type.upper()}/activations/{args.filename}", device='cpu')
 
-    with open(os.path.join(args.model_type.upper(),"formula_masks",args.filename,"formula_masks.json"), "w") as f:
+    with open(os.path.join(path_to_formula_masks, "formula_masks.json"), "w") as f:
         json.dump(formula_masks, f)
     alignment.calculate_alignment(formula_masks, f"{args.model_type.upper()}/overlap/{args.filename}") 
     
