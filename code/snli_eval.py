@@ -150,8 +150,8 @@ def parse_args():
         default="test.txt",
         help="Data to eval interactively (pairs of sentences); use - for stdin",
     )
-    parser.add_argument("--root_dir", default="models/snli/prune_metrics/wanda/bert/Run1_oldweightswithwrongLTH/11_Pruning_Iter/model_best.pth")
-    parser.add_argument("--ckpt", default="models/snli/prune_metrics/wanda/bert/Run1_oldweightswithwrongLTH/11_Pruning_Iter/model_best.pth")
+    parser.add_argument("--root_dir", default="/workspace/CCE_NLI/BERT/models/lottery_ticket/Run2Full_allneurons")
+    parser.add_argument("--ckpt", default="/workspace/CCE_NLI/BERT/models/lottery_ticket/Run2Full_allneurons/0_Pruning_Iter/model_best.pth")
     parser.add_argument("--model_type", default="bert", choices=["bowman", "bert"])
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--eval_data_path", default="data/snli_1.0/")

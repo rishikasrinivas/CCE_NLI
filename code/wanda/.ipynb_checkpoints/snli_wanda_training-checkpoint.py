@@ -90,7 +90,7 @@ def main():
         device = torch.device("cuda:0")
         wanda.prune_wanda(args, model, 'enc', dataloaders, sparsity_ratio, device)
         
-        wanda.prune_wanda(args, model, 'mlp', dataloaders, sparsity_ratio, device)
+        #wanda.prune_wanda(args, model, 'mlp', dataloaders, sparsity_ratio, device)
         
         #===== Debugging: Pruning Verification =====
         weights_pruned = prune_utils.percent_pruned_weights(model, 'mlp.0.weight')

@@ -466,7 +466,7 @@ def extract_features(
     return all_srcs, all_states, all_feats, all_idxs
 
 
-def search_feats(acts, states, feats, weights, dataset, cluster, save_dir=None):
+def search_feats(acts, states, feats, weights, dataset, cluster, save_dir=None, debug=True):
     if save_dir is None:
         return "Invalid save_dir"
     formula_masks={}
@@ -479,7 +479,7 @@ def search_feats(acts, states, feats, weights, dataset, cluster, save_dir=None):
     if cluster is not None:
         print("cluster ",cluster)
     GLOBALS["acts"] = acts #should be 10,000x1024 
-    assert acts.shape[0]==10000 and acts.shape[1]==1024
+    #assert acts.shape[0]==10000 and acts.shape[1]==1024
     GLOBALS["states"] = states 
      #feats: 10000 rows 40087 cols
         # each row is a sentence and each col says if concept at col is in sent
@@ -503,6 +503,8 @@ def search_feats(acts, states, feats, weights, dataset, cluster, save_dir=None):
     ioufunc = compute_best_sentence_iou
 
     records = []
+    if debug:
+        units = range(0,1024,6)
     if settings.NEURONS is None:
         units = range(acts.shape[1])
     else:
@@ -748,7 +750,7 @@ def load_sents(path):
 import pickle
 
 
-def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, formula_masks, masks_saved):
+def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, formula_masks, masks_saved, debug):
     activations= torch.from_numpy(np.array(states)).t() #1024x10000
     formula_masks = {}
     if not masks_saved:
@@ -767,7 +769,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
     
         activs = build_masks(activations, activation_ranges, settings.NUM_CLUSTERS, save_masks_dir) #how many ones per mask
         
-    for cluster_num in range(1,settings.NUM_CLUSTERS+1): 
+    for cluster_num in range(1,2):#settings.NUM_CLUSTERS+1): 
         if masks_saved:
             print(f"{cluster_num} found : {f'Cluster{cluster_num}masks.pt' in os.listdir(save_masks_dir)}")
             if f"Cluster{cluster_num}masks.pt" in os.listdir(save_masks_dir):
@@ -779,10 +781,10 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
         else:
             acts = torch.tensor(activs[cluster_num-1]).t().bool().numpy()
         
-        assert type(states)==list and len(states)==10000 and len(states[0]) == 1024 #should be list 100000 ittems ach of len 1024
+        #assert type(states)==list and len(states)==10000 and len(states[0]) == 1024 #should be list 100000 ittems ach of len 1024
      
-        assert(acts.shape[0] == 10000 and acts.shape[1]==1024), acts.shape
-        formula_mask = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, save_dir=save_exp_dir)
+        #assert(acts.shape[0] == 10000 and acts.shape[1]==1024), acts.shape
+        formula_mask = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, save_dir=save_exp_dir, debug=debug)
         print("========UPDATING FORMULA MASK!=============")
         formula_masks[cluster_num] = formula_mask
         print("ALL MASKS ", formula_masks.keys(), "\nFOR CLUSTER ", cluster_num, ": ", formula_mask.keys())
@@ -790,7 +792,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
 
             
 
-def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved, device, model_=None, dataset=None):
+def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved, device, model_=None, dataset=None,debug=False):
     os.makedirs(save_masks_dir, exist_ok=True)
     os.makedirs(save_exp_dir, exist_ok=True)
     
@@ -855,7 +857,8 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
                              save_exp_dir, 
                              save_masks_dir, 
                              formula_masks={},
-                             masks_saved=masks_saved)
+                             masks_saved=masks_saved,
+                                      debug=debug)
 
     return formula_masks
     
@@ -869,7 +872,7 @@ def main():
     )
     parser.add_argument("--model_type", default="bert", choices=["bowman", "minimal", "bert"])
     parser.add_argument("--filename", default="RAndom")
-    parser.add_argument("--ckpt", default=None)
+    parser.add_argument("--ckpt", default="/workspace/CCE_NLI/BERT/models/random/bert_random_inits.pth")
     
     
     
@@ -888,8 +891,9 @@ def main():
     dataset = analysis.AnalysisDataset(lines, vocab)
     
     device = 'cuda' if settings.CUDA else 'cpu'    
-    formula_masks = initiate_exp_run(save_exp_dir = f"{args.model_type.upper()}/exp/{args.filename}",  save_masks_dir= f"{args.model_type.upper()}/masks/{args.filename}", masks_saved=False,model_=model, dataset=dataset, activations_dir = f"{args.model_type.upper()}/activations/{args.filename}", device='cpu')
-    with open(os.path.join({args.model_type.upper()},"formula_masks",{args.filename},"formula_masks.json"), "w") as f:
+    formula_masks = initiate_exp_run(save_exp_dir = f"{args.model_type.upper()}/exp/{args.filename}/expls",  save_masks_dir= f"{args.model_type.upper()}/exp/{args.filename}/masks", masks_saved=False,model_=model, dataset=dataset, activations_dir = f"{args.model_type.upper()}/activations/{args.filename}", device='cpu')
+
+    with open(os.path.join(args.model_type.upper(),"formula_masks",args.filename,"formula_masks.json"), "w") as f:
         json.dump(formula_masks, f)
     alignment.calculate_alignment(formula_masks, f"{args.model_type.upper()}/overlap/{args.filename}") 
     

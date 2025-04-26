@@ -26,7 +26,7 @@ import prune_utils
 import sys
 sys.path.append("CCE_NLI/Analysis/")
 #import ..Analysis as Analysis
-import alignment
+#import alignment
 def main(args):
     if args.debug:
         max_data = 1000
@@ -41,7 +41,9 @@ def main(args):
     path_to_overlap = os.path.join(args.model_type.upper(), "overlap", args.pruning_method, args.filename)
     
       
-    model, dataloaders, ckpt = prune_utils.get_model(args.model_type, args.ckpt, device)
+    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, debug=args.debug)
+    ckpt = os.path.join(args.model_type.upper(), "models", 'lottery_ticket', args.filename, '0_Pruning_Iter/model_best.pth')
+    model,ckpt= train_utils.load_model(max_data, args.model_type, train, ckpt=ckpt, device=device)
     # ==== BUILD VOCAB ====
     base_ckpt=torch.load(ckpt, map_location = torch.device(device)) #trained bowman/bert 
         
@@ -52,7 +54,7 @@ def main(args):
     
     dataset = analysis.AnalysisDataset(lines, vocab)
     
-    all_fm_masks = prune_utils.run_expls(args, model,dataset, dataloaders,device)
+    all_fm_masks = prune_utils.run_expls(args, model,dataset, dataloaders,device, args.debug)
     
     #alignment.calculate_alignment(all_fm_masks, path_to_overlap)  
     return all_fm_masks

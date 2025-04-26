@@ -43,7 +43,8 @@ def run_expls(
     model, 
     dataset,
     dataloaders,
-    device
+    device,
+    debug
     ):
     
     '''
@@ -93,13 +94,14 @@ def run_expls(
                 device=device,
                 masks_saved=False, 
                 model_=model,
-                dataset=dataset
+                dataset=dataset,
+                debug=debug,
             )
             
             all_fm_masks.append(formulaMasks)
             os.makedirs(path_to_formula_masks, exist_ok=True)
-            fm_mask_file = os.path.join(path_to_formula_masks,f"formula_masks_{final_weights_pruned}.npy")
-            np.save(fm_mask_file, formulaMasks)
+            with open(os.path.join(path_to_formula_masks,f"formula_masks_{final_weights_pruned}.json"), "w") as f:
+                json.dump(formulaMasks, f)
          
         else:
             break
