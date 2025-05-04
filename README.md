@@ -21,12 +21,14 @@ python3 code/pruning_explanation.py --model_type bert --pruning_method lottery_t
 Lottery Ticket Pruning
 
 ```
- python3 code/lotteryTicket/snli_lottery_ticket_training.py  --model_type bert --filename test_lth 
+ python3 code/lotteryTicket/snli_lottery_ticket_training.py  --model_type bert --filename test_lth_bert
+ python3 code/lotteryTicket/snli_lottery_ticket_training.py  --model_type llama --filename test_lth_llama 
  
 ```
 
 Wanda Pruning
 
 ```
+python3 code/wanda/snli_wanda_training.py --model_type bert --filename test_bert  --prune_method wanda --ckpt BERT/models/random/llama_random_inits.pth
 python3 code/wanda/snli_wanda_training.py --model_type llama --filename test_llama  --prune_method wanda --ckpt LLAMA/models/random/llama_random_inits.pth
 ```
