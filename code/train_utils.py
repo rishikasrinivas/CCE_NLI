@@ -21,7 +21,7 @@ def create_dataloaders(max_data, debug=False):
         train = SNLI("data/snli_1.0", "train", max_data=max_data)
         train_loader = DataLoader(
             train,
-            batch_size=100,
+            batch_size=settings.BATCH_SIZE,
             shuffle=True,
             pin_memory=False,
             num_workers=0,
@@ -32,7 +32,7 @@ def create_dataloaders(max_data, debug=False):
         val = SNLI("data/snli_1.0","dev",max_data=max_data,vocab=(train.stoi, train.itos),unknowns=False)
         val_loader = DataLoader(
             val, 
-            batch_size=100, 
+            batch_size=settings.BATCH_SIZE, 
             shuffle=False,
             pin_memory=True, 
             num_workers=0, 
@@ -44,7 +44,7 @@ def create_dataloaders(max_data, debug=False):
         test = SNLI("data/snli_1.0", "test", max_data=max_data, vocab=(train.stoi, train.itos), unknowns=True)
         test_loader = DataLoader(
             test,
-            batch_size=100,
+            batch_size=settings.BATCH_SIZE,
             shuffle=False,
             pin_memory=True,
             num_workers=0,
@@ -55,7 +55,7 @@ def create_dataloaders(max_data, debug=False):
         train_dataset = torch.load(f'{root_dir}/train_dataset.pth')
         train_loader = torch.utils.data.DataLoader(
             train_dataset, 
-            batch_size=100, 
+            batch_size=settings.BATCH_SIZE, 
             shuffle=True, 
             pin_memory=False,
             num_workers=0,
@@ -65,7 +65,7 @@ def create_dataloaders(max_data, debug=False):
         val_dataset = torch.load(f'{root_dir}/val_dataset.pth')
         val_loader = torch.utils.data.DataLoader(
             val_dataset, 
-            batch_size=100, 
+            batch_size=settings.BATCH_SIZE, 
             shuffle=False, 
             pin_memory=True, 
             num_workers=0, 
@@ -75,7 +75,7 @@ def create_dataloaders(max_data, debug=False):
         test_dataset = torch.load(f'{root_dir}/test_dataset.pth')
         test_loader = torch.utils.data.DataLoader(
             test_dataset, 
-            batch_size=100, 
+            batch_size=settings.BATCH_SIZE, 
             shuffle=False,
             pin_memory=True,
             num_workers=0,
@@ -127,7 +127,7 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
         
         with ctx():
             logits = model(s1, s1len, s2, s2len)
-            print(logits)
+          
             loss = criterion(logits, targets)
  
         if training:
@@ -241,7 +241,7 @@ def load_model(max_data, model_type, train, ckpt=None, device='cuda'):
         
             
         
-    return model, ckpt
+    return model.to(device), ckpt
 
 
 def serialize(model,model_type, dataset):

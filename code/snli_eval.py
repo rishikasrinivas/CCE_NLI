@@ -122,9 +122,11 @@ def main(args):
 
         all_preds = np.concatenate(all_preds, 0)
         all_targets = np.concatenate(all_targets, 0)
+        
         acc = (all_preds == all_targets).mean()
         accs[folder] = [acc]
         print(f"Folder: {folder}, Val acc: {acc:.3f}")
+      
     import pandas as pd
     os.makedirs(f"{args.root_dir}/Accuracies/", exist_ok=True)
     df = pd.DataFrame(accs).transpose()

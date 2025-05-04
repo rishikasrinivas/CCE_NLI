@@ -446,10 +446,10 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
             h.remove()
                
         for name in subset:
-            #print(f"pruning layer {name}: {subset[name]}")
+            print(f"pruning layer {name}: {subset[name]}")
             subset_value = subset[name]
             W_metric = torch.abs(subset_value.weight.data).cpu() * torch.sqrt(wrapped_layers[subset_value].scaler_row.reshape((1,-1))).cpu()
-        
+            print("Weights being pruned are of shape: ", W_metric.shape)
             W_mask = pruneLayer(W_metric, subset, name, sparsity_ratio)
         
             subset[name].weight.data[W_mask] = 0

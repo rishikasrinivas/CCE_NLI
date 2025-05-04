@@ -15,6 +15,7 @@ To Run Explanations:
 pip install pyparsing==2.4.2
 python3 code/pruning_explanation.py --model_type bert --pruning_method lottery_ticket --ckpt BERT/models/Run3/lottery_ticket/0_Pruning_Iter/model_best.pth --filename Run3
  python3 code/pruning_explanation.py --model_type bert --filename Run3 --pruning_method wanda
+ python3 code/pruning_explanation.py --model_type bert --filename Run3 --pruning_method lottery_ticket
 ```
 
 Lottery Ticket Pruning
@@ -27,5 +28,5 @@ Lottery Ticket Pruning
 Wanda Pruning
 
 ```
-python3 code/wanda/snli_wanda_training.py --model_type bert --filename test_wanda  --prune_method wanda --ckpt model_best.pth
+python3 code/wanda/snli_wanda_training.py --model_type llama --filename test_llama  --prune_method wanda --ckpt LLAMA/models/random/llama_random_inits.pth
 ```
