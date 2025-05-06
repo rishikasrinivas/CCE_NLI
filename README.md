@@ -21,6 +21,8 @@ python3 code/pruning_explanation.py --model_type bert --pruning_method lottery_t
 Lottery Ticket Pruning
 
 ```
+    mkdir LLAMA
+    mkdir models
  python3 code/lotteryTicket/snli_lottery_ticket_training.py  --model_type bert --filename test_lth_bert
  python3 code/lotteryTicket/snli_lottery_ticket_training.py  --model_type llama --filename test_lth_llama 
  
