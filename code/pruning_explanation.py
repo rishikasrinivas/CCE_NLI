@@ -38,12 +38,21 @@ def main(args):
         device = 'cuda'
     else:
         device = 'cpu'
+        
+    if args.untrained_model:
+        use_pretrained_weights = False
+    else:
+        use_pretrained_weights = True
+        
+        
     path_to_overlap = os.path.join(args.model_type.upper(), "overlap", args.pruning_method, args.filename)
     
       
     train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, debug=args.debug)
     ckpt = os.path.join(args.model_type.upper(), "models", 'lottery_ticket', args.filename, '0_Pruning_Iter/model_best.pth')
-    model,ckpt= train_utils.load_model(max_data, args.model_type, train, ckpt=ckpt, device=device)
+    
+    model,ckpt = train_utils.load_model(max_data=max_data, model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=ckpt, device=device)
+    
     # ==== BUILD VOCAB ====
     base_ckpt=torch.load(ckpt, map_location = torch.device(device)) #trained bowman/bert 
         
@@ -75,6 +84,7 @@ def parse_args():
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal", "bert", 'llama'])
     parser.add_argument("--filename", default="Run_Test")
     
+    parser.add_argument("--untrained_model", action="store_true", default=False)  # If `--untrained_model` is used, set to True 
     
     parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "osscar"])
     parser.add_argument("--save_every", default=1, type=int)

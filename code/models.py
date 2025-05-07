@@ -8,8 +8,9 @@ import numpy as np
 import settings
 import collections
 from typing import Union
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer, AutoModel, AutoConfig
 from llm2vec.models import LlamaBiModel
+from transformers import BertConfig, BertModel
 
 class SentimentClassifier(nn.Module):
     def __init__(self, encoder):
@@ -357,18 +358,23 @@ class LLAMAEntailmentClassifier(BaseModel):
         self.encoder = self.encoder.to(device)
         return super().to(device)
     
-    
+
 class BertEntailmentClassifier(BaseModel):
-    def __init__(self, encoder_name="bert-base-uncased", vocab=None, freeze_bert=False, device='cuda'):
+    def __init__(self, encoder_name="bert-base-uncased", vocab=None, pretrained=True, freeze_bert=False, device='cuda'):
         super().__init__()
         self.vocab = vocab
         self.encoder_name = encoder_name
-        self.encoder = AutoModel.from_pretrained(encoder_name)
         self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
         
-#         if freeze_bert:
-#             for param in self.encoder.parameters():
-#                 param.requires_grad = False
+        if pretrained:
+            self.encoder = AutoModel.from_pretrained(encoder_name)
+        else:
+            config = AutoConfig.from_pretrained(encoder_name)
+            self.encoder = AutoModel.from_config(config) #untrained_encoder
+        
+#       if freeze_bert:
+#           for param in self.encoder.parameters():
+#               param.requires_grad = False
         
         self.encoder_dim = self.encoder.config.hidden_size
         self.mlp_input_dim = self.encoder_dim * 4

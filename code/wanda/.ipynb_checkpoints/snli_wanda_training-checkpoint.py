@@ -42,6 +42,8 @@ def main():
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--cuda", action="store_true")
     parser.add_argument("--eval_zero_shot", action="store_true")
+    parser.add_argument("--untrained_model", action="store_true", default=False)  # If `--untrained_model` is used, set to True 
+    
     args = parser.parse_args()
     
 
@@ -50,6 +52,11 @@ def main():
         max_data = 1000
     else:
         max_data = None
+    if args.untrained_model:
+        use_pretrained_weights = False
+    else:
+        use_pretrained_weights = True
+        
     
     #========== Set up Env ===========
     prune_metrics_dir = os.path.join(args.model_type, "models", args.prune_method, args.filename)
@@ -59,10 +66,10 @@ def main():
     
     #========== Set up model & dataset ===========
     train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, debug=args.debug)
-    model,ckpt= train_utils.load_model(max_data, args.model_type, train, ckpt=args.ckpt, device=device)
+    model,ckpt = train_utils.load_model(max_data=max_data, model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=args.ckpt,device=device)
     
     #========== Train model if ckpt dne ===========
-    if not ckpt or 'random' in ckpt:
+    if not ckpt or 'pretrained' in ckpt:
         print(f"====Training {args.model_type} from {ckpt} and storing weights in {prune_metrics_dir}====")
         optimizer = optim.Adam(model.parameters())
         criterion = nn.CrossEntropyLoss()

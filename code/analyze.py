@@ -873,6 +873,7 @@ def main():
     parser.add_argument("--model_type", default="bert", choices=["bowman", "minimal", "bert"])
     parser.add_argument("--filename", default="RAndom")
     parser.add_argument("--ckpt", default="/workspace/CCE_NLI/BERT/models/random/bert_random_inits.pth")
+    parser.add_argument("--untrained_model", action="store_true", default=False)  # If `--untrained_model` is used, set to True 
     
     
     
@@ -881,16 +882,24 @@ def main():
     
     path_to_activations = os.path.join(args.model_type.upper(), "activations", args.filename)
     path_to_formula_masks = os.path.join(args.model_type.upper(), "formula_masks",  args.filename)
-    
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     os.makedirs(path_to_activations, exist_ok=True)
     os.makedirs(path_to_formula_masks, exist_ok=True)
     
-    train,_,_,dataloaders=train_utils.create_dataloaders(max_data=10000)
-    model,ckpt = train_utils.load_model(max_data=10000, model_type=args.model_type, train=train, ckpt=args.ckpt)
+    if args.untrained_model:
+        use_pretrained_weights = False
+    else:
+        use_pretrained_weights = True
+        
+    
+      
+    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=None)
+    model,ckpt = train_utils.load_model(max_data=None, model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=None, device=device)
     
     # ==== BUILD VOCAB ====
-    base_ckpt=torch.load(args.ckpt) #trained bowman/bert 
+    print(f"Loading weights from {ckpt}")
+    base_ckpt=torch.load(ckpt) #trained bowman/bert 
     vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
 
     with open(settings.DATA, "r") as f:

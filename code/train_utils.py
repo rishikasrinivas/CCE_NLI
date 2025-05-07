@@ -203,13 +203,13 @@ def finetune_pruned_model(model,model_type, optimizer,criterion, train, val, dat
     return model
 
 
-def build_model(vocab_size, model_type, vocab, embedding_dim=300, hidden_dim=512, device='cuda'):
+def build_model(vocab_size, model_type, vocab, pretrained=True, embedding_dim=300, hidden_dim=512, device='cuda'):
     """
     Build a bowman-style SNLI model
     """
     
     if model_type=='bert':
-        model=models.BertEntailmentClassifier(vocab=vocab, device=device)
+        model=models.BertEntailmentClassifier(vocab=vocab, pretrained=pretrained, device=device)
     elif model_type == 'bowman':
         enc = models.TextEncoder(
             vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim
@@ -221,23 +221,34 @@ def build_model(vocab_size, model_type, vocab, embedding_dim=300, hidden_dim=512
             model = models.LLAMAEntailmentClassifier(vocab=vocab,freeze_encoder=True)
     return model
 
-def load_model(max_data, model_type, train, ckpt=None, device='cuda'):
-    model = build_model(vocab_size=len(train.stoi), model_type=model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512, device=device)
+def load_model(max_data, model_type, train, ckpt=None, use_pretrained_weights = True, device='cuda'):
+    model = build_model(vocab_size=len(train.stoi), model_type=model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, pretrained=use_pretrained_weights, embedding_dim=300, hidden_dim=512, device=device)
     
-    
+        
+        
     if ckpt:
         if type(ckpt) == str:
             print(f"Loading from {ckpt} with model {model_type}")
             ckpt_ = torch.load(ckpt, map_location = torch.device(device))
         model.load_state_dict(ckpt_["state_dict"])
     else:
+        if use_pretrained_weights:
+            pretrained_dir= os.path.join(model_type.upper(), "models", "pretrained")
+            os.makedirs(pretrained_dir, exist_ok=True)
+            save_to_dir = pretrained_dir
+            filename = f"{model_type}_pretrained_inits.pth"
+        else:
+            untrained_dir = os.path.join(model_type.upper(), "models", "untrained")
+            os.makedirs(untrained_dir, exist_ok=True)
+            save_to_dir = untrained_dir
+            filename = f"{model_type}_untrained_inits.pth"
+            
         print("train itos = ", len(train.stoi))
-        random_dir= os.path.join(model_type.upper(), "models", "random")
-        os.makedirs(random_dir, exist_ok=True)
+        
         util.save_checkpoint(
-                serialize(model, model_type, train), False, random_dir, f"{model_type}_random_inits.pth"
+                serialize(model, model_type, train), False, save_to_dir, filename
         )
-        ckpt = os.path.join(random_dir, f"{model_type}_random_inits.pth")
+        ckpt = os.path.join(save_to_dir, filename)
         
             
         

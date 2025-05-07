@@ -38,8 +38,13 @@ def main(args):
     else:
         max_data = None
         
+    if args.untrained_model:
+        use_pretrained_weights = False
+    else:
+        use_pretrained_weights = True
+        
     train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, debug=args.debug)
-    model,ckpt = train_utils.load_model(max_data=max_data, model_type=args.model_type, train=train, ckpt=args.ckpt)
+    model,ckpt = train_utils.load_model(max_data=max_data, model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=args.ckpt)
     
     # ==== BUILD VOCAB ====
     base_ckpt=torch.load(ckpt)
@@ -157,6 +162,7 @@ def parse_args():
     parser.add_argument("--filename", type=str)
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal", "bert", "llama"])
     parser.add_argument("--save_every", default=1, type=int)
+    parser.add_argument("--untrained_model", action="store_true", default=False)  # If `--untrained_model` is used, set to True 
     
     #parser.add_argument("--prune_epochs", default=10, type=int)
     parser.add_argument("--finetune_epochs", default=10, type=int)

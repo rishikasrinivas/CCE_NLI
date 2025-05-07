@@ -25,7 +25,7 @@ def pipe_explanation_similiarity(folder_p, folder_np, task='global', get_concept
     '''
         Records common concepts globally or locally between 2 pruning iterations
         Global comparison looks at concepts across all clusters
-        Local comparison compares concepts by neuron
+        Local comparison compares concepts by cluster
         
         Returns: a list or dict of global or local common concepts (respectively)
     '''
@@ -35,7 +35,7 @@ def pipe_explanation_similiarity(folder_p, folder_np, task='global', get_concept
         if get_concepts_func == 'group':
             get_concepts_func = concept_getters.get_all_grouped_cps
         else:
-            get_concepts_func = concept_getters.get_indiv_concepts_per_unit
+            get_concepts_func = concept_getters.get_indiv_concepts
             
         all_pruned_concepts = get_concepts_func(dfs_pruned)
         all_nopruned_concepts = get_concepts_func(dfs_og)
