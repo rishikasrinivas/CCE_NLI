@@ -105,7 +105,7 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
     ranger = tqdm(dataloader[split], desc=f"{split} epoch {epoch}")
     
     if model_type in ['bert', 'llama']:
-        total_steps = len(dataloader['train']) *total_epochs
+        total_steps = len(dataloader['train']) *6
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=total_steps)
 
     
@@ -114,7 +114,7 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
     acc_meter = util.AverageMeter()
 
     for (s1, s1len, s2, s2len, targets) in ranger:
-        if device == 'cuda':
+        if torch.cuda.is_available():
             s1 = s1.cuda()
             s1len = s1len.cuda()
             s2 = s2.cuda()
@@ -125,7 +125,7 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
 
         batch_size = targets.shape[0]
         
-        with ctx():
+        with ctx(): #llama half precis
             logits = model(s1, s1len, s2, s2len)
           
             loss = criterion(logits, targets)

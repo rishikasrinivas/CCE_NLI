@@ -23,7 +23,7 @@ import util
 
 
 def run(split, epoch, model, optimizer, criterion, dataloaders, args):
-    scaler = GradScaler()  # For scaling gradients during mixed precision
+    scaler = GradScaler()
 
     training = split == "train"
     if training:
@@ -35,14 +35,14 @@ def run(split, epoch, model, optimizer, criterion, dataloaders, args):
 
     ranger = tqdm(dataloaders[split], desc=f"{split} epoch {epoch}")
     
-    total_steps = len(dataloaders['train']) * args.epochs  # Total number of training steps (assuming 3 epochs)
+    total_steps = len(dataloaders['train']) * args.epochs
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=total_steps)
 
     loss_meter = util.AverageMeter()
     acc_meter = util.AverageMeter()
     for (s1, s1len, s2, s2len, targets) in ranger:
 
-        if args.cuda:
+        if torch.cuda.is_available():
             s1 = s1.to('cuda')
             s1len = s1len.to('cuda')
             s2 = s2.to('cuda')
@@ -66,11 +66,7 @@ def run(split, epoch, model, optimizer, criterion, dataloaders, args):
         loss_meter.update(loss.item(), batch_size)
         acc_meter.update(acc.item(), batch_size)
         
-        if args.model_type in ['bert', 'llama']:
-            # scaler.scale(loss).backward()
-            # scaler.step(optimizer)
-            # scaler.update()
-
+        if args.model_type == 'bert' or args.model_type == 'llama':
             scheduler.step()
 
         ranger.set_description(
@@ -78,7 +74,6 @@ def run(split, epoch, model, optimizer, criterion, dataloaders, args):
         )
 
     return {"loss": loss_meter.avg, "acc": acc_meter.avg}
-
 
 def build_model(vocab_size, model_type, vocab=None, embedding_dim=300, hidden_dim=512):
     """
@@ -133,10 +128,11 @@ def main(args):
     else:
         max_data = None
     
-    train,val,test, dataloaders = train_utils.create_dataloaders(max_data)
-    model, ckpt = train_utils.load_model(max_data, args.model_type, train, ckpt=None, device='cuda')
+    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, debug=args.debug)
+    model,ckpt = train_utils.load_model(max_data=max_data, model_type=args.model_type, use_pretrained_weights = True, train=train)
     
-    if args.cuda:
+    
+    if torch.cuda.is_available():
         model = model.to('cuda')
         print("Moving model to cuda")
 
@@ -192,7 +188,7 @@ def parse_args():
     )
 
     parser.add_argument("--exp_dir", default="models/snli/")
-    parser.add_argument("--model_type", default="bert", choices=["bowman", "minimal", "bert", "llama"])
+    parser.add_argument("--model_type", default="llama", choices=["bowman", "minimal", "bert", "llama"])
     parser.add_argument("--save_every", default=10, type=int)
     parser.add_argument("--epochs", default=6, type=int)
     parser.add_argument("--embedding_dim", default=300, type=int)

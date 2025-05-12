@@ -30,7 +30,7 @@ def calculate_alignment_with_original(all_fm_masks, save_dir):
             os.makedirs(f"{save_dir}/Cluster{cluster}/", exist_ok=True)
             df.to_csv(f"{save_dir}/Cluster{cluster}/{i+1}Iter_{cluster}Cluster_Alignment.csv")
 
-def calculate_alignment_with_randoml(all_fm_masks,random, save_dir):
+def calculate_alignment_with_random(all_fm_masks,random, save_dir):
     os.makedirs(save_dir, exist_ok=True)
 
     random_masks = random[0]
@@ -58,8 +58,7 @@ def calculate_alignment_with_randoml(all_fm_masks,random, save_dir):
         
 #========testing alignment code=====
 fm_masks=[]
-flder="BERT/formula_masks/lottery_ticket/Run3"
-flder="/workspace/CCE_NLI/BERT/formula_masks/wanda/Run3"
+flder="/workspace/CCE_NLI/BERT/formula_masks/lottery_ticket/Run3"
 import json,os
 for file in sorted(os.listdir(flder)):
     if '.ipy' in file: continue
@@ -67,14 +66,14 @@ for file in sorted(os.listdir(flder)):
         data = json.load(f)
     fm_masks.append(data)
 random_masks = [] 
-flder = "/workspace/CCE_NLI/BERT/formula_masks/Random"
+flder = "/workspace/CCE_NLI/BERT/formula_masks/PretrainedWeights"
 for file in sorted(os.listdir(flder)):
     if '.ipy' in file: continue
     with open(os.path.join(flder, file), 'r') as f:
         data = json.load(f)
     random_masks.append(data)
 print(fm_masks[0].keys())
-calculate_alignment_with_randoml(fm_masks, random_masks, "/workspace/CCE_NLI/BERT/overlap/lottery_ticket/Run3")
+calculate_alignment_with_random(fm_masks, random_masks, "/workspace/CCE_NLI/BERT/overlap/PretrainedWeights_lottery")
 #calculate_alignment_with_original(fm_masks, "/workspace/CCE_NLI/BERT/overlap/wanda/Run3")
     
     
