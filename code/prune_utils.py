@@ -26,7 +26,7 @@ def percent_pruned_weights(model, layer_name=None):
         return final_weights_pruned
  
     for layer in model.layers:
-        if any(x in str(layer.name) for x in ['bias', 'bn', 'embeddings', 'LayerNorm']):
+        if any(x in str(layer.name) for x in ['bias', 'bn', 'emb', 'LayerNorm', 'rnn']):
             continue
         layer = model.get_layer(layer.name)
         final_weights_pruned = torch.where(layer.weights.detach() == 0,1,0).sum().item() /(layer.weights.shape[0] * layer.weights.shape[1])

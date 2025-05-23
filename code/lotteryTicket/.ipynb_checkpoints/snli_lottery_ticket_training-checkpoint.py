@@ -91,7 +91,7 @@ def main(args):
 #running the expls using the already finetuned and precreated masks from before
 def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, test, dataloaders):
     pruned_percents, final_accs, final_weights =[], [], model.mlp[0].weight.detach().cpu().numpy()
-    prune_metrics_dir_base = os.path.join(args.model_type, "models", "lottery_ticket", args.filename)
+    prune_metrics_dir_base = os.path.join(args.model_type.upper(), "models", "lottery_ticket", args.filename)
     os.makedirs(prune_metrics_dir_base, exist_ok=True)
     #train, prune, apply prune mask to init, train
     for prune_iter in tqdm(range(0, args.prune_iters)):
