@@ -251,7 +251,7 @@ class LLAMAEntailmentClassifier(BaseModel):
         super().__init__()
         self.vocab = vocab
         self.encoder_name = encoder_name
-        self.encoder = LlamaBiModel.from_pretrained(encoder_name)
+        self.encoder = LlamaBiModel.from_pretrained(encoder_name).half()
         self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
         self.tokenizer.model_max_length = 512
         
@@ -270,13 +270,13 @@ class LLAMAEntailmentClassifier(BaseModel):
         self.encoder_dim = 2048 #not sure how to get this through a code version
         self.mlp_input_dim = self.encoder_dim * 4
         self.dropout = nn.Dropout(0.1)
-        self.bn = nn.BatchNorm1d(self.mlp_input_dim)
+        self.bn = nn.BatchNorm1d(self.mlp_input_dim).half()
         self.mlp = nn.Sequential(
             nn.Linear(self.mlp_input_dim, 1024),
             nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(1024, 3),
-        )
+        ).half()
         self.output_dim = 3
         self.initialize(device)
 

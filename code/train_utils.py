@@ -93,6 +93,8 @@ def create_dataloaders(max_data, debug=False):
     return train_loader.dataset, val_loader.dataset,test_loader.dataset, dataloaders
 
 
+#learning rate diffs
+
 def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_epochs, device='cuda'):
     torch.cuda.empty_cache()
     training = split == "train"
