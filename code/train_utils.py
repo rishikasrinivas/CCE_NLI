@@ -14,6 +14,7 @@ from data.snli import SNLI, pad_collate
 from collections import defaultdict
 import os,fileio
 from transformers import BertTokenizer, BertModel, AdamW, get_linear_schedule_with_warmup
+from torch.cuda.amp import autocast,GradScaler
 
 def create_dataloaders(max_data, debug=False):
     root_dir=f"DataLoaders/"
@@ -99,12 +100,13 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
     torch.cuda.empty_cache()
     training = split == "train"
     if training:
-        ctx = nullcontext
+        ctx = autocast
         model.train()
     else:
         ctx = torch.no_grad
         model.eval()
-
+        
+    scaler = GradScaler()
     ranger = tqdm(dataloader[split], desc=f"{split} epoch {epoch}")
     
     if model_type in ['bert', 'llama']:
@@ -130,19 +132,28 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
         
         with ctx(): #llama half precis
             logits = model(s1, s1len, s2, s2len)
+        
           
-            loss = criterion(logits, targets)
+            loss = criterion(logits.float(), targets)
  
         if training:
             optimizer.zero_grad()
-            loss.backward()
+            scaler.scale(loss).backward()
+            #loss.backward()
             for layer in model.layers:
                 layer.pruning_mask.cuda()
                 if layer.weights.grad is not None:
                     layer.weights.grad *= layer.pruning_mask.to(device)
             
-        
-            optimizer.step()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
+            # ✅ Optimizer step with AMP
+            scaler.step(optimizer)
+            scaler.update()
+
+            scheduler.step()
+            #optimizer.step()
             
                 
         preds = logits.argmax(1)

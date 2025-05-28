@@ -34,4 +34,5 @@ Wanda Pruning
 ```
 python3 code/wanda/snli_wanda_training.py --model_type bert --filename test_bert  --prune_method wanda --ckpt BERT/models/random/llama_random_inits.pth
 python3 code/wanda/snli_wanda_training.py --model_type llama --filename test_llama  --prune_method wanda --ckpt lama_random_inits.pth
+python3 code/wanda/snli_wanda_training.py --model_type bowman --filename Run1  --prune_method wanda --ckpt lama_random_inits.pth
 ```
