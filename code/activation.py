@@ -106,7 +106,7 @@ def initiate_exp_run(args):
         save_features(
             model,
             dataset,
-            f"{args.save_activs_dir}/{ckpt_dir}/final_layer_activations.pkl"
+            f"{args.save_activs_dir}/{ckpt_dir}"
         )
     
 def main():
@@ -115,8 +115,8 @@ def main():
         description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal", "bert"])   
-    parser.add_argument("--save_activs_dir", default="activations/bowman/lottery_ticket/Run1")    
-    parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/lottery_ticket/bowman/Run1")    
+    parser.add_argument("--save_activs_dir", default="BOWMAN/activations/wanda/Run1")    
+    parser.add_argument("--prune_metrics_dir", default="BOWMAN/models/wanda/Run1")    
     parser.add_argument("--cuda", action="store_true")
     
     initiate_exp_run(parser.parse_args())

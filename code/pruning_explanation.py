@@ -88,7 +88,7 @@ def parse_args():
     
     parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "osscar"])
     parser.add_argument("--save_every", default=1, type=int)
-    parser.add_argument("--max_thresh", default=95, type=float)
+    parser.add_argument("--max_thresh", default=99, type=float)
     
     parser.add_argument("--prune_epochs", default=10, type=int)
     parser.add_argument("--finetune_epochs", default=10, type=int)

@@ -35,7 +35,7 @@ def main():
     parser.add_argument('--use_variant', default=False, action="store_true", help="whether to use the wanda variant described in the appendix")
 
     parser.add_argument("--save_every", default=1, type=int)
-    parser.add_argument("--max_thresh", default=95, type=float)
+    parser.add_argument("--max_thresh", default=99, type=float)
     
     parser.add_argument("--embedding_dim", default=300, type=int)
     parser.add_argument("--hidden_dim", default=512, type=int)
@@ -59,7 +59,7 @@ def main():
         
     
     #========== Set up Env ===========
-    prune_metrics_dir = os.path.join(args.model_type, "models", args.prune_method, args.filename)
+    prune_metrics_dir = os.path.join(args.model_type.upper(), "models", args.prune_method, args.filename)
     os.makedirs(prune_metrics_dir, exist_ok=True)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"On device: {device}")

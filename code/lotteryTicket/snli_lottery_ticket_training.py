@@ -111,9 +111,8 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
       
         os.makedirs(prune_metrics_dir,exist_ok=True)
 
-        ft_epochs = max(1,int(args.finetune_epochs/2)) if prune_iter > 0 else args.finetune_epochs
 
-        model = train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, train, val, dataloaders, ft_epochs, prune_metrics_dir, device)
+        model = train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, device)
 
         #record accuracy
         final_acc = train_utils.run_eval(model, dataloaders['val'])
@@ -165,7 +164,7 @@ def parse_args():
     parser.add_argument("--untrained_model", action="store_true", default=False)  # If `--untrained_model` is used, set to True 
     
     #parser.add_argument("--prune_epochs", default=10, type=int)
-    parser.add_argument("--finetune_epochs", default=10, type=int)
+    parser.add_argument("--finetune_epochs", default=5, type=int)
     parser.add_argument("--prune_iters", default=5000, type=int)
     
     
