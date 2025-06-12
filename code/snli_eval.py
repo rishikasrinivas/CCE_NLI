@@ -99,40 +99,35 @@ def main(args):
         model = model.cuda()
     val_loader = dataloaders['val']
     accs = {}
-    for folder in os.listdir(args.root_dir):
-        torch.cuda.empty_cache()
-        if '.ipy' in folder or not folder[0].isdigit(): continue
-        model.load_state_dict(torch.load(f"{args.root_dir}/{folder}/model_best.pth")['state_dict'])
-        all_preds = []
-        all_targets = []
-        for (s1, s1len, s2, s2len, targets) in val_loader:
-            if settings.CUDA:
-                s1 = s1.cuda()
-                s1len = s1len.cuda()
-                s2 = s2.cuda()
-                s2len = s2len.cuda()
+    #for folder in os.listdir(args.root_dir):
+    torch.cuda.empty_cache()
+     #   if '.ipy' in folder or not folder[0].isdigit(): continue'
+    model.load_state_dict(torch.load(f"LLAMA/models/pretrained/llama_pretrained_inits.pth")['state_dict'])
+    all_preds = []
+    all_targets = []
+    for (s1, s1len, s2, s2len, targets) in val_loader:
+        if settings.CUDA:
+            s1 = s1.cuda()
+            s1len = s1len.cuda()
+            s2 = s2.cuda()
+            s2len = s2len.cuda()
 
-            with torch.no_grad():
-                logits = model(s1, s1len, s2, s2len)
+        with torch.no_grad():
+            logits = model(s1, s1len, s2, s2len)
 
-            preds = logits.argmax(1)
+        preds = logits.argmax(1)
 
-            all_preds.append(preds.cpu().numpy())
-            all_targets.append(targets.cpu().numpy())
+        all_preds.append(preds.cpu().numpy())
+        all_targets.append(targets.cpu().numpy())
 
-        all_preds = np.concatenate(all_preds, 0)
-        all_targets = np.concatenate(all_targets, 0)
-        
-        acc = (all_preds == all_targets).mean()
-        accs[folder] = [acc]
-        print(f"Folder: {folder}, Val acc: {acc:.3f}")
-      
-    import pandas as pd
-    os.makedirs(f"{args.root_dir}/Accuracies/", exist_ok=True)
-    df = pd.DataFrame(accs).transpose()
-  
-    df.insert(loc=0, column='sp', value = settings.SPARSITY_RATIOS.insert(0,0.0))
-    df.to_csv(f"{args.root_dir}/Accuracies/accuracy.csv")
+    all_preds = np.concatenate(all_preds, 0)
+    all_targets = np.concatenate(all_targets, 0)
+
+    acc = (all_preds == all_targets).mean()
+
+    print(f" Val acc: {acc:.3f}")
+
+   
 
 
 
@@ -152,9 +147,9 @@ def parse_args():
         default="test.txt",
         help="Data to eval interactively (pairs of sentences); use - for stdin",
     )
-    parser.add_argument("--root_dir", default="/workspace/CCE_NLI/BERT/models/lottery_ticket/Run2Full_allneurons")
-    parser.add_argument("--ckpt", default="/workspace/CCE_NLI/BERT/models/lottery_ticket/Run2Full_allneurons/0_Pruning_Iter/model_best.pth")
-    parser.add_argument("--model_type", default="bert", choices=["bowman", "bert"])
+    parser.add_argument("--root_dir", default="/workspace/CCE_NLI/BERT/models/lottery_ticket/Run3")
+    parser.add_argument("--ckpt", default="LLAMA/models/pretrained/llama_pretrained_inits.pth")
+    parser.add_argument("--model_type", default="llama", choices=["bowman", "bert", "llama"])
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--eval_data_path", default="data/snli_1.0/")
     parser.add_argument("--cuda", action="store_true")
