@@ -87,14 +87,28 @@ def main(args):
         test=test,
         dataloaders=dataloaders
     )
-    
+def get_mask(weights):
+    return torch.where(weights==0,0,1) 
+
+
 #running the expls using the already finetuned and precreated masks from before
-def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, test, dataloaders):
+def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, test, dataloaders, start=0):
+    print("Entered run_prune")
     pruned_percents, final_accs, final_weights =[], [], model.mlp[0].weight.detach().cpu().numpy()
     prune_metrics_dir_base = os.path.join(args.model_type.upper(), "models", "lottery_ticket", args.filename)
     os.makedirs(prune_metrics_dir_base, exist_ok=True)
     #train, prune, apply prune mask to init, train
-    for prune_iter in tqdm(range(0, args.prune_iters)):
+    
+    if start > 0:
+        prune_metrics_dir = os.path.join(prune_metrics_dir_base, f"{start-1}_Pruning_Iter")
+        if os.path.exists(prune_metrics_dir):
+            print(f"Alr lt'd {prune_metrics_dir}")
+            state_dict =  torch.load(os.path.join(prune_metrics_dir, 'model_best.pth'), map_location=torch.device('cpu'))['state_dict']
+            for layer in state_dict.keys():
+                mask = get_mask(state_dict[layer]).cpu()
+                base_ckpt['state_dict'][layer] *= mask
+            model.load_state_dict(base_ckpt['state_dict']) 
+    for prune_iter in tqdm(range(start, args.prune_iters)):
         
             
         #=====SETTINGS AND TRAIN======
@@ -107,9 +121,10 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         criterion = nn.CrossEntropyLoss()
         model.cuda()
 
+        # if some extent of pruning alr happenin, get and save the mask and dont bother finetuning
         prune_metrics_dir = os.path.join(prune_metrics_dir_base, f"{prune_iter}_Pruning_Iter")
-      
         os.makedirs(prune_metrics_dir,exist_ok=True)
+        torch.save(model.state_dict(), os.path.join(prune_metrics_dir, "initreloaded.pth"))
 
 
         model = train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, device)
@@ -117,15 +132,16 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         #record accuracy
         final_acc = train_utils.run_eval(model, dataloaders['val'])
         final_weights_pruned = prune_utils.percent_pruned_weights(model)
+        print(f"% Pruned: {final_weights_pruned}")
         pruned_percents.append(final_weights_pruned)
         final_accs.append(final_acc)
-        
+
         #stop pruning after max_thresh
         if final_weights_pruned >= args.max_thresh: break
-            
+
         #model.cuda()
         #====PRUNE=====
-        
+
         model = pruner.prune() #PRUNE AND SAVE PRUNE MASK
 
         #===== APPLY PRUNING MASK TO INIT WEIGHTS ====== 
@@ -135,6 +151,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
                 base_ckpt['state_dict'][layer] *= model.get_layer(layer).pruning_mask.cpu()
                 masks = model.get_layer(layer).pruning_mask.cpu()
             except:
+                print(f"entered if for {layer} which shouldnt be pruneable")
                 not_pruneable_layers.append(layer)
                 continue
         assert all(any(kw in x for kw in ['bias', 'bn', 'embeddings', 'LayerNorm']) for x in not_pruneable_layers)

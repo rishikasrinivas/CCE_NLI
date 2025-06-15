@@ -141,14 +141,13 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
             scaler.scale(loss).backward()
             #loss.backward()
             for layer in model.layers:
-                layer.pruning_mask.cuda()
                 if layer.weights.grad is not None:
                     layer.weights.grad *= layer.pruning_mask.to(device)
             
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
-            # ✅ Optimizer step with AMP
+
             scaler.step(optimizer)
             scaler.update()
 

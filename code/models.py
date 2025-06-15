@@ -116,6 +116,9 @@ class Layer:
         self.weights = weights
         self.initial_weights = initial_weights
         self.pruning_mask = pruning_mask
+        
+    def set_pruning_mask(self, msk):
+        self.pruning_mask = msk
    
 # referenced from: https://github.com/lecode-official/pytorch-lottery-ticket-hypothesis/blob/main/source/lth/models/__init__.py
 class BaseModel(torch.nn.Module):
