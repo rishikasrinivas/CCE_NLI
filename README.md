@@ -24,7 +24,7 @@ Lottery Ticket Pruning
     mkdir LLAMA
     mkdir models
  python3 code/lotteryTicket/snli_lottery_ticket_training.py  --model_type bert --filename test_lth_bert
- python3 code/lotteryTicket/snli_lottery_ticket_training.py  --model_type llama --filename test_lth_llama 
+ python3 code/lotteryTicket/snli_lottery_ticket_training.py  --model_type llama --filename test_lth_llama --ckpt LLAMA/models/lottery_ticket/test_lth_llama/0_Pruning_Iter/model_best.pth
  python3 code/lotteryTicket/snli_lottery_ticket_training.py  --model_type bowman --filename Run1 
  
 ```
