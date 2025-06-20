@@ -20,6 +20,7 @@ def create_dataloaders(max_data, debug=False):
     root_dir=f"DataLoaders/"
     os.makedirs(root_dir, exist_ok=True)
     if debug or not ('train_dataset.pth' in os.listdir(root_dir) and 'val_dataset.pth' in os.listdir(root_dir) and 'test_dataset.pth' in os.listdir(root_dir)):
+        print(f"No data saved. Loading dataloader")
         train = SNLI("data/snli_1.0", "train", max_data=max_data)
         train_loader = DataLoader(
             train,
