@@ -131,7 +131,8 @@ def main(args):
     train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, debug=args.debug)
     model,ckpt = train_utils.load_model(max_data=max_data, model_type=args.model_type, use_pretrained_weights = True, train=train)
     
-    
+    print(model)
+    return 
     if torch.cuda.is_available():
         model = model.to('cuda')
         print("Moving model to cuda")
