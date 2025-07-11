@@ -92,7 +92,7 @@ def get_mask(weights):
 
 
 #running the expls using the already finetuned and precreated masks from before
-def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, test, dataloaders, start=1):
+def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, test, dataloaders, start=6):
     print("Entered run_prune")
     pruned_percents, final_accs, final_weights =[], [], model.mlp[0].weight.detach().cpu().numpy()
     prune_metrics_dir_base = os.path.join(args.model_type.upper(), "models", "lottery_ticket", args.filename)
@@ -105,8 +105,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
             print(f"Alr lt'd {prune_metrics_dir}")
             state_dict =  torch.load(os.path.join(prune_metrics_dir, 'model_best.pth'), map_location=torch.device('cpu'))['state_dict']
             for layer in state_dict.keys():
-                mask = get_mask(state_dict[layer])
-                assert torch.equal(mask, torch.ones(mask.shape))
+                mask = get_mask(state_dict[layer]).cuda()
                 base_ckpt['state_dict'][layer] *= mask
                 mask = mask.cpu()
             model.load_state_dict(base_ckpt['state_dict']) 
