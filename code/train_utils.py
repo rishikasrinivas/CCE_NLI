@@ -143,6 +143,7 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
             #loss.backward()
             for layer in model.layers:
                 if layer.weights.grad is not None:
+                    #assert not torch.equal(torch.ones(layer.pruning_mask.shape), layer.pruning_mask), layer.name
                     layer.weights.grad *= layer.pruning_mask.to(device)
             
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)

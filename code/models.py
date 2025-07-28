@@ -190,6 +190,9 @@ class BaseModel(torch.nn.Module):
                 return layer
         raise LookupError(f'The specified layer "{layer_name}" does not exist.')
 
+    def set_mask(self, layer_name: str, mask: torch.tensor):
+        self.get_layer(layer_name).pruning_mask = mask
+        
     def update_layer_weights(self, mask, layer_name: str, new_weights: torch.Tensor) -> None:
         """Updates the weights of the specified layer.
 

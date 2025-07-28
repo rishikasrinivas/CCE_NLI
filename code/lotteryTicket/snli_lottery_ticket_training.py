@@ -92,7 +92,7 @@ def get_mask(weights):
 
 
 #running the expls using the already finetuned and precreated masks from before
-def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, test, dataloaders, start=6):
+def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, test, dataloaders, start=1):
     print("Entered run_prune")
     pruned_percents, final_accs, final_weights =[], [], model.mlp[0].weight.detach().cpu().numpy()
     prune_metrics_dir_base = os.path.join(args.model_type.upper(), "models", "lottery_ticket", args.filename)
@@ -107,6 +107,8 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
             for layer in state_dict.keys():
                 mask = get_mask(state_dict[layer]).cuda()
                 base_ckpt['state_dict'][layer] *= mask
+                if not any(kw in layer for kw in ['bias', 'bn', 'embeddings', 'LayerNorm']):
+                    model.set_mask(layer, mask)
                 mask = mask.cpu()
             model.load_state_dict(base_ckpt['state_dict']) 
     for prune_iter in tqdm(range(start, args.prune_iters)):
@@ -149,7 +151,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         not_pruneable_layers = []
         for layer in base_ckpt['state_dict'].keys():
             try:
-                base_ckpt['state_dict'][layer] *= model.get_layer(layer).pruning_mask.cpu()
+                base_ckpt['state_dict'][layer] *= model.get_layer(layer).pruning_mask.cuda()
                 masks = model.get_layer(layer).pruning_mask.cpu()
             except:
                 print(f"entered if for {layer} which shouldnt be pruneable")
@@ -159,6 +161,8 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
                 
         # Reload random inits with pruned weights (that were prnued after fting) 0'd out
         model.load_state_dict(base_ckpt['state_dict'])  
+        final_weights_pruned = prune_utils.percent_pruned_weights(model)
+        print(f"Afte appling mask % Pruned: {final_weights_pruned}")
         model.cpu()
         
         
