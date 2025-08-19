@@ -90,7 +90,19 @@ def main(args):
 def get_mask(weights):
     return torch.where(weights==0,0,1) 
 
-
+def apply_mask(model, base_ckpt):
+    #===== APPLY PRUNING MASK TO INIT WEIGHTS ====== 
+    not_pruneable_layers = []
+    for layer in base_ckpt['state_dict'].keys():
+        try:
+            base_ckpt['state_dict'][layer] *= model.get_layer(layer).pruning_mask.cuda()
+            masks = model.get_layer(layer).pruning_mask.cpu()
+        except:
+            print(f"entered if for {layer} which shouldnt be pruneable")
+            not_pruneable_layers.append(layer)
+            continue
+    assert all(any(kw in x for kw in ['bias', 'bn', 'embeddings', 'LayerNorm']) for x in not_pruneable_layers)
+    return base_ckpt
 #running the expls using the already finetuned and precreated masks from before
 def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, test, dataloaders, start=1):
     print("Entered run_prune")
@@ -111,6 +123,17 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
                     model.set_mask(layer, mask)
                 mask = mask.cpu()
             model.load_state_dict(base_ckpt['state_dict']) 
+            
+            model = pruner.prune() #PRUNE AND SAVE PRUNE MASK
+            base_ckpt = apply_mask(model, base_ckpt)
+
+
+
+            # Reload random inits with pruned weights (that were prnued after fting) 0'd out
+            model.load_state_dict(base_ckpt['state_dict'])  
+            final_weights_pruned = prune_utils.percent_pruned_weights(model)
+            print(f"After appling mask % Pruned: {final_weights_pruned}")
+            model.cpu()
     for prune_iter in tqdm(range(start, args.prune_iters)):
         
             
@@ -146,25 +169,16 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         #====PRUNE=====
 
         model = pruner.prune() #PRUNE AND SAVE PRUNE MASK
+        base_ckpt = apply_mask(model, base_ckpt)
 
-        #===== APPLY PRUNING MASK TO INIT WEIGHTS ====== 
-        not_pruneable_layers = []
-        for layer in base_ckpt['state_dict'].keys():
-            try:
-                base_ckpt['state_dict'][layer] *= model.get_layer(layer).pruning_mask.cuda()
-                masks = model.get_layer(layer).pruning_mask.cpu()
-            except:
-                print(f"entered if for {layer} which shouldnt be pruneable")
-                not_pruneable_layers.append(layer)
-                continue
-        assert all(any(kw in x for kw in ['bias', 'bn', 'embeddings', 'LayerNorm']) for x in not_pruneable_layers)
-                
+        
+
         # Reload random inits with pruned weights (that were prnued after fting) 0'd out
         model.load_state_dict(base_ckpt['state_dict'])  
         final_weights_pruned = prune_utils.percent_pruned_weights(model)
         print(f"Afte appling mask % Pruned: {final_weights_pruned}")
         model.cpu()
-        
+
         
     return pruned_percents, final_accs
 
