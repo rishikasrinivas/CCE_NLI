@@ -104,7 +104,7 @@ def apply_mask(model, base_ckpt):
     assert all(any(kw in x for kw in ['bias', 'bn', 'embeddings', 'LayerNorm']) for x in not_pruneable_layers)
     return base_ckpt
 #running the expls using the already finetuned and precreated masks from before
-def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, test, dataloaders, start=1):
+def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, test, dataloaders, start=9):
     print("Entered run_prune")
     pruned_percents, final_accs, final_weights =[], [], model.mlp[0].weight.detach().cpu().numpy()
     prune_metrics_dir_base = os.path.join(args.model_type.upper(), "models", "lottery_ticket", args.filename)
