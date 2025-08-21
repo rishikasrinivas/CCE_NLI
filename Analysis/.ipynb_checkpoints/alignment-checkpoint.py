@@ -37,9 +37,11 @@ def calculate_alignment_with_random(all_fm_masks,random, save_dir):
     os.makedirs(save_dir, exist_ok=True)
 
     random_masks = random[0]
-
+    if isinstance(random_masks,list):
+        random_masks=random_masks[0]
     for i, mask_dict in enumerate(all_fm_masks):
-        
+        if isinstance(mask_dict,list):
+            mask_dict=mask_dict[0]
         for cluster, pair in mask_dict.items():
             neurons,alignments=[],[]
 
@@ -57,27 +59,29 @@ def calculate_alignment_with_random(all_fm_masks,random, save_dir):
             }
             df = pd.DataFrame(data)
             os.makedirs(f"{save_dir}/Cluster{cluster}/", exist_ok=True)
-            df.to_csv(f"{save_dir}/Cluster{cluster}/Alignment_between_pruning_iteration_{i}_and_random.csv")
+            df.to_csv(f"{save_dir}/Cluster{cluster}/{i+1}Iter_{cluster}Cluster_Alignment.csv")
         
 #========testing alignment code=====
 fm_masks=[]
-flder="/workspace/CCE_NLI/BERT/formula_masks/wanda/Run3"
+flder="/workspace/CCE_NLI/BERT/formula_masks/lottery_ticket/Run2Full"
 import json,os
 for file in sorted(os.listdir(flder)):
     if '.ipy' in file: continue
     with open(os.path.join(flder, file), 'r') as f:
         data = json.load(f)
     fm_masks.append(data)
-'''random_masks = [] 
-flder = "/workspace/CCE_NLI/BOWMAN/formula_masks/PretrainedWeights"
+    
+    
+random_masks = [] 
+flder = "/workspace/CCE_NLI/BERT/formula_masks/PretrainedWeights"
 for file in sorted(os.listdir(flder)):
     if '.ipy' in file: continue
     with open(os.path.join(flder, file), 'r') as f:
         data = json.load(f)
     random_masks.append(data)
 print(fm_masks[0].keys())
-calculate_alignment_with_random(fm_masks, random_masks, "/workspace/CCE_NLI/BERT/overlap/PretrainedWeights_lottery")'''
-calculate_alignment_with_original(fm_masks, "/workspace/CCE_NLI/BERT/overlap/wanda/Run3")
+calculate_alignment_with_random(fm_masks, random_masks, "/workspace/CCE_NLI/BERT/overlap/lottery_ticket/overlap_w_pretrained/Run2Full")
+#calculate_alignment_with_original(fm_masks, "/workspace/CCE_NLI/BERT/overlap/wanda/Run3")
     
     
         
