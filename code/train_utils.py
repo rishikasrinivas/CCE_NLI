@@ -109,6 +109,7 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
         
     scaler = GradScaler()
     ranger = tqdm(dataloader[split], desc=f"{split} epoch {epoch}")
+    scheduler=None
     
     if model_type in ['bert', 'llama']:
         total_steps = len(dataloader['train']) *6
@@ -152,8 +153,7 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
 
             scaler.step(optimizer)
             scaler.update()
-
-            scheduler.step()
+            if scheduler: scheduler.step()
             #optimizer.step()
             
                 

@@ -5,3 +5,4 @@ pip install pyparsing==2.4.2
 pip install datasets
 pip install transformers
 pip install llm2vec
+pip install torch==2.2.2
