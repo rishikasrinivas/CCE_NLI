@@ -95,7 +95,7 @@ def apply_mask(model, base_ckpt):
     not_pruneable_layers = []
     for layer in base_ckpt['state_dict'].keys():
         try:
-            base_ckpt['state_dict'][layer] *= model.get_layer(layer).pruning_mask.cuda()
+            base_ckpt['state_dict'][layer] *= model.get_layer(layer).pruning_mask.cpu()
             masks = model.get_layer(layer).pruning_mask.cpu()
         except:
             print(f"entered if for {layer} which shouldnt be pruneable")
