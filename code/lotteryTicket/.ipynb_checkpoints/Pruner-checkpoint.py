@@ -88,7 +88,7 @@ class Pruner_:
             la=self.model.get_layer(la)
             if len(list(la.weights.shape)) <= 1:
                 continue
-            print("Pruned at end ", la.name, ",  ", torch.where(la.pruning_mask==0,1,0).sum()/(la.weights.shape[0] * la.weights.shape[1]))
+            #print("Pruned at end ", la.name, ",  ", torch.where(la.pruning_mask==0,1,0).sum()/(la.weights.shape[0] * la.weights.shape[1]))
             
         return self.model
         
