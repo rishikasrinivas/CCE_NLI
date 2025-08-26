@@ -85,7 +85,8 @@ def main(args):
         train=train,
         val=val,
         test=test,
-        dataloaders=dataloaders
+        dataloaders=dataloaders,
+        start = args.restart_from_ckpt,
     )
 def get_mask(weights):
     return torch.where(weights==0,0,1) 
@@ -104,7 +105,7 @@ def apply_mask(model, base_ckpt):
     assert all(any(kw in x for kw in ['bias', 'bn', 'embeddings', 'LayerNorm']) for x in not_pruneable_layers)
     return base_ckpt
 #running the expls using the already finetuned and precreated masks from before
-def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, test, dataloaders, start=0):
+def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, test, dataloaders, start):
     print("Entered run_prune")
     pruned_percents, final_accs, final_weights =[], [], model.mlp[0].weight.detach().cpu().numpy()
     prune_metrics_dir_base = os.path.join(args.model_type.upper(), "models", "lottery_ticket", args.filename)
@@ -117,7 +118,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
             print(f"Alr lt'd {prune_metrics_dir}")
             state_dict =  torch.load(os.path.join(prune_metrics_dir, 'model_best.pth'), map_location=torch.device('cpu'))['state_dict']
             for layer in state_dict.keys():
-                mask = get_mask(state_dict[layer]).cuda()
+                mask = get_mask(state_dict[layer])
                 base_ckpt['state_dict'][layer] *= mask
                 if not any(kw in layer for kw in ['bias', 'bn', 'embeddings', 'LayerNorm']):
                     model.set_mask(layer, mask)
@@ -202,6 +203,7 @@ def parse_args():
     #parser.add_argument("--prune_epochs", default=10, type=int)
     parser.add_argument("--finetune_epochs", default=5, type=int)
     parser.add_argument("--prune_iters", default=5000, type=int)
+    parser.add_argument("--restart_from_ckpt", default=0, type=int)
     
     
     parser.add_argument("--max_thresh", default=0.95, type=float)
