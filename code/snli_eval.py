@@ -99,33 +99,36 @@ def main(args):
         model = model.cuda()
     val_loader = dataloaders['val']
     accs = {}
-    #for folder in os.listdir(args.root_dir):
-    torch.cuda.empty_cache()
-     #   if '.ipy' in folder or not folder[0].isdigit(): continue'
-    model.load_state_dict(torch.load(f"LLAMA/models/pretrained/llama_pretrained_inits.pth")['state_dict'])
-    all_preds = []
-    all_targets = []
-    for (s1, s1len, s2, s2len, targets) in val_loader:
-        if settings.CUDA:
-            s1 = s1.cuda()
-            s1len = s1len.cuda()
-            s2 = s2.cuda()
-            s2len = s2len.cuda()
+    for folder in os.listdir(args.root_dir):
+        torch.cuda.empty_cache()
+        if '.ipy' in folder or not folder[0].isdigit(): continue
+        model.load_state_dict(torch.load(os.path.join(args.root_dir, folder, 'model_best.pth'))['state_dict'])
+        all_preds = []
+        all_targets = []
+        for (s1, s1len, s2, s2len, targets) in val_loader:
+            if settings.CUDA:
+                s1 = s1.cuda()
+                s1len = s1len.cuda()
+                s2 = s2.cuda()
+                s2len = s2len.cuda()
 
-        with torch.no_grad():
-            logits = model(s1, s1len, s2, s2len)
+            with torch.no_grad():
+                logits = model(s1, s1len, s2, s2len)
 
-        preds = logits.argmax(1)
+            preds = logits.argmax(1)
 
-        all_preds.append(preds.cpu().numpy())
-        all_targets.append(targets.cpu().numpy())
+            all_preds.append(preds.cpu().numpy())
+            all_targets.append(targets.cpu().numpy())
 
-    all_preds = np.concatenate(all_preds, 0)
-    all_targets = np.concatenate(all_targets, 0)
+        all_preds = np.concatenate(all_preds, 0)
+        all_targets = np.concatenate(all_targets, 0)
 
-    acc = (all_preds == all_targets).mean()
+        acc = (all_preds == all_targets).mean()
 
-    print(f" Val acc: {acc:.3f}")
+        print(f" Val acc: {acc:.3f}")
+        accs[folder]=np.round(acc,3)
+    pd.DataFrame({'folder':accs.keys(), 'accs':accs.values()}).to_csv(f"{args.root_dir}/accuracy.csv")
+
 
    
 
@@ -160,3 +163,5 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     main(args)
+    
+    

@@ -12,7 +12,7 @@ class Pruner_:
             else:
                 layername += ".weight"
                 if 'mlp.3' not  in layername:
-                    self.prunable_layers[layername] = 0.3
+                    self.prunable_layers[layername] = 0.25
         print(self.prunable_layers)
         
         
