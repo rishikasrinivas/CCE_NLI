@@ -19,7 +19,7 @@ from torch.cuda.amp import autocast,GradScaler
 def create_dataloaders(max_data, debug=False):
     root_dir=f"DataLoaders/"
     os.makedirs(root_dir, exist_ok=True)
-    if debug or not ('train_dataset.pth' in os.listdir(root_dir) and 'val_dataset.pth' in os.listdir(root_dir) and 'test_dataset.pth' in os.listdir(root_dir)):
+    if debug or not ('train_dataset.pth' in os.listdir(root_dir) and 'val_dataset.pth' in os.listdir(root_dir)):
         print(f"No data saved. Loading dataloader")
         train = SNLI("data/snli_1.0", "train", max_data=max_data)
         train_loader = DataLoader(
@@ -27,7 +27,7 @@ def create_dataloaders(max_data, debug=False):
             batch_size=settings.BATCH_SIZE,
             shuffle=True,
             pin_memory=False,
-            num_workers=0,
+            num_workers=4,
             collate_fn=pad_collate,
         )
         torch.save(train_loader.dataset, f'{root_dir}/train_dataset.pth')
@@ -38,22 +38,13 @@ def create_dataloaders(max_data, debug=False):
             batch_size=settings.BATCH_SIZE, 
             shuffle=False,
             pin_memory=True, 
-            num_workers=0, 
+            num_workers=4, 
             collate_fn=pad_collate
         
         )
         torch.save(val_loader.dataset, f'{root_dir}/val_dataset.pth')
         
-        test = SNLI("data/snli_1.0", "test", max_data=max_data, vocab=(train.stoi, train.itos), unknowns=True)
-        test_loader = DataLoader(
-            test,
-            batch_size=settings.BATCH_SIZE,
-            shuffle=False,
-            pin_memory=True,
-            num_workers=0,
-            collate_fn=pad_collate,
-        )
-        torch.save(test_loader.dataset, f'{root_dir}/test_dataset.pth')
+       
     else:
         train_dataset = torch.load(f'{root_dir}/train_dataset.pth')
         train_loader = torch.utils.data.DataLoader(
@@ -61,7 +52,7 @@ def create_dataloaders(max_data, debug=False):
             batch_size=settings.BATCH_SIZE, 
             shuffle=True, 
             pin_memory=False,
-            num_workers=0,
+            num_workers=4,
             collate_fn=pad_collate
         )
         
@@ -71,28 +62,18 @@ def create_dataloaders(max_data, debug=False):
             batch_size=settings.BATCH_SIZE, 
             shuffle=False, 
             pin_memory=True, 
-            num_workers=0, 
+            num_workers=4, 
             collate_fn=pad_collate
         )
-        
-        test_dataset = torch.load(f'{root_dir}/test_dataset.pth')
-        test_loader = torch.utils.data.DataLoader(
-            test_dataset, 
-            batch_size=settings.BATCH_SIZE, 
-            shuffle=False,
-            pin_memory=True,
-            num_workers=0,
-            collate_fn=pad_collate
-        )
+      
         
         
     
     dataloaders = {
         'train': train_loader,
         'val':val_loader,
-        'test': test_loader
     }
-    return train_loader.dataset, val_loader.dataset,test_loader.dataset, dataloaders
+    return train_loader.dataset, val_loader.dataset,dataloaders
 
 
 #learning rate diffs
@@ -205,11 +186,7 @@ def finetune_pruned_model(model,model_type, optimizer,criterion, train, val, dat
        
         util.save_metrics(metrics, prune_metrics_dir)
         util.save_checkpoint(serialize(model, model_type, train), is_best, prune_metrics_dir)
-        if epoch % 1 == 0:
-
-            util.save_checkpoint(
-                serialize(model, model_type, train), False, prune_metrics_dir, filename=f"LotTick{epoch}.pth"
-            )
+        
         
     path_to_ckpt = os.path.join(prune_metrics_dir, f"model_best.pth")
     print(f"Loading best weights from {path_to_ckpt}")
