@@ -680,6 +680,7 @@ class TextEncoder(nn.Module):
     def forward(self, s, slen):
         semb = self.emb(s)
         spk = pack_padded_sequence(semb, slen.cpu(), enforce_sorted=False)
+        print(spk.data.shape)
         _, (hidden, cell) = self.rnn(spk)
         #retunr get all cell states w a param for the cell state # 
         return hidden[-1]

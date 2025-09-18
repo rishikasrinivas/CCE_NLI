@@ -37,12 +37,12 @@ def run(split, epoch, model, optimizer, criterion, dataloaders, args):
     
     total_steps = len(dataloaders['train']) * args.epochs
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=total_steps)
-
+    model.to('cpu')
     loss_meter = util.AverageMeter()
     acc_meter = util.AverageMeter()
     for (s1, s1len, s2, s2len, targets) in ranger:
 
-        if torch.cuda.is_available():
+        if not torch.cuda.is_available():
             s1 = s1.to('cuda')
             s1len = s1len.to('cuda')
             s2 = s2.to('cuda')
@@ -124,16 +124,15 @@ def main(args):
 
     # ==== LOAD DATA ====
     if args.debug:
-        max_data = 1000
+        max_data = 400
     else:
         max_data = None
     
-    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, debug=args.debug)
+    train,val,dataloaders=train_utils.create_dataloaders(max_data=max_data, debug=args.debug)
     model,ckpt = train_utils.load_model(max_data=max_data, model_type=args.model_type, use_pretrained_weights = True, train=train)
     
-    print(model)
-    return 
-    if torch.cuda.is_available():
+   
+    if not torch.cuda.is_available():
         model = model.to('cuda')
         print("Moving model to cuda")
 
@@ -188,8 +187,8 @@ def parse_args():
         description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
     )
 
-    parser.add_argument("--exp_dir", default="models/snli/")
-    parser.add_argument("--model_type", default="llama", choices=["bowman", "minimal", "bert", "llama"])
+    parser.add_argument("--exp_dir", default="test/")
+    parser.add_argument("--model_type", default="bowman", choices=["bowman", "minimal", "bert", "llama"])
     parser.add_argument("--save_every", default=10, type=int)
     parser.add_argument("--epochs", default=6, type=int)
     parser.add_argument("--embedding_dim", default=300, type=int)
