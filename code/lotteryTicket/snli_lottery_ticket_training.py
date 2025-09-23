@@ -44,7 +44,7 @@ def main(args):
         use_pretrained_weights = True
         
     train,val,dataloaders=train_utils.create_dataloaders(max_data=max_data, debug=args.debug)
-    model,ckpt = train_utils.load_model(max_data=max_data, model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=args.ckpt)
+    model,ckpt = train_utils.load_model(max_data=max_data, model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=args.ckpt, i= args.i)
     
     # ==== BUILD VOCAB ====
     base_ckpt=torch.load(ckpt)
@@ -191,6 +191,7 @@ def parse_args():
 
    
     parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/lottery_ticket/bowman")
+    parser.add_argument("--i", default=0)
     #parser.add_argument("--root_metrics_dir", default="models/snli")
     #parser.add_argument("--model_dir", default="expls/snli/model_dir")
     parser.add_argument("--store_exp_bkdown", default="expls/snli_1.0_dev-6-sentence-5/")

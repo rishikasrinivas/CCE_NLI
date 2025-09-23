@@ -43,8 +43,8 @@ def main(args):
     else:
         use_pretrained_weights = True
         
-    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, debug=args.debug)
-    model,ckpt = train_utils.load_model(max_data=max_data, model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=args.ckpt)
+    train,val,dataloaders=train_utils.create_dataloaders(max_data=max_data, debug=args.debug)
+    model,ckpt = train_utils.load_model(max_data=max_data, model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=args.ckpt, i= args.i)
     
     # ==== BUILD VOCAB ====
     base_ckpt=torch.load(ckpt)
@@ -84,7 +84,6 @@ def main(args):
         device, 
         train=train,
         val=val,
-        test=test,
         dataloaders=dataloaders,
         start = args.restart_from_ckpt,
     )
@@ -105,7 +104,7 @@ def apply_mask(model, base_ckpt):
     assert all(any(kw in x for kw in ['bias', 'bn', 'embeddings', 'LayerNorm']) for x in not_pruneable_layers)
     return base_ckpt
 #running the expls using the already finetuned and precreated masks from before
-def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, test, dataloaders, start):
+def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val,  dataloaders, start):
     print("Entered run_prune")
     pruned_percents, final_accs, final_weights =[], [], model.mlp[0].weight.detach().cpu().numpy()
     prune_metrics_dir_base = os.path.join(args.model_type.upper(), "models", "lottery_ticket", args.filename)
@@ -192,6 +191,7 @@ def parse_args():
 
    
     parser.add_argument("--prune_metrics_dir", default="models/snli/prune_metrics/lottery_ticket/bowman")
+    parser.add_argument("--i", default=0)
     #parser.add_argument("--root_metrics_dir", default="models/snli")
     #parser.add_argument("--model_dir", default="expls/snli/model_dir")
     parser.add_argument("--store_exp_bkdown", default="expls/snli_1.0_dev-6-sentence-5/")

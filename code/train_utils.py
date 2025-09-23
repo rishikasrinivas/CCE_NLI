@@ -213,7 +213,7 @@ def build_model(vocab_size, model_type, vocab, pretrained=True, embedding_dim=30
             model = models.LLAMAEntailmentClassifier(vocab=vocab,freeze_encoder=True)
     return model
 
-def load_model(max_data, model_type, train, ckpt=None, use_pretrained_weights = True, device='cuda'):
+def load_model(max_data, model_type, train, ckpt=None, use_pretrained_weights = True, device='cuda', i=0):
     model = build_model(vocab_size=len(train.stoi), model_type=model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, pretrained=use_pretrained_weights, embedding_dim=300, hidden_dim=512, device=device)
     
         
@@ -228,7 +228,7 @@ def load_model(max_data, model_type, train, ckpt=None, use_pretrained_weights = 
             pretrained_dir= os.path.join(model_type.upper(), "models", "pretrained")
             os.makedirs(pretrained_dir, exist_ok=True)
             save_to_dir = pretrained_dir
-            filename = f"{model_type}_pretrained_inits.pth"
+            filename = f"{model_type}_{i}_pretrained_inits.pth"
         else:
             untrained_dir = os.path.join(model_type.upper(), "models", "untrained")
             os.makedirs(untrained_dir, exist_ok=True)
