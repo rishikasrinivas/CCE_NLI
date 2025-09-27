@@ -33,7 +33,7 @@ Lottery Ticket Pruning
 Wanda Pruning
 
 ```
-python3 code/wanda/snli_wanda_training.py --model_type bert --filename test_bert  --prune_method wanda --ckpt BERT/models/random/llama_random_inits.pth
+python3 code/wanda/snli_wanda_training.py --model_type bert --filename Run0.25  --prune_method wanda --ckpt BERT/models/random/llama_random_inits.pth
 python3 code/wanda/snli_wanda_training.py --model_type llama --filename test_llama  --prune_method wanda --ckpt lama_random_inits.pth
 python3 code/wanda/snli_wanda_training.py --model_type bowman --filename Run0.25  --prune_method wanda --ckpt BOWMAN/models/lottery_ticket/Run0.25/0_Pruning_Iter/model_best.pth
 ```

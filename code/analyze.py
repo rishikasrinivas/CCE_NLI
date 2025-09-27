@@ -870,7 +870,7 @@ def main():
     parser = ArgumentParser(
         description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument("--model_type", default="bert", choices=["bowman", "minimal", "bert"])
+    parser.add_argument("--model_type", default="bert", choices=["bowman", "llama", "bert"])
     parser.add_argument("--filename", default="RAndom")
     parser.add_argument("--ckpt", default="/workspace/CCE_NLI/BERT/models/random/bert_random_inits.pth")
     parser.add_argument("--untrained_model", action="store_true", default=False)  # If `--untrained_model` is used, set to True 
@@ -894,8 +894,8 @@ def main():
         
     
       
-    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=None)
-    model,ckpt = train_utils.load_model(max_data=None, model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=None, device=device)
+    train,val ,dataloaders=train_utils.create_dataloaders(max_data=None)
+    model,ckpt = train_utils.load_model(max_data=None, model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=args.ckpt, device=device)
     
     # ==== BUILD VOCAB ====
     print(f"Loading weights from {ckpt}")
@@ -908,7 +908,7 @@ def main():
     dataset = analysis.AnalysisDataset(lines, vocab)
     
     device = 'cuda' if settings.CUDA else 'cpu'    
-    formula_masks = initiate_exp_run(save_exp_dir = f"{args.model_type.upper()}/exp/{args.filename}/expls",  save_masks_dir= f"{args.model_type.upper()}/exp/{args.filename}/masks", masks_saved=False,model_=model, dataset=dataset, activations_dir = f"{args.model_type.upper()}/activations/{args.filename}", device='cpu')
+    formula_masks = initiate_exp_run(save_exp_dir = f"{args.model_type.upper()}/exp/{args.filename}/Expls",  save_masks_dir= f"{args.model_type.upper()}/exp/{args.filename}/Masks", masks_saved=False,model_=model, dataset=dataset, activations_dir = f"{args.model_type.upper()}/activations/{args.filename}", device='cpu')
 
     with open(os.path.join(path_to_formula_masks, "formula_masks.json"), "w") as f:
         json.dump(formula_masks, f)

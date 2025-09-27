@@ -65,7 +65,7 @@ def main():
     print(f"On device: {device}")
     
     #========== Set up model & dataset ===========
-    train,val,test,dataloaders=train_utils.create_dataloaders(max_data=max_data, debug=args.debug)
+    train,val,dataloaders=train_utils.create_dataloaders(max_data=max_data, debug=args.debug)
     model,ckpt = train_utils.load_model(max_data=max_data, model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=args.ckpt,device=device)
     
     #========== Train model if ckpt dne ===========

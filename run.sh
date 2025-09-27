@@ -22,7 +22,7 @@ python3 code/pruning_explanation.py --model_type bowman --filename Run0.25_2 --p
 
 
 python3 code/pruning_explanation.py --model_type llama --pruning_method lottery_ticket --ckpt LLAMA/models/Run0.25_2/lottery_ticket/0_Pruning_Iter/model_best.pth --filename Run0.25_2
-python3 code/pruning_explanation.py --model_type llama --filename Run0.25_2 --pruning_method wanda --ckpt BOWMAN/models/Run0.25_2/lottery_ticket/0_Pruning_Iter/model_best.pth
+python3 code/pruning_explanation.py --model_type llama --filename Run0.25 --pruning_method wanda --ckpt BOWMAN/models/Run0.25/lottery_ticket/0_Pruning_Iter/model_best.pth
 
 
 
