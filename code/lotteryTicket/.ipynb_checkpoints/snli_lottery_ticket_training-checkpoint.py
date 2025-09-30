@@ -135,6 +135,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
             print(f"After appling mask % Pruned: {final_weights_pruned}")
             model.cpu()
     for prune_iter in tqdm(range(start, args.prune_iters)):
+        print(f"Starting from {start}")
         
             
         #=====SETTINGS AND TRAIN======

@@ -59,11 +59,12 @@ def calculate_alignment_with_random(all_fm_masks,random, save_dir):
             }
             df = pd.DataFrame(data)
             os.makedirs(f"{save_dir}/Cluster{cluster}/", exist_ok=True)
-            df.to_csv(f"{save_dir}/Cluster{cluster}/{i+1}Iter_{cluster}Cluster_Alignment.csv")
+            df.to_csv(f"{save_dir}/Cluster{cluster}/{i}Iter_{cluster}Cluster_Alignment.csv")
         
 #========testing alignment code=====
 fm_masks=[]
-flder="/workspace/CCE_NLI/BERT/formula_masks/wanda/Run0.25"
+
+flder="/workspace/CCE_NLI/BOWMAN/formula_masks/wanda/Run0.25"
 import json,os
 for file in sorted(os.listdir(flder)):
     if '.ipy' in file: continue
@@ -71,17 +72,16 @@ for file in sorted(os.listdir(flder)):
         data = json.load(f)
     fm_masks.append(data)
     
-'''    
 random_masks = [] 
-flder = "/workspace/CCE_NLI/LLAMA/formula_masks/PretrainedWeights"
+flder = "/workspace/CCE_NLI/BOWMAN/formula_masks/pretrained"
 for file in sorted(os.listdir(flder)):
     if '.ipy' in file: continue
     with open(os.path.join(flder, file), 'r') as f:
         data = json.load(f)
-    random_masks.append(data)'''
-print(fm_masks[0].keys())
-#calculate_alignment_with_random(fm_masks, random_masks, "/workspace/CCE_NLI/BERT/overlap/lottery_ticket/overlap_w_pretrained/Run2Full")
-calculate_alignment_with_original(fm_masks, "/workspace/CCE_NLI/BERT/overlap/wanda/Run0.25")
+    random_masks.append(data)
+
+calculate_alignment_with_random(fm_masks, random_masks, "/workspace/CCE_NLI/BOWMAN/overlap/wanda/overlap_w_pretrained/Run0.25")
+calculate_alignment_with_original(fm_masks, "/workspace/CCE_NLI/BOWMAN/overlap/wanda/overlap_w_original/Run0.25")
     
     
         

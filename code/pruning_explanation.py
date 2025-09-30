@@ -49,7 +49,7 @@ def main(args):
     
       
     train,val,dataloaders=train_utils.create_dataloaders(max_data=max_data, debug=args.debug)
-    ckpt = os.path.join(args.model_type.upper(), "models", 'lottery_ticket', args.filename, '3_Pruning_Iter/model_best.pth')
+    ckpt = os.path.join(args.model_type.upper(), "models", 'lottery_ticket', args.filename, '0_Pruning_Iter/model_best.pth')
     
     model,ckpt = train_utils.load_model(max_data=max_data, model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=ckpt, device=device)
     
