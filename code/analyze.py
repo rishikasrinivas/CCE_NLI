@@ -469,6 +469,7 @@ def extract_features(
 def search_feats(acts, states, feats, weights, dataset, cluster, save_dir=None, debug=True):
     if save_dir is None:
         return "Invalid save_dir"
+    print(f"saving to {save_dir}")
     formula_masks={}
     rfile = os.path.join(save_dir, "result.csv")
     #if os.path.exists(rfile):
@@ -871,8 +872,8 @@ def main():
         description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("--model_type", default="bert", choices=["bowman", "llama", "bert"])
-    parser.add_argument("--filename", default="RAndom")
-    parser.add_argument("--ckpt", default="/workspace/CCE_NLI/BERT/models/random/bert_random_inits.pth")
+    parser.add_argument("--filename", default="Run0.25")
+    parser.add_argument("--ckpt", default="/workspace/CCE_NLI/BERT/models/wanda/Run0.25/5_Pruning_Iter/model_best.pth")
     parser.add_argument("--untrained_model", action="store_true", default=False)  # If `--untrained_model` is used, set to True 
     
     
@@ -908,7 +909,7 @@ def main():
     dataset = analysis.AnalysisDataset(lines, vocab)
     
     device = 'cuda' if settings.CUDA else 'cpu'    
-    formula_masks = initiate_exp_run(save_exp_dir = f"{args.model_type.upper()}/exp/{args.filename}/Expls",  save_masks_dir= f"{args.model_type.upper()}/exp/{args.filename}/Masks", masks_saved=False,model_=model, dataset=dataset, activations_dir = f"{args.model_type.upper()}/activations/{args.filename}", device='cpu')
+    formula_masks = initiate_exp_run(save_exp_dir = f"{args.model_type.upper()}/exp/wanda/{args.filename}/Expls/76.27%Pruned",  save_masks_dir= f"{args.model_type.upper()}/exp/wanda/{args.filename}/Masks/76.27%Pruned", masks_saved=False,model_=model, dataset=dataset, activations_dir = f"{args.model_type.upper()}/activations/wanda/{args.filename}/5_Pruning_Iter", device='cpu')
 
     with open(os.path.join(path_to_formula_masks, "formula_masks.json"), "w") as f:
         json.dump(formula_masks, f)
