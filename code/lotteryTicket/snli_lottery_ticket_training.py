@@ -111,7 +111,11 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
     os.makedirs(prune_metrics_dir_base, exist_ok=True)
     #train, prune, apply prune mask to init, train
     
+    baseline_acc = 0
     if start > 0:
+        model.load_state_dict(torch.load(os.path.join(prune_metrics_dir_base, '0_Pruning_Iter', 'model_best.pth'))['state_dict'])
+        baseline_acc = train_utils.run_eval(model, dataloaders['val'])
+        
         prune_metrics_dir = os.path.join(prune_metrics_dir_base, f"{start-1}_Pruning_Iter")
         if os.path.exists(prune_metrics_dir):
             print(f"Alr lt'd {prune_metrics_dir}")
@@ -134,8 +138,10 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
             final_weights_pruned = prune_utils.percent_pruned_weights(model)
             print(f"After appling mask % Pruned: {final_weights_pruned}")
             model.cpu()
+            
     for prune_iter in tqdm(range(start, args.prune_iters)):
         print(f"Starting from {start}")
+        print(f"Training {prune_iter} until reaches an accuracy of at least {baseline_acc}")
         
             
         #=====SETTINGS AND TRAIN======
@@ -154,10 +160,11 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         torch.save(model.state_dict(), os.path.join(prune_metrics_dir, "initreloaded.pth"))
 
 
-        model = train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, device)
+        model = train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, train, val, dataloaders, args.finetune_epochs, prune_metrics_dir, baseline_acc, device)
 
         #record accuracy
         final_acc = train_utils.run_eval(model, dataloaders['val'])
+        if prune_iter == 0: baseline_acc = final_acc
         final_weights_pruned = prune_utils.percent_pruned_weights(model)
         print(f"% Pruned: {final_weights_pruned}")
         pruned_percents.append(final_weights_pruned)

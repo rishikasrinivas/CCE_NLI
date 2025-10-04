@@ -66,8 +66,12 @@ def run_expls(
     os.makedirs(path_to_formula_masks, exist_ok=True)
     
     # Gets the ckpt and numeric pruning iter
-    for prune_iter in range(len(os.listdir(path_to_weights))):
+    for prune_iter in range(3, len(os.listdir(path_to_weights))):
         prune_metrics_dir  = f"{prune_iter}_Pruning_Iter"
+        
+        if prune_metrics_dir not in os.listdir(path_to_weights): 
+            print(f"{prune_metrics_dir} is not a valid directory. Skipping")
+            continue
         
         filepath = os.path.join(path_to_weights, prune_metrics_dir,"model_best.pth" )
         

@@ -85,7 +85,7 @@ def main(args):
     nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger", "ner"])
     ckpt = torch.load(args.ckpt)
     stoi = ckpt["stoi"]
-    train,_,_,dataloaders=train_utils.create_dataloaders(max_data=10000)
+    train,_,dataloaders=train_utils.create_dataloaders(max_data=10000)
     # ==== BUILD MODEL ====
     model = train_utils.build_model(vocab_size=len(train.stoi), model_type=args.model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512)
     
@@ -150,9 +150,9 @@ def parse_args():
         default="test.txt",
         help="Data to eval interactively (pairs of sentences); use - for stdin",
     )
-    parser.add_argument("--root_dir", default="/workspace/CCE_NLI/BERT/models/lottery_ticket/Run3")
-    parser.add_argument("--ckpt", default="LLAMA/models/pretrained/llama_pretrained_inits.pth")
-    parser.add_argument("--model_type", default="llama", choices=["bowman", "bert", "llama"])
+    parser.add_argument("--root_dir", default="/workspace/CCE_NLI/BOWMAN/models/lottery_ticket/Run0.25/")
+    parser.add_argument("--ckpt", default="BOWMAN/models/lottery_ticket/Run0.25/0_Pruning_Iter/model_best.pth")
+    parser.add_argument("--model_type", default="bowman", choices=["bowman", "bert", "llama"])
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--eval_data_path", default="data/snli_1.0/")
     parser.add_argument("--cuda", action="store_true")

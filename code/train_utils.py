@@ -129,7 +129,6 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
                     layer.weights.grad *= layer.pruning_mask.to(device)
             
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
 
             scaler.step(optimizer)
@@ -142,13 +141,6 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
         acc = (preds == targets).float().mean()
         loss_meter.update(loss.item(), batch_size)
         acc_meter.update(acc.item(), batch_size)
-        
-        if model_type in ['bert', 'llama']:
-            # scaler.scale(loss).backward()
-            # scaler.step(optimizer)
-            # scaler.update()
-
-            scheduler.step()
 
         ranger.set_description(
             f"{split} epoch {epoch} loss {loss_meter.avg:.3f} acc {acc_meter.avg:.3f}"
@@ -156,11 +148,12 @@ def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_
 
     return {"loss": loss_meter.avg, "acc": acc_meter.avg}
 
-def finetune_pruned_model(model,model_type, optimizer,criterion, train, val, dataloaders, finetune_epochs, prune_metrics_dir,device):
+def finetune_pruned_model(model,model_type, optimizer,criterion, train, val, dataloaders, finetune_epochs, prune_metrics_dir,baseline_acc, device):
     metrics = {"best_val_acc": 0.0, "best_val_epoch": 0, "best_val_loss": np.inf, "train_loss": [], "train_acc": [], "val_loss": [], "val_acc": []}
 
-    
-    for epoch in range(finetune_epochs):
+    epoch = 0
+    accuracy=0
+    while accuracy <= baseline_acc:
         train_metrics = run(
             "train", epoch, model, model_type, optimizer, criterion, dataloaders, finetune_epochs, device
         )
@@ -176,6 +169,7 @@ def finetune_pruned_model(model,model_type, optimizer,criterion, train, val, dat
             metrics[f"val_{name}"].append(val)
 
         is_best = val_metrics["acc"] > metrics["best_val_acc"]
+        accuracy = metrics["best_val_acc"]
 
         if is_best:
             metrics["best_val_epoch"] = epoch
@@ -186,6 +180,7 @@ def finetune_pruned_model(model,model_type, optimizer,criterion, train, val, dat
        
         util.save_metrics(metrics, prune_metrics_dir)
         util.save_checkpoint(serialize(model, model_type, train), is_best, prune_metrics_dir)
+        epoch += 1
         
         
     path_to_ckpt = os.path.join(prune_metrics_dir, f"model_best.pth")

@@ -1,7 +1,7 @@
 #!/bin/bash
 python -c "import os; print(os.path.abspath('analyze.py'))"
 
-python3 code/lotteryTicket/snli_lottery_ticket_training.py  --model_type bowman --filename Run0.25_2  --i 2 --finetune_epochs 10
+python3 code/lotteryTicket/snli_lottery_ticket_training.py  --model_type bowman --filename Run0.25 --i 1 --finetune_epochs 10 --restart_from_ckpt 1
 python3 code/pruning_explanation.py --model_type bowman --pruning_method lottery_ticket --ckpt BOWMAN/models/Run0.25_2/lottery_ticket/0_Pruning_Iter/model_best.pth --filename Run0.25_2
 
 
