@@ -15,268 +15,289 @@ from collections import defaultdict
 import os,fileio
 from transformers import BertTokenizer, BertModel, AdamW, get_linear_schedule_with_warmup
 from torch.cuda.amp import autocast,GradScaler
-
-def create_dataloaders(max_data, debug=False):
-    root_dir=f"DataLoaders/"
+from transformers import AutoTokenizer
+def create_dataloaders(max_data, model_type, debug=False):
+    """
+    Creates and caches dataloaders.
+    - Level 1 Cache: Caches the SNLI dataset objects after reading from text.
+    - Level 2 Cache: For transformer models, caches the fully converted and tokenized batches.
+    """
+    root_dir = "DataLoaders/"
     os.makedirs(root_dir, exist_ok=True)
-    if debug or not ('train_dataset.pth' in os.listdir(root_dir) and 'val_dataset.pth' in os.listdir(root_dir)):
-        print(f"No data saved. Loading dataloader")
-        train = SNLI("data/snli_1.0", "train", max_data=max_data)
-        train_loader = DataLoader(
-            train,
-            batch_size=settings.BATCH_SIZE,
-            shuffle=True,
-            pin_memory=False,
-            num_workers=4,
-            collate_fn=pad_collate,
-        )
-        torch.save(train_loader.dataset, f'{root_dir}/train_dataset.pth')
+
+    # --- PART 1: Load or Create the Base SNLI Datasets ---
+    # This is the first level of caching. It avoids re-reading the raw .txt files.
+    base_train_path = f'{root_dir}/train_dataset.pth'
+    base_val_path = f'{root_dir}/val_dataset.pth'
+
+    if debug or not (os.path.exists(base_train_path) and os.path.exists(base_val_path)):
+        print("⚠️ Base SNLI dataset cache not found. Creating from text files...")
+        train_dataset = SNLI("data/snli_1.0", "train", max_data=max_data)
+        torch.save(train_dataset, base_train_path)
         
-        val = SNLI("data/snli_1.0","dev",max_data=max_data,vocab=(train.stoi, train.itos),unknowns=False)
-        val_loader = DataLoader(
-            val, 
-            batch_size=settings.BATCH_SIZE, 
-            shuffle=False,
-            pin_memory=True, 
-            num_workers=4, 
-            collate_fn=pad_collate
-        
-        )
-        torch.save(val_loader.dataset, f'{root_dir}/val_dataset.pth')
-        
-       
+        val_dataset = SNLI("data/snli_1.0", "dev", max_data=max_data, vocab=(train_dataset.stoi, train_dataset.itos), unknowns=False)
+        torch.save(val_dataset, base_val_path)
     else:
-        train_dataset = torch.load(f'{root_dir}/train_dataset.pth')
-        train_loader = torch.utils.data.DataLoader(
-            train_dataset, 
-            batch_size=settings.BATCH_SIZE, 
-            shuffle=True, 
-            pin_memory=False,
-            num_workers=4,
-            collate_fn=pad_collate
-        )
-        
-        val_dataset = torch.load(f'{root_dir}/val_dataset.pth')
-        val_loader = torch.utils.data.DataLoader(
-            val_dataset, 
-            batch_size=settings.BATCH_SIZE, 
-            shuffle=False, 
-            pin_memory=True, 
-            num_workers=4, 
-            collate_fn=pad_collate
-        )
-      
-        
-        
+        print("✅ Loading base SNLI dataset from cache...")
+        train_dataset = torch.load(base_train_path)
+        val_dataset = torch.load(base_val_path)
     
-    dataloaders = {
-        'train': train_loader,
-        'val':val_loader,
-    }
-    return train_loader.dataset, val_loader.dataset,dataloaders
+    # --- PART 2: Branch logic based on model type ---
+    if model_type in ['bert', 'llama']:
+        # Define paths for the second level of caching (the converted batches)
+        train_cache_path = f'{root_dir}/converted_batches_train_{model_type}.pth'
+        val_cache_path = f'{root_dir}/converted_batches_val_{model_type}.pth'
 
+        if os.path.exists(train_cache_path) and os.path.exists(val_cache_path):
+            print(f"✅ Loading pre-converted {model_type} batches from cache...")
+            converted_train_batches = torch.load(train_cache_path)
+            converted_val_batches = torch.load(val_cache_path)
+        else:
+            print(f"⚠️ Converted batches cache not found. Performing one-time conversion for {model_type}...")
+            
+            model_name = "bert-base-uncased" if model_type == 'bert' else "knowledgator/Llama-encoder-1.0B"
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            if tokenizer.pad_token is None:
+                tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+            itos = train_dataset.itos
+            
+            # Use a temporary loader to create batches from the base dataset
+            temp_train_loader = DataLoader(train_dataset, batch_size=settings.BATCH_SIZE, shuffle=False, num_workers=4, collate_fn=pad_collate)
+            converted_train_batches = []
+            for batch in tqdm(temp_train_loader, desc="Converting train batches"):
+                s1_pad, _, s2_pad, _, targets = batch
+                s1_indices, s2_indices = s1_pad.cpu().numpy().T, s2_pad.cpu().numpy().T
+                s1_sentences = [" ".join([itos.get(idx, "") for idx in row if idx not in (0, 1)]) for row in s1_indices]
+                s2_sentences = [" ".join([itos.get(idx, "") for idx in row if idx not in (0, 1)]) for row in s2_indices]
+                s1_tokenized = tokenizer(s1_sentences, return_tensors="pt", padding=True, truncation=True)
+                s2_tokenized = tokenizer(s2_sentences, return_tensors="pt", padding=True, truncation=True)
+                converted_train_batches.append((s1_tokenized, s2_tokenized, targets))
 
+            temp_val_loader = DataLoader(val_dataset, batch_size=settings.BATCH_SIZE, num_workers=4, collate_fn=pad_collate)
+            converted_val_batches = []
+            for batch in tqdm(temp_val_loader, desc="Converting val batches"):
+                s1_pad, _, s2_pad, _, targets = batch
+                s1_indices, s2_indices = s1_pad.cpu().numpy().T, s2_pad.cpu().numpy().T
+                s1_sentences = [" ".join([itos.get(idx, "") for idx in row if idx not in (0, 1)]) for row in s1_indices]
+                s2_sentences = [" ".join([itos.get(idx, "") for idx in row if idx not in (0, 1)]) for row in s2_indices]
+                s1_tokenized = tokenizer(s1_sentences, return_tensors="pt", padding=True, truncation=True)
+                s2_tokenized = tokenizer(s2_sentences, return_tensors="pt", padding=True, truncation=True)
+                converted_val_batches.append((s1_tokenized, s2_tokenized, targets))
+
+            print(f"💾 Saving converted batches to cache for future runs...")
+            torch.save(converted_train_batches, train_cache_path)
+            torch.save(converted_val_batches, val_cache_path)
+        
+        # Create final DataLoaders from the list of converted batches
+        train_loader = DataLoader(converted_train_batches, shuffle=True, batch_size=1, collate_fn=lambda x: x[0])
+        val_loader = DataLoader(converted_val_batches, shuffle=False, batch_size=1, collate_fn=lambda x: x[0])
+
+    else: # This path is for the 'bowman' model
+        print("✅ Using original dataloaders for bowman model.")
+        train_loader = DataLoader(train_dataset, batch_size=settings.BATCH_SIZE, shuffle=True, num_workers=4, collate_fn=pad_collate)
+        val_loader = DataLoader(val_dataset, batch_size=settings.BATCH_SIZE, shuffle=False, num_workers=4, collate_fn=pad_collate)
+    
+    dataloaders = {'train': train_loader, 'val': val_loader}
+    
+    return train_dataset, val_dataset, dataloaders
 #learning rate diffs
 
-def run(split, epoch, model,model_type, optimizer, criterion, dataloader, total_epochs, device='cuda'):
+
+def run(split, epoch, model, model_type, optimizer, criterion, dataloaders, total_epochs, device='cuda'):
+    from contextlib import nullcontext # Make sure this is imported
     torch.cuda.empty_cache()
     training = split == "train"
+    
     if training:
-        ctx = autocast
+        # CORRECTED: Disable autocast for this test
+        # ctx = autocast
+        ctx = nullcontext
         model.train()
     else:
         ctx = torch.no_grad
         model.eval()
-        
-    scaler = GradScaler()
-    ranger = tqdm(dataloader[split], desc=f"{split} epoch {epoch}")
-    scheduler=None
     
-    if model_type in ['bert', 'llama']:
-        total_steps = len(dataloader['train']) *6
-        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=total_steps)
-
+    # CORRECTED: Disable the GradScaler for this test
+    # scaler = GradScaler(enabled=(training and torch.cuda.is_available()))
     
-
+    ranger = tqdm(dataloaders[split], desc=f"{split} epoch {epoch}")
+    scheduler = None
+    if model_type in ['bert', 'llama'] and training:
+        num_training_steps = len(dataloaders['train']) * total_epochs
+        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=num_training_steps)
     loss_meter = util.AverageMeter()
     acc_meter = util.AverageMeter()
-
-    for (s1, s1len, s2, s2len, targets) in ranger:
-        if torch.cuda.is_available():
-            s1 = s1.cuda()
-            s1len = s1len.cuda()
-            s2 = s2.cuda()
-            s2len = s2len.cuda()
-            targets = targets.cuda()
-
-    
-
-        batch_size = targets.shape[0]
-        
-        with ctx(): #llama half precis
-            logits = model(s1, s1len, s2, s2len)
-        
-          
-            loss = criterion(logits.float(), targets)
- 
+    for batch in ranger:
+        if model_type in ['bert', 'llama']:
+            s1_batch, s2_batch, targets = batch
+            if torch.cuda.is_available():
+                s1_batch = {k: v.to(device) for k, v in s1_batch.items()}
+                s2_batch = {k: v.to(device) for k, v in s2_batch.items()}
+                targets = targets.to(device)
+            batch_size = targets.shape[0]
+            with ctx():
+                logits = model(s1_batch, s2_batch)
+                loss = criterion(logits, targets)
+        else:
+            s1, s1len, s2, s2len, targets = batch
+            if torch.cuda.is_available():
+                s1, s1len = s1.to(device), s1len.to(device)
+                s2, s2len = s2.to(device), s2len.to(device)
+                targets = targets.to(device)
+            batch_size = targets.shape[0]
+            with ctx():
+                logits = model(s1, s1len, s2, s2len)
+                loss = criterion(logits, targets)
         if training:
             optimizer.zero_grad()
-            scaler.scale(loss).backward()
-            #loss.backward()
-            for layer in model.layers:
-                if layer.weights.grad is not None:
-                    #assert not torch.equal(torch.ones(layer.pruning_mask.shape), layer.pruning_mask), layer.name
-                    layer.weights.grad *= layer.pruning_mask.to(device)
             
+            # CORRECTED: Use standard loss.backward()
+            loss.backward()
+            
+            if hasattr(model, 'layers'):
+                for layer in model.layers:
+                    if hasattr(layer.weights, 'grad') and layer.weights.grad is not None:
+                        layer.weights.grad *= layer.pruning_mask.to(device)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-
-
-            scaler.step(optimizer)
-            scaler.update()
-            if scheduler: scheduler.step()
-            #optimizer.step()
             
+            # CORRECTED: Use standard optimizer.step()
+            optimizer.step()
+            
+            if scheduler:
+                scheduler.step()
                 
         preds = logits.argmax(1)
         acc = (preds == targets).float().mean()
         loss_meter.update(loss.item(), batch_size)
         acc_meter.update(acc.item(), batch_size)
-
-        ranger.set_description(
-            f"{split} epoch {epoch} loss {loss_meter.avg:.3f} acc {acc_meter.avg:.3f}"
-        )
-
+        ranger.set_description(f"{split} epoch {epoch} loss {loss_meter.avg:.3f} acc {acc_meter.avg:.3f}")
     return {"loss": loss_meter.avg, "acc": acc_meter.avg}
 
-def finetune_pruned_model(model,model_type, optimizer,criterion, train, val, dataloaders, finetune_epochs, prune_metrics_dir,baseline_acc, device):
-    metrics = {"best_val_acc": 0.0, "best_val_epoch": 0, "best_val_loss": np.inf, "train_loss": [], "train_acc": [], "val_loss": [], "val_acc": []}
 
-    epoch = 0
-    accuracy=0
-    while accuracy <= baseline_acc:
-        train_metrics = run(
-            "train", epoch, model, model_type, optimizer, criterion, dataloaders, finetune_epochs, device
-        )
+def finetune_pruned_model(model, model_type, optimizer, criterion, dataloaders, finetune_epochs, prune_metrics_dir, device):
+    """
+    Finetunes a model for a fixed number of epochs and saves the best-performing one.
+    """
+    metrics = {"best_val_acc": 0.0, "best_val_epoch": 0, "train_loss": [], "train_acc": [], "val_loss": [], "val_acc": []}
 
-        val_metrics = run(
-            "val", epoch, model, model_type, optimizer, criterion, dataloaders, finetune_epochs, device
-        )
-
-        for name, val in train_metrics.items():
-            metrics[f"train_{name}"].append(val)
-
-        for name, val in val_metrics.items():
-            metrics[f"val_{name}"].append(val)
+    for epoch in range(finetune_epochs):
+        train_metrics = run("train", epoch, model, model_type, optimizer, criterion, dataloaders, finetune_epochs, device)
+        val_metrics = run("val", epoch, model, model_type, optimizer, criterion, dataloaders, finetune_epochs, device)
+        
+        metrics["train_loss"].append(train_metrics["loss"])
+        metrics["train_acc"].append(train_metrics["acc"])
+        metrics["val_loss"].append(val_metrics["loss"])
+        metrics["val_acc"].append(val_metrics["acc"])
 
         is_best = val_metrics["acc"] > metrics["best_val_acc"]
-        accuracy = metrics["best_val_acc"]
-
         if is_best:
-            metrics["best_val_epoch"] = epoch
             metrics["best_val_acc"] = val_metrics["acc"]
-            metrics["best_val_loss"] = val_metrics["loss"]
-            fileio.log_to_csv(os.path.join(prune_metrics_dir,"pruned_status.csv"), [epoch, val_metrics["acc"], val_metrics["loss"]], ["EPOCH", "ACCURACY", "LOSS"])
-        
-       
-        util.save_metrics(metrics, prune_metrics_dir)
-        util.save_checkpoint(serialize(model, model_type, train), is_best, prune_metrics_dir)
-        epoch += 1
-        
-        
-    path_to_ckpt = os.path.join(prune_metrics_dir, f"model_best.pth")
-    print(f"Loading best weights from {path_to_ckpt}")
-    model.load_state_dict(torch.load(path_to_ckpt)['state_dict'])
-    
+            metrics["best_val_epoch"] = epoch
+            util.save_checkpoint(model.state_dict(), is_best=True, checkpoint=prune_metrics_dir)
+
+    # Load the best performing model
+    best_model_path = os.path.join(prune_metrics_dir, 'model_best.pth')
+    if os.path.exists(best_model_path):
+        print(f"Loading best weights from epoch {metrics['best_val_epoch']} with accuracy {metrics['best_val_acc']:.3f}")
+        model.load_state_dict(torch.load(best_model_path))
+
     return model
 
 
-def build_model(vocab_size, model_type, vocab, pretrained=True, embedding_dim=300, hidden_dim=512, device='cuda'):
+def build_model(model_type, vocab_size=None, pretrained=True, embedding_dim=300, hidden_dim=512, device='cuda'):
     """
-    Build a bowman-style SNLI model
+    Builds the specified model. `vocab_size` is only used for the bowman model.
     """
-    
-    if model_type=='bert':
-        model=models.BertEntailmentClassifier(vocab=vocab, pretrained=pretrained, device=device)
-    elif model_type == 'bowman':
-        enc = models.TextEncoder(
-            vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim
-        )
-        model = models.BowmanEntailmentClassifier(enc, device)
+    if model_type == 'bert':
+        # CORRECTED: Removed the 'vocab' argument
+        model = models.BertEntailmentClassifier(pretrained=pretrained, device=device)
     elif model_type == 'llama':
-            if vocab is None:
-                raise Exception('Llama model requires passing the datasets vocab field')
-            model = models.LLAMAEntailmentClassifier(vocab=vocab,freeze_encoder=True)
+        # CORRECTED: Removed the 'vocab' argument
+        model = models.LLAMAEntailmentClassifier(freeze_encoder=True, device=device)
+    elif model_type == 'bowman':
+        # This path remains the same
+        enc = models.TextEncoder(vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim)
+        model = models.BowmanEntailmentClassifier(enc, device)
+    else:
+        raise ValueError(f"Unknown model_type: {model_type}")
     return model
 
-def load_model(max_data, model_type, train, ckpt=None, use_pretrained_weights = True, device='cuda', i=0):
-    model = build_model(vocab_size=len(train.stoi), model_type=model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, pretrained=use_pretrained_weights, embedding_dim=300, hidden_dim=512, device=device)
+def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, device='cuda', i=0):
+    """
+    Loads or initializes a model.
+    """
+    # CORRECTED: Call the updated build_model function
+    model = build_model(
+        model_type=model_type,
+        vocab_size=len(train.stoi), # For bowman
+        pretrained=use_pretrained_weights, # For bert
+        device=device
+    )
     
-        
-        
     if ckpt:
-        if type(ckpt) == str:
-            print(f"Loading from {ckpt} with model {model_type}")
-            ckpt_ = torch.load(ckpt, map_location = torch.device(device))
+        print(f"Loading from checkpoint: {ckpt}")
+        ckpt_ = torch.load(ckpt, map_location=torch.device(device))
         model.load_state_dict(ckpt_["state_dict"])
     else:
-        if use_pretrained_weights:
-            pretrained_dir= os.path.join(model_type.upper(), "models", "pretrained")
-            os.makedirs(pretrained_dir, exist_ok=True)
-            save_to_dir = pretrained_dir
-            filename = f"{model_type}_{i}_pretrained_inits.pth"
-        else:
-            untrained_dir = os.path.join(model_type.upper(), "models", "untrained")
-            os.makedirs(untrained_dir, exist_ok=True)
-            save_to_dir = untrained_dir
-            filename = f"{model_type}_untrained_inits.pth"
-            
-        print("train itos = ", len(train.stoi))
+        # This logic for saving initial weights is fine
+        save_dir_type = "pretrained" if use_pretrained_weights else "untrained"
+        save_dir = os.path.join(model_type.upper(), "models", save_dir_type)
+        os.makedirs(save_dir, exist_ok=True)
+        filename = f"{model_type}_{i}_{save_dir_type}_inits.pth"
         
         util.save_checkpoint(
-                serialize(model, model_type, train), False, save_to_dir, filename
+            serialize(model, model_type, train), False, save_dir, filename
         )
-        ckpt = os.path.join(save_to_dir, filename)
-        
-            
+        ckpt = os.path.join(save_dir, filename)
         
     return model.to(device), ckpt
 
 
-def serialize(model,model_type, dataset):
-    if model_type == ['llama','bert']:
+def serialize(model, model_type, dataset):
+    # CORRECTED: The condition now correctly checks if model_type is in the list
+    if model_type in ['llama', 'bert']:
         return {
             "encoder_name": model.encoder_name, 
-            "state_dict": model.state_dict(), 
-            "stoi": dataset.stoi,
-            "itos": dataset.itos,
+            "state_dict": model.state_dict(),
+            # CORRECTED: stoi and itos are no longer needed for transformer models
         }
+    # For bowman, we still need the vocab
     return {
         "state_dict": model.state_dict(),
         "stoi": dataset.stoi,
         "itos": dataset.itos,
     }
 
-def run_eval(model, val_loader):
+def run_eval(model, val_loader, model_type):
     model.cuda()
     model.eval()
     all_preds = []
     all_targets = []
-    for (s1, s1len, s2, s2len, targets) in val_loader:
-        if settings.CUDA:
-            s1 = s1.cuda()
-            s1len = s1len.cuda()
-            s2 = s2.cuda()
-            s2len = s2len.cuda()
 
-        with torch.no_grad():
-            logits = model(s1, s1len, s2, s2len)
+    # CORRECTED: Added conditional logic for batch handling
+    for batch in val_loader:
+        if model_type in ['bert', 'llama']:
+            s1_batch, s2_batch, targets = batch
+            if settings.CUDA:
+                s1_batch = {k: v.cuda() for k, v in s1_batch.items()}
+                s2_batch = {k: v.cuda() for k, v in s2_batch.items()}
 
+            with torch.no_grad():
+                logits = model(s1_batch, s2_batch)
+        else: # Bowman path
+            s1, s1len, s2, s2len, targets = batch
+            if settings.CUDA:
+                s1, s1len = s1.cuda(), s1len.cuda()
+                s2, s2len = s2.cuda(), s2len.cuda()
+            
+            with torch.no_grad():
+                logits = model(s1, s1len, s2, s2len)
+        
         preds = logits.argmax(1)
-
         all_preds.append(preds.cpu().numpy())
         all_targets.append(targets.cpu().numpy())
 
     all_preds = np.concatenate(all_preds, 0)
     all_targets = np.concatenate(all_targets, 0)
     acc = (all_preds == all_targets).mean()
-    return np.round(acc,3)
+    return np.round(acc, 3)
