@@ -22,7 +22,7 @@ def create_dataloaders(max_data, model_type, debug=False):
     - Level 1 Cache: Caches the SNLI dataset objects after reading from text.
     - Level 2 Cache: For transformer models, caches the fully converted and tokenized batches.
     """
-    root_dir = "DataLoaders/"
+    root_dir = "DataLoaders"
     os.makedirs(root_dir, exist_ok=True)
 
     # --- PART 1: Load or Create the Base SNLI Datasets ---
@@ -46,14 +46,14 @@ def create_dataloaders(max_data, model_type, debug=False):
             train_dataset = SNLI("data/snli_1.0", "train", max_data=max_data)
             val_dataset = SNLI("data/snli_1.0","dev",max_data=max_data,vocab=(train_dataset.stoi, train_dataset.itos),unknowns=False)
             
-            torch.save(train_loader.dataset, f'{root_dir}/train_dataset_debug{max_data}.pth')
-            torch.save(val_loader.dataset, f'{root_dir}/val_dataset_debug{max_data}.pth')
+            torch.save(train_dataset, f'{root_dir}/train_dataset_debug{max_data}.pth')
+            torch.save(val_dataset, f'{root_dir}/val_dataset_debug{max_data}.pth')
            
         else:
             train_dataset = SNLI("data/snli_1.0", "train", max_data=None)
             val_dataset = SNLI("data/snli_1.0","dev",max_data=10000,vocab=(train_dataset.stoi, train_dataset.itos),unknowns=False)
-            torch.save(train_loader.dataset, f'{root_dir}/train_dataset.pth')
-            torch.save(val_loader.dataset, f'{root_dir}/val_dataset.pth')
+            torch.save(train_dataset, f'{root_dir}/train_dataset.pth')
+            torch.save(val_dataset, f'{root_dir}/val_dataset.pth')
     
     # --- PART 2: Branch logic based on model type ---
     if model_type in ['bert', 'llama']:
@@ -194,7 +194,7 @@ def finetune_pruned_model(model, model_type, optimizer, criterion, dataloaders, 
 
     #EDIT: finetune until accuracy surpasses that of original model
     epoch = 0
-    while (baseline_acc != -1.0 and acc < baseline_acc) or (baseline_acc == -1.0 and epochs < finetune_epochs):
+    while (baseline_acc != -1.0 and acc < baseline_acc) or (baseline_acc == -1.0 and epoch < finetune_epochs):
         train_metrics = run("train", epoch, model, model_type, optimizer, criterion, dataloaders, finetune_epochs, device)
         val_metrics = run("val", epoch, model, model_type, optimizer, criterion, dataloaders, finetune_epochs, device)
         
@@ -208,7 +208,8 @@ def finetune_pruned_model(model, model_type, optimizer, criterion, dataloaders, 
         if is_best:
             metrics["best_val_acc"] = val_metrics["acc"]
             metrics["best_val_epoch"] = epoch
-            util.save_checkpoint(model.state_dict(), is_best=True, checkpoint=prune_metrics_dir)
+            util.save_metrics(metrics, prune_metrics_dir)
+            util.save_checkpoint(model.state_dict(), is_best=True, exp_dir=prune_metrics_dir)
         acc = metrics["best_val_acc"]
         epoch += 1
 
