@@ -66,14 +66,14 @@ def main():
     
     #========== Set up model & dataset ===========
     train,val,dataloaders=train_utils.create_dataloaders(max_data=max_data, debug=args.debug)
-    model,ckpt = train_utils.load_model(max_data=max_data, model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=args.ckpt,device=device)
+    model,ckpt = train_utils.load_model( model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=args.ckpt,device=device)
     
     #========== Train model if ckpt dne ===========
     if not ckpt or 'pretrained' in ckpt:
         print(f"====Training {args.model_type} from {ckpt} and storing weights in {prune_metrics_dir}====")
         optimizer = optim.Adam(model.parameters())
         criterion = nn.CrossEntropyLoss()
-        train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, dataloaders['train'].dataset, dataloaders['val'].dataset, dataloaders, 10, prune_metrics_dir,device='cuda')
+        train_utils.finetune_pruned_model(model,args.model_type, optimizer,criterion, dataloaders, 10, prune_metrics_dir,device='cuda')
         
     #========== Prune ===========
     print(f"====Done training. Going to prune from {prune_metrics_dir}/{args.offset} Pruning Iter====")

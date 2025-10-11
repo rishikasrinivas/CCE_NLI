@@ -1,0 +1,7 @@
+Cluster,Iteration,Comparison,Total_Concepts_Baseline,Total_Concepts_Current,New_Concepts,Pct_New,Stayed_Same,Pct_Stayed_Same,Moved_to_New,Pct_Moved,Disappeared
+Cluster1,1,0→1,55,75,39,52.00%,27,36.00%,9,12.00%,19
+Cluster1,2,0→2,55,186,144,77.42%,20,10.75%,22,11.83%,13
+Cluster2,1,0→1,44,46,17,36.96%,23,50.00%,6,13.04%,15
+Cluster2,2,0→2,44,64,35,54.69%,21,32.81%,8,12.50%,15
+Cluster3,1,0→1,10,19,11,57.89%,7,36.84%,1,5.26%,2
+Cluster3,2,0→2,10,29,20,68.97%,7,24.14%,2,6.90%,1
