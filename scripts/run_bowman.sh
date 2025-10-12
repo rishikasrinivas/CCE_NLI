@@ -7,4 +7,4 @@ python3 code/pruning_explanation.py --model_type bowman --pruning_method lottery
 
 python3 code/wanda/snli_wanda_training.py --model_type bowman --filename Run0.25_newtraining --prune_method wanda --ckpt BOWMAN/models/lottery_ticket/Run0.25_newtraining /0_Pruning_Iter/model_best.pth
 
-python3 code/pruning_explanation.py --model_type bowman --filename Run0.25_newtraining  --pruning_method wanda --ckpt BOWMAN/models/Run0.25_newtraining /lottery_ticket/0_Pruning_Iter/model_best.pth
+python3 code/pruning_explanation.py --model_type bowman --filename Run0.25  --pruning_method wanda --ckpt BOWMAN/models/Run0.25/lottery_ticket/0_Pruning_Iter/model_best.pth

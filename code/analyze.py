@@ -412,6 +412,7 @@ def extract_features(
     dataset,
     device,
     save_activations_dir,
+    validation,
 ):
     model.eval()
     loader = DataLoader(
@@ -458,7 +459,7 @@ def extract_features(
     except:
         all_states = activation.save_features(
             model.cuda(),
-            dataset,
+            validation,
             save_activations_dir,
         )
         model.cpu()
@@ -793,7 +794,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
 
             
 
-def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved, device, model_=None, dataset=None,debug=False):
+def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved, device, model_=None, dataset=None,debug=False, validation=None):
     os.makedirs(save_masks_dir, exist_ok=True)
     os.makedirs(save_exp_dir, exist_ok=True)
     
@@ -804,6 +805,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
             settings.DATA,
             model_type=settings.MODEL_TYPE,
             cuda=settings.CUDA
+            
         )
     else:
         model= model_
@@ -825,7 +827,8 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
         model,
         dataset,
         device,
-        activations_dir
+        activations_dir,
+        validation=validation
     )
 
     
@@ -873,7 +876,7 @@ def main():
     )
     parser.add_argument("--model_type", default="bert", choices=["bowman", "llama", "bert"])
     parser.add_argument("--filename", default="Run0.25")
-    parser.add_argument("--ckpt", default="/workspace/CCE_NLI/BERT/models/wanda/Run0.25/5_Pruning_Iter/model_best.pth")
+    parser.add_argument("--ckpt", default="/workspace/CCE_NLI/BERT/models/wanda/Run0.25/1_Pruning_Iter/model_best.pth")
     parser.add_argument("--untrained_model", action="store_true", default=False)  # If `--untrained_model` is used, set to True 
     
     
@@ -881,8 +884,8 @@ def main():
     args = parser.parse_args()
 
     
-    path_to_activations = os.path.join(args.model_type.upper(), "activations", args.filename)
-    path_to_formula_masks = os.path.join(args.model_type.upper(), "formula_masks",  args.filename)
+    path_to_activations = os.path.join(args.model_type.upper(), "activations", f"{args.filename}_formulalen2")
+    path_to_formula_masks = os.path.join(args.model_type.upper(), "formula_masks",  f"{args.filename}_formulalen2")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     os.makedirs(path_to_activations, exist_ok=True)
@@ -895,8 +898,8 @@ def main():
         
     
       
-    train,val ,dataloaders=train_utils.create_dataloaders(max_data=None)
-    model,ckpt = train_utils.load_model(max_data=None, model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=args.ckpt, device=device)
+    train,val ,dataloaders=train_utils.create_dataloaders(model_type=args.model_type, max_data=None)
+    model,ckpt = train_utils.load_model(model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=args.ckpt, device=device)
     
     # ==== BUILD VOCAB ====
     print(f"Loading weights from {ckpt}")
@@ -909,11 +912,11 @@ def main():
     dataset = analysis.AnalysisDataset(lines, vocab)
     
     device = 'cuda' if settings.CUDA else 'cpu'    
-    formula_masks = initiate_exp_run(save_exp_dir = f"{args.model_type.upper()}/exp/wanda/{args.filename}/Expls/76.27%Pruned",  save_masks_dir= f"{args.model_type.upper()}/exp/wanda/{args.filename}/Masks/76.27%Pruned", masks_saved=False,model_=model, dataset=dataset, activations_dir = f"{args.model_type.upper()}/activations/wanda/{args.filename}/5_Pruning_Iter", device='cpu')
+    formula_masks = initiate_exp_run(save_exp_dir = f"{args.model_type.upper()}/exp/lottery_ticket/{args.filename}_formulalen2/Expls/25.0%Pruned",  save_masks_dir= f"{args.model_type.upper()}/exp/lottery_ticket/{args.filename}_formulalen2/Masks/25.0%Pruned", masks_saved=False,model_=model, dataset=dataset, activations_dir = f"{args.model_type.upper()}/activations/lottery_ticket/{args.filename}_formulalen2/1_Pruning_Iter", device='cpu', validation=dataloaders['val'])
 
     with open(os.path.join(path_to_formula_masks, "formula_masks.json"), "w") as f:
         json.dump(formula_masks, f)
-    alignment.calculate_alignment(formula_masks, f"{args.model_type.upper()}/overlap/{args.filename}") 
+    alignment.calculate_alignment(formula_masks, f"{args.model_type.upper()}/overlap/{args.filename}_formulalen2") 
     
     print("Load predictions")
     mbase = os.path.splitext(os.path.basename(settings.MODEL))[0]

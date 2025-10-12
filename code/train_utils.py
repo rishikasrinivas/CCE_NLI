@@ -231,10 +231,10 @@ def build_model(model_type, vocab_size=None, pretrained=True, embedding_dim=300,
         model = models.BertEntailmentClassifier(pretrained=pretrained, device=device)
     elif model_type == 'llama':
         # CORRECTED: Removed the 'vocab' argument
-        model = models.LLAMAEntailmentClassifier(freeze_encoder=True, device=device)
+        model = models.LLAMAEntailmentClassifier( freeze_encoder=True, device=device)
     elif model_type == 'bowman':
         # This path remains the same
-        enc = models.TextEncoder(vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim)
+        enc = models.TextEncoder(vocab_size=vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim)
         model = models.BowmanEntailmentClassifier(enc, device)
     else:
         raise ValueError(f"Unknown model_type: {model_type}")
@@ -249,7 +249,7 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, device
         model_type=model_type,
         vocab_size=len(train.stoi), # For bowman
         pretrained=use_pretrained_weights, # For bert
-        device=device
+        device=device,
     )
     
     if ckpt:

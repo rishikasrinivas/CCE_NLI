@@ -40,6 +40,7 @@ def main(args):
         use_pretrained_weights=use_pretrained_weights, 
         ckpt=args.ckpt, 
         i=args.i
+        
     )
     
     base_ckpt = torch.load(ckpt, map_location='cpu')

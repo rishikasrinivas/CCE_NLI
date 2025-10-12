@@ -45,7 +45,7 @@ def pairs(x):
     
 def save_features(
     model,
-    dataset,
+    validation,
     save_activs_dir,
 ):
     os.makedirs(save_activs_dir, exist_ok=True)
@@ -58,25 +58,17 @@ def save_features(
     )
 
     all_states = []
-    for src, src_feats, src_multifeats, src_lengths, idx in tqdm(loader):
+    for s1, s2, target in tqdm(validation):
       
         #  words = dataset.to_text(src)
         if settings.CUDA:
-            src = src.cuda()
-            src_lengths = src_lengths.cuda()
+            s1 = s1.cuda()
+            s2 = s2.cuda()
         # Memory bank - hidden states for each step
         with torch.no_grad():
             # Combine q/h pairs
-            src_one = src.squeeze(2)
-            src_one_comb = pairs(src_one)
-            src_lengths_comb = pairs(src_lengths)
             
-     
-            s1 = src_one_comb[:, :, 0]
-            s1len = src_lengths_comb[:, 0]
-            s2 = src_one_comb[:, :, 1]
-            s2len = src_lengths_comb[:, 1]
-            final_reprs = model.get_final_reprs(s1, s1len, s2, s2len)
+            final_reprs = model.get_final_reprs(s1, s2)
         # Pack the sequence
         
         all_states.extend(list(final_reprs.cpu().numpy()))
