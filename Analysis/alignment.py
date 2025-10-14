@@ -64,7 +64,7 @@ def calculate_alignment_with_random(all_fm_masks,random, save_dir):
 #========testing alignment code=====
 fm_masks=[]
 
-flder="/workspace/CCE_NLI/BOWMAN/formula_masks/wanda/Run0.25"
+flder="/workspace/CCE_NLI/BERT/formula_masks/Run0.25_formulalen2"
 import json,os
 for file in sorted(os.listdir(flder)):
     if '.ipy' in file: continue
@@ -73,15 +73,15 @@ for file in sorted(os.listdir(flder)):
     fm_masks.append(data)
     
 random_masks = [] 
-flder = "/workspace/CCE_NLI/BOWMAN/formula_masks/pretrained"
+flder = "/workspace/CCE_NLI/BERT/formula_masks/pretrained"
 for file in sorted(os.listdir(flder)):
     if '.ipy' in file: continue
     with open(os.path.join(flder, file), 'r') as f:
         data = json.load(f)
     random_masks.append(data)
 
-calculate_alignment_with_random(fm_masks, random_masks, "/workspace/CCE_NLI/BOWMAN/overlap/wanda/overlap_w_pretrained/Run0.25")
-calculate_alignment_with_original(fm_masks, "/workspace/CCE_NLI/BOWMAN/overlap/wanda/overlap_w_original/Run0.25")
+calculate_alignment_with_random(fm_masks, random_masks, "/workspace/CCE_NLI/BERT/overlap/lottery_ticket/overlap_w_pretrained/Run0.25_len2")
+calculate_alignment_with_original(fm_masks, "/workspace/CCE_NLI/BERT/overlap/lottery_ticket/overlap_w_original/Run0.25_len2")
     
     
         
