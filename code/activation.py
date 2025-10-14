@@ -52,12 +52,45 @@ def save_features(
     all_states = []
     os.makedirs(save_activs_dir, exist_ok=True)
     model.eval()
-    itos=model.vocab['itos']
-    model_name = "bert-base-uncased" if model_type == 'bert' else "knowledgator/Llama-encoder-1.0B"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    converted_val_batches = []
-    for src, src_feats, src_multifeats, src_lengths, idx in tqdm(loader):
-        
+    
+    if model_type in ['bert', 'llama']:
+        itos=model.vocab['itos']
+
+        model_name = "bert-base-uncased" if model_type == 'bert' else "knowledgator/Llama-encoder-1.0B"
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        converted_val_batches = []
+        for src, src_feats, src_multifeats, src_lengths, idx in tqdm(loader):
+
+            #  words = dataset.to_text(src)
+            if settings.CUDA:
+                src = src.cuda()
+                src_lengths = src_lengths.cuda()
+            # Memory bank - hidden states for each step
+            with torch.no_grad():
+                # Combine q/h pairs
+                src_one = src.squeeze(2)
+                src_one_comb = pairs(src_one)
+                src_lengths_comb = pairs(src_lengths)
+
+
+                s1 = src_one_comb[:, :, 0]
+                s1len = src_lengths_comb[:, 0]
+                s2 = src_one_comb[:, :, 1]
+                s2len = src_lengths_comb[:, 1]
+
+                s1_indices, s2_indices = s1.cpu().numpy().T, s2.cpu().numpy().T
+                s1_sentences = [" ".join([itos.get(idx, "") for idx in row if idx not in (0, 1)]) for row in s1_indices]
+                s2_sentences = [" ".join([itos.get(idx, "") for idx in row if idx not in (0, 1)]) for row in s2_indices]
+                s1_tokenized = tokenizer(s1_sentences, return_tensors="pt", padding=True, truncation=True)
+                s2_tokenized = tokenizer(s2_sentences, return_tensors="pt", padding=True, truncation=True)
+
+                s2_tokenized = {k: v.to('cuda') for k, v in s2_tokenized.items()}
+                s1_tokenized = {k: v.to('cuda') for k, v in s1_tokenized.items()}
+                final_reprs = model.get_final_reprs(s1_tokenized, s2_tokenized)
+            all_states.extend(list(final_reprs.cpu().numpy()))
+    else:
+        for src, src_feats, src_multifeats, src_lengths, idx in tqdm(loader):
+      
         #  words = dataset.to_text(src)
         if settings.CUDA:
             src = src.cuda()
@@ -74,16 +107,9 @@ def save_features(
             s1len = src_lengths_comb[:, 0]
             s2 = src_one_comb[:, :, 1]
             s2len = src_lengths_comb[:, 1]
-            
-            s1_indices, s2_indices = s1.cpu().numpy().T, s2.cpu().numpy().T
-            s1_sentences = [" ".join([itos.get(idx, "") for idx in row if idx not in (0, 1)]) for row in s1_indices]
-            s2_sentences = [" ".join([itos.get(idx, "") for idx in row if idx not in (0, 1)]) for row in s2_indices]
-            s1_tokenized = tokenizer(s1_sentences, return_tensors="pt", padding=True, truncation=True)
-            s2_tokenized = tokenizer(s2_sentences, return_tensors="pt", padding=True, truncation=True)
-            
-            s2_tokenized = {k: v.to('cuda') for k, v in s2_tokenized.items()}
-            s1_tokenized = {k: v.to('cuda') for k, v in s1_tokenized.items()}
-            final_reprs = model.get_final_reprs(s1_tokenized, s2_tokenized)
+            final_reprs = model.get_final_reprs(s1, s1len, s2, s2len)
+        # Pack the sequence
+        
         all_states.extend(list(final_reprs.cpu().numpy()))
 
     with open(f'{save_activs_dir}/final_layer_activations.pkl', 'wb') as file:
