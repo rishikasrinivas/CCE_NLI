@@ -98,6 +98,7 @@ def run_expls(
                 device=device,
                 masks_saved=False, 
                 model_=model,
+                model_type=args.model_type,
                 dataset=dataset,
                 debug=debug,
             )

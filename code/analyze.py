@@ -409,6 +409,7 @@ def pairs(x):
 
 def extract_features(
     model,
+    model_name,
     dataset,
     device,
     save_activations_dir,
@@ -453,13 +454,14 @@ def extract_features(
 
     all_feats = {"onehot": all_feats, "multi": all_multifeats}
     try:
-        with open(f'{save_activations_dir}/final_layer_activations.pkl', 'rb') as file:
+        with open(os.path.join(save_activations_dir, "final_layer_activations.pkl"), 'rb') as file:
             print(f"Loading activations from {save_activations_dir}/final_layer_activations.pkl")
             all_states = pickle.load(file)
     except:
         all_states = activation.save_features(
             model.cuda(),
-            validation,
+            model_name,
+            loader,
             save_activations_dir,
         )
         model.cpu()
@@ -487,8 +489,10 @@ def search_feats(acts, states, feats, weights, dataset, cluster, save_dir=None, 
         # each row is a sentence and each col says if concept at col is in sent
         #print(feats[0][sentence_num].reshape(1,-1).shape)
     GLOBALS["dataset"] = feats[1]
+    print("feats shape: ", feats[0].shape)
     feats_vocab = feats[1]
     GLOBALS["feats"] = feats[0]
+    
     
         
     
@@ -794,7 +798,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
 
             
 
-def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved, device, model_=None, dataset=None,debug=False, validation=None):
+def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved, device, model_=None, model_type=None,dataset=None,debug=False, validation=None):
     os.makedirs(save_masks_dir, exist_ok=True)
     os.makedirs(save_exp_dir, exist_ok=True)
     
@@ -825,6 +829,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
     
     toks, states, feats, idxs = extract_features(
         model,
+        model_type,
         dataset,
         device,
         activations_dir,
@@ -875,8 +880,8 @@ def main():
         description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("--model_type", default="bert", choices=["bowman", "llama", "bert"])
-    parser.add_argument("--filename", default="Run0.25")
-    parser.add_argument("--ckpt", default="/workspace/CCE_NLI/BERT/models/wanda/Run0.25/1_Pruning_Iter/model_best.pth")
+    parser.add_argument("--filename", default="Pretrained")
+    parser.add_argument("--ckpt", default="/workspace/CCE_NLI/BERT/models/pretrained/bert_pretrained_inits.pth")
     parser.add_argument("--untrained_model", action="store_true", default=False)  # If `--untrained_model` is used, set to True 
     
     
@@ -912,7 +917,7 @@ def main():
     dataset = analysis.AnalysisDataset(lines, vocab)
     
     device = 'cuda' if settings.CUDA else 'cpu'    
-    formula_masks = initiate_exp_run(save_exp_dir = f"{args.model_type.upper()}/exp/lottery_ticket/{args.filename}_formulalen2/Expls/25.0%Pruned",  save_masks_dir= f"{args.model_type.upper()}/exp/lottery_ticket/{args.filename}_formulalen2/Masks/25.0%Pruned", masks_saved=False,model_=model, dataset=dataset, activations_dir = f"{args.model_type.upper()}/activations/lottery_ticket/{args.filename}_formulalen2/1_Pruning_Iter", device='cpu', validation=dataloaders['val'])
+    formula_masks = initiate_exp_run(model_type=args.model_type, save_exp_dir = f"./{args.model_type.upper()}/exp/lottery_ticket/{args.filename}_formulalen2/Expls/",  save_masks_dir= f"./{args.model_type.upper()}/exp/lottery_ticket/{args.filename}_formulalen2/Masks/", masks_saved=False,model_=model, dataset=dataset, activations_dir = f"./{args.model_type.upper()}/activations/{args.filename}_formulalen2", device='cpu', validation=dataloaders['val'])
 
     with open(os.path.join(path_to_formula_masks, "formula_masks.json"), "w") as f:
         json.dump(formula_masks, f)

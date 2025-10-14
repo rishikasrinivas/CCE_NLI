@@ -7,10 +7,11 @@ import settings
 count=0
 def build_act_mask(states, activ_ranges, cluster_num):
     shape=states.shape
+
     states=states.flatten()
 
     if len(activ_ranges) == 0:
-        return torch.zeros(10000,dtype=torch.bool)
+        return torch.zeros(shape[0],dtype=torch.bool)
     #change this to do a binary map within a range
     lower_thresh_in_range=activ_ranges[cluster_num-1][0]
     upper_thresh_in_range = activ_ranges[cluster_num-1][1] #same
@@ -47,9 +48,9 @@ def create_clusters(activations, num_clusters):
         activations=activations.detach()
     # ensure activations is the right shape 
 
-    if activations.shape[0] == 10000 and activations.shape[1] == 1024:
+    if activations.shape[1] == 1024:
         activations=activations.t()
-    assert activations.shape[0] == 1024 and activations.shape[1] == 10000
+    print(activations.shape)
     
     #clustering
     activation_ranges=[]

@@ -324,7 +324,7 @@ class LLAMAEntailmentClassifier(BaseModel):
         return super().to(device)
 
 class BertEntailmentClassifier(BaseModel):
-    def __init__(self, encoder_name="bert-base-uncased", pretrained=True, freeze_bert=False, device='cuda'):
+    def __init__(self, vocab, encoder_name="bert-base-uncased", pretrained=True, freeze_bert=False, device='cuda'):
         super().__init__()
         self.encoder_name = encoder_name
         self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
@@ -349,6 +349,7 @@ class BertEntailmentClassifier(BaseModel):
             nn.Dropout(0.1),
             nn.Linear(1024, 3),
         )
+        self.vocab=vocab
         self.output_dim = 3
         self.initialize(device)
 
@@ -392,6 +393,7 @@ class BertEntailmentClassifier(BaseModel):
         self.encoder = self.encoder.to(device)
         return super().to(device)
     
+
 
 class BowmanEntailmentClassifier(BaseModel):
     """

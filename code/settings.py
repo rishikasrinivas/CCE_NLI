@@ -7,7 +7,7 @@ import os,random
 CUDA = True
 ALPHA = None  # Use "None" to use ReLU threshold (i.e., > 0)
 BEAM_SIZE = 10
-MAX_FORMULA_LENGTH = 5
+MAX_FORMULA_LENGTH = 2
 COMPLEXITY_PENALTY = 1.00
 TOPN = 5
 DEBUG = False
@@ -17,7 +17,7 @@ METRIC = "iou"
 
 EMBEDDING_NEIGHBORHOOD_SIZE = 5
 NUM_CLUSTERS=3
-
+ROOT_DIR='../DataLoaders'
 
 PRUNE = {
     'mlp.0.weight' : 0.2, 
@@ -44,7 +44,7 @@ MODEL = f"models/snli/{MODEL_TYPE}_random_inits.pth"
 RANDOM_WEIGHTS = False  # Initialize weights randomly (equivalent to an untrained model)
 N_SENTENCE_FEATS = 2000  # how many of the most common sentence lemmas to keep
 
-DATA = "data/analysis/snli_1.0_dev.feats"
+DATA = "code/data/analysis/snli_1.0_dev.feats"
 
 assert DATA.endswith(".feats")
 VECPATH = DATA.replace(".feats", ".vec")

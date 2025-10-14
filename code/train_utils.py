@@ -22,7 +22,7 @@ def create_dataloaders(max_data, model_type, debug=False):
     - Level 1 Cache: Caches the SNLI dataset objects after reading from text.
     - Level 2 Cache: For transformer models, caches the fully converted and tokenized batches.
     """
-    root_dir = "DataLoaders"
+    root_dir = "../DataLoaders"
     os.makedirs(root_dir, exist_ok=True)
 
     # --- PART 1: Load or Create the Base SNLI Datasets ---
@@ -222,13 +222,13 @@ def finetune_pruned_model(model, model_type, optimizer, criterion, dataloaders, 
     return model, metrics["best_val_acc"]
 
 
-def build_model(model_type, vocab_size=None, pretrained=True, embedding_dim=300, hidden_dim=512, device='cuda'):
+def build_model(model_type, vocab, vocab_size=None, pretrained=True, embedding_dim=300, hidden_dim=512, device='cuda'):
     """
     Builds the specified model. `vocab_size` is only used for the bowman model.
     """
     if model_type == 'bert':
         # CORRECTED: Removed the 'vocab' argument
-        model = models.BertEntailmentClassifier(pretrained=pretrained, device=device)
+        model = models.BertEntailmentClassifier(vocab, pretrained=pretrained, device=device)
     elif model_type == 'llama':
         # CORRECTED: Removed the 'vocab' argument
         model = models.LLAMAEntailmentClassifier( freeze_encoder=True, device=device)
@@ -246,6 +246,7 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, device
     """
     # CORRECTED: Call the updated build_model function
     model = build_model(
+        vocab= {'itos':train.itos, 'stoi': train.stoi},
         model_type=model_type,
         vocab_size=len(train.stoi), # For bowman
         pretrained=use_pretrained_weights, # For bert
