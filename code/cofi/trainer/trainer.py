@@ -29,8 +29,8 @@ import logging
 from transformers.training_args import TrainingArguments
 import data.snli as snli 
 from args import AdditionalArguments
-from utils.cofi_utils import *
-from utils.utils import *
+from cofi.utils.cofi_utils import *
+from cofi.utils.utils import *
 import torch.nn as nn
 import torch.optim as optim
 import train_utils
@@ -960,7 +960,7 @@ class CoFiTrainer(Trainer):
         
        
         criterion = nn.CrossEntropyLoss()
-        teacher, _ = train_utils.finetune_pruned_model(model=teacher,model_type=self.model_name, optimizer=self.teacher_optimizer,criterion=criterion, dataloaders = dataloaders, finetune_epochs=10, prune_metrics_dir=teacher_model_path,device = self.device)
+        teacher, _ = train_utils.finetune_pruned_model(model=teacher,model_type=self.model_name, optimizer=self.teacher_optimizer, pruning_method='cofi', criterion=criterion, dataloaders = dataloaders, finetune_epochs=10, prune_metrics_dir=teacher_model_path,device = self.device)
         weights = teacher.state_dict()
        
         teacher.save_pretrained(teacher_model_path)

@@ -1,4 +1,5 @@
-import models
+import models.cofi_models as cofi_models
+import models.nli_models as nli_models
 import torch
 import util
 import tqdm as tqdm
@@ -22,6 +23,7 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
     - Level 1 Cache: Caches the SNLI dataset objects after reading from text.
     - Level 2 Cache: For transformer models, caches the fully converted and tokenized batches.
     """
+
     root_dir = "../DataLoaders"
     os.makedirs(root_dir, exist_ok=True)
 
@@ -191,8 +193,8 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
                     targets = batch['labels']
                 batch_size = targets.shape[0]
                 with ctx():
-                    logits = model(**batch)
-                    loss = logits.loss
+                    output = model(**batch)
+                    loss = output.loss
             else:
 
                 s1, s1len, s2, s2len, targets = batch
@@ -203,8 +205,9 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
                     targets = targets.to(device)
                 batch_size = targets.shape[0]
                 with ctx():
-                    logits = model(**batch)
-                    loss = logits.loss
+                    output = model(**batch)
+                    loss = output.loss
+            logits=output[1][2]
         if training:
             optimizer.zero_grad()
             
@@ -230,8 +233,7 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
         ranger.set_description(f"{split} epoch {epoch} loss {loss_meter.avg:.3f} acc {acc_meter.avg:.3f}")
     return {"loss": loss_meter.avg, "acc": acc_meter.avg}
 
-
-def finetune_pruned_model(model, model_type, optimizer, criterion, dataloaders, finetune_epochs, prune_metrics_dir, baseline_acc, device):
+def finetune_pruned_model(model, model_type, pruning_method, optimizer, criterion, dataloaders, finetune_epochs, prune_metrics_dir, baseline_acc=-1.0, device='cuda'):
     """
     Finetunes a model for a fixed number of epochs and saves the best-performing one.
     """
@@ -240,8 +242,8 @@ def finetune_pruned_model(model, model_type, optimizer, criterion, dataloaders, 
     #EDIT: finetune until accuracy surpasses that of original model
     epoch = 0
     while (baseline_acc != -1.0 and acc < baseline_acc) or (baseline_acc == -1.0 and epoch < finetune_epochs):
-        train_metrics = run("train", epoch, model, model_type, optimizer, criterion, dataloaders, finetune_epochs, device)
-        val_metrics = run("val", epoch, model, model_type, optimizer, criterion, dataloaders, finetune_epochs, device)
+        train_metrics = run("train", epoch, model, model_type, pruning_method, optimizer, criterion, dataloaders, finetune_epochs, device)
+        val_metrics = run("val", epoch, model, model_type, pruning_method, optimizer, criterion, dataloaders, finetune_epochs, device)
         
         metrics["train_loss"].append(train_metrics["loss"])
         metrics["train_acc"].append(train_metrics["acc"])
@@ -267,30 +269,31 @@ def finetune_pruned_model(model, model_type, optimizer, criterion, dataloaders, 
     return model, metrics["best_val_acc"]
 
 
-def build_model(model_type, vocab, vocab_size=None, pretrained=True, embedding_dim=300, hidden_dim=512, device='cuda'):
+def build_model(model_type, vocab, vocab_size=None, pretrained=True, embedding_dim=300, hidden_dim=512, device='cuda', is_cofi=False):
     """
     Builds the specified model. `vocab_size` is only used for the bowman model.
     """
-    if cofi:
+    if is_cofi:
         if model_type=='bowman':
             tokenizer = TextEncoder(len(vocab['stoi']))
-            Model = CoFiBowmanEntailmentClassifier(tokenizer, 'cuda')
+            model = cofi_models.CoFiBowmanEntailmentClassifier(tokenizer, 'cuda')
 
         elif model_type=='bert':
-            Model = CoFiBertForSequenceClassification
+            model = cofi_models.CoFiBertForSequenceClassification
     
-    if model_type == 'bert':
-        # CORRECTED: Removed the 'vocab' argument
-        model = models.BertEntailmentClassifier(vocab, pretrained=pretrained, device=device)
-    elif model_type == 'llama':
-        # CORRECTED: Removed the 'vocab' argument
-        model = models.LLAMAEntailmentClassifier( freeze_encoder=True, device=device)
-    elif model_type == 'bowman':
-        # This path remains the same
-        enc = models.TextEncoder(vocab_size=vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim)
-        model = models.BowmanEntailmentClassifier(enc, device)
     else:
-        raise ValueError(f"Unknown model_type: {model_type}")
+        if model_type == 'bert':
+            # CORRECTED: Removed the 'vocab' argument
+            model = nli_models.BertEntailmentClassifier(vocab, pretrained=pretrained, device=device)
+        elif model_type == 'llama':
+            # CORRECTED: Removed the 'vocab' argument
+            model = nli_models.LLAMAEntailmentClassifier( freeze_encoder=True, device=device)
+        elif model_type == 'bowman':
+            # This path remains the same
+            enc = nli_models.TextEncoder(vocab_size=vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim)
+            model = nli_models.BowmanEntailmentClassifier(enc, device)
+        else:
+            raise ValueError(f"Unknown model_type: {model_type}")
     return model
 
 def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, pruning_method='', device='cuda', i=0):
@@ -298,16 +301,17 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
     Loads or initializes a model.
     """
     # CORRECTED: Call the updated build_model function
-    
+    cofi = pruning_method == 'cofi'
     model = build_model(
         vocab= {'itos':train.itos, 'stoi': train.stoi},
         model_type=model_type,
         vocab_size=len(train.stoi), # For bowman
         pretrained=use_pretrained_weights, # For bert
         device=device,
+        is_cofi=cofi
     )
-    cofi = pruning_method == 'cofi'
-    if cofi:
+    
+    if cofi and os.path.exists(f"code/cofi/CoFi_{model_type}/fine_tuned_teacher_snli_{model_type}/model.safetensors"):
         #load config TODO
         #load tokenizer TODO
         model = model.from_pretrained(
@@ -319,7 +323,6 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
             max_data=max_data,
             output_dir = 'test',
             cache_dir=f'CoFi_{model_type}',
-            ckpt=ckpt,
             use_auth_token= None,
             encoder=tokenizer,
         )

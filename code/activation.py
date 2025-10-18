@@ -91,26 +91,26 @@ def save_features(
     else:
         for src, src_feats, src_multifeats, src_lengths, idx in tqdm(loader):
       
-        #  words = dataset.to_text(src)
-        if settings.CUDA:
-            src = src.cuda()
-            src_lengths = src_lengths.cuda()
-        # Memory bank - hidden states for each step
-        with torch.no_grad():
-            # Combine q/h pairs
-            src_one = src.squeeze(2)
-            src_one_comb = pairs(src_one)
-            src_lengths_comb = pairs(src_lengths)
-            
-     
-            s1 = src_one_comb[:, :, 0]
-            s1len = src_lengths_comb[:, 0]
-            s2 = src_one_comb[:, :, 1]
-            s2len = src_lengths_comb[:, 1]
-            final_reprs = model.get_final_reprs(s1, s1len, s2, s2len)
-        # Pack the sequence
-        
-        all_states.extend(list(final_reprs.cpu().numpy()))
+            #  words = dataset.to_text(src)
+            if settings.CUDA:
+                src = src.cuda()
+                src_lengths = src_lengths.cuda()
+            # Memory bank - hidden states for each step
+            with torch.no_grad():
+                # Combine q/h pairs
+                src_one = src.squeeze(2)
+                src_one_comb = pairs(src_one)
+                src_lengths_comb = pairs(src_lengths)
+
+
+                s1 = src_one_comb[:, :, 0]
+                s1len = src_lengths_comb[:, 0]
+                s2 = src_one_comb[:, :, 1]
+                s2len = src_lengths_comb[:, 1]
+                final_reprs = model.get_final_reprs(s1, s1len, s2, s2len)
+            # Pack the sequence
+
+            all_states.extend(list(final_reprs.cpu().numpy()))
 
     with open(f'{save_activs_dir}/final_layer_activations.pkl', 'wb') as file:
         print(f"Saved activations to {save_activs_dir}/final_layer_activations.pkl")

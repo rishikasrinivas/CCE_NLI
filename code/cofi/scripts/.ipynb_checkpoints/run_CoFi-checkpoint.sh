@@ -10,10 +10,11 @@
 glue_low=(MRPC RTE STSB CoLA)
 glue_high=(MNLI QQP QNLI SST2 SNLI)
 
-proj_dir=.
+proj_dir=./code/cofi
 
 code_dir=${proj_dir}
-
+path_to_pretrained="${10^^}/models/pretrained/${10}_pretrained_inits.pth"
+echo "path to pretrained model ${path_to_pretrained}"
 
 
 # task and data
@@ -91,6 +92,7 @@ fi
 mkdir -p "$output_dir"
 python3 ${code_dir}/run.py \
         --model_name ${10}\
+        --path_to_pretrained ${path_to_pretrained}\
         --teacher_model_dir ${teacher_model_dir}\
        --data_debug ${debug}\
 	   --output_dir ${output_dir} \

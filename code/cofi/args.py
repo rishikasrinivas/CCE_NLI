@@ -69,7 +69,13 @@ class DataTrainingArguments:
         default=None,
         metadata={"help": "Location to store the original teacher model"},
     )
-
+        
+    path_to_pretrained: Optional[str] = field(
+        default=None,
+        metadata={"help": "Location of default weights"},
+    )
+        
+    
     task_name: Optional[str] = field(
         default=None,
         metadata={"help": "The name of the task to train on: " + ", ".join(task_to_keys.keys())},
