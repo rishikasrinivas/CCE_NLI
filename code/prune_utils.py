@@ -81,6 +81,8 @@ def run_expls(
         
         #=== Loading weights ===
         print(f"Loading from {filepath}")
+        
+        #TODO: need to reload model load_model with zs from cofi utils and load zs (as demoed in calc_pruning)
         model.load_state_dict(torch.load(filepath, map_location=torch.device(device))['state_dict']) #loading the already finetuned weights
         
         # === Recording Accs and Pruned Percents

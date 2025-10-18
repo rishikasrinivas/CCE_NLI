@@ -14,7 +14,7 @@ from transformers import AdamW
 # Ensure your python path is set up correctly for these
 sys.path.append('code/')
 import settings
-import models
+import models.nli_models as models
 import util
 import train_utils
 import prune_utils
@@ -23,14 +23,14 @@ from Pruner import Pruner_
 
 
 def main(args):
-    max_data = 1000 if args.debug else 1000
+    max_data = 1000 if args.debug else None
     use_pretrained_weights = not args.untrained_model
     
     # CORRECTED: Added model_type to the create_dataloaders call
     train, val, dataloaders = train_utils.create_dataloaders(
         max_data=max_data, 
         model_type=args.model_type, 
-        debug=True#args.debug
+        debug=args.debug
     )
     
     # CORRECTED: Removed the unnecessary max_data argument

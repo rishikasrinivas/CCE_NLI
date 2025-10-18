@@ -17,7 +17,7 @@ from tqdm import tqdm
 import numpy as np
 from analyze import initiate_exp_run 
 import settings
-import models
+import models.nli_models as models
 import util
 from data import analysis
 import importlib.util
@@ -48,10 +48,11 @@ def main(args):
     path_to_overlap = os.path.join(args.model_type.upper(), "overlap", args.pruning_method, args.filename)
     
       
-    train,val,dataloaders=train_utils.create_dataloaders(model_type=args.model_type, max_data=max_data, debug=args.debug)
+    train,val,dataloaders=train_utils.create_dataloaders(model_type=args.model_type,pruning_method=args.pruning_method, max_data=max_data, debug=args.debug)
+    
     ckpt = os.path.join(args.model_type.upper(), "models", 'lottery_ticket', args.filename, '0_Pruning_Iter/model_best.pth')
     
-    model,ckpt = train_utils.load_model( model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=ckpt, device=device)
+    model,ckpt = train_utils.load_model( model_type=args.model_type, pruning_method=args.pruning_method, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=ckpt, device=device)
     
     # ==== BUILD VOCAB ====
     base_ckpt=torch.load(ckpt, map_location = torch.device(device)) #trained bowman/bert 
