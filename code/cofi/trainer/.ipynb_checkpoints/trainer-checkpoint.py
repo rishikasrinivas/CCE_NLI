@@ -893,7 +893,7 @@ class CoFiTrainer(Trainer):
     def store_results(self,teacher):
 
 
-        initial_acc = train_utils.run_eval(teacher,self.full_eval_dataloader,self.model_name)
+        initial_acc = train_utils.run_eval(teacher,self.full_eval_dataloader,self.model_name, pruning_method='cofi')
         import json
         file_path='./initial_accs.json'
 

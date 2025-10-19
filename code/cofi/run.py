@@ -102,7 +102,7 @@ def main():
     
     max_data = None if data_args.data_debug > 0 else None
     train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, pruning_method='cofi', max_data=max_data, debug=False)
-    train_subset,val_subset,dls = train_utils.create_dataloaders(model_type=additional_args.model_name, pruning_method='cofi', max_data=100, debug=True)
+    train_subset,val_subset,dls = train_utils.create_dataloaders(model_type=additional_args.model_name, pruning_method='cofi', max_data=30000, debug=True)
     label_list = list(set(train.labels))
     vocab= {'stoi': train.stoi, 'itos': train.itos}
     

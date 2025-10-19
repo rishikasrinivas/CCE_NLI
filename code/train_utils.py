@@ -17,6 +17,27 @@ import os,fileio
 from transformers import BertTokenizer, BertModel, AdamW, get_linear_schedule_with_warmup
 from torch.cuda.amp import autocast,GradScaler
 from transformers import AutoTokenizer
+from torch.nn.utils.rnn import pad_sequence
+
+
+def collate_as_dict(batch):
+    """
+    We don't sort here to take advantage of enforce_sorted=False since we'd
+    have to sort separately for both s1 and s2
+    """
+
+    s1, s1len, s2, s2len, label = zip(*batch)
+    label = torch.tensor(label)
+
+    s1_pad = pad_sequence(s1, padding_value=1) #takes 10,000x longest sent length and flips to longest*10,000 which is then batched
+    s1len = torch.tensor(s1len)
+
+    s2_pad = pad_sequence(s2, padding_value=1)
+    s2len = torch.tensor(s2len)
+    
+
+    return {'s1': s1_pad, 's1len': s1len, 's2':s2_pad, 's2len': s2len, 'labels':label}
+
 def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
     """
     Creates and caches dataloaders.
@@ -126,14 +147,15 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
             torch.save(converted_val_batches, val_cache_path)
         
         # Create final DataLoaders from the list of converted batches
-        train_loader = DataLoader(converted_train_batches, shuffle=True, batch_size=1, collate_fn=lambda x: x[0])
-        val_loader = DataLoader(converted_val_batches, shuffle=False, batch_size=1, collate_fn=lambda x: x[0])
+        train_loader = DataLoader(converted_train_batches, shuffle=True, batch_size=1, collate_fn=lambda x: x[0],drop_last=True)
+        val_loader = DataLoader(converted_val_batches, shuffle=False, batch_size=1, collate_fn=lambda x: x[0],drop_last=True)
 
     else: # This path is for the 'bowman' model
         print("✅ Using original dataloaders for bowman model.")
         #collate fn changes if not cofi vs if cofi
-        train_loader = DataLoader(train_dataset, batch_size=settings.BATCH_SIZE, shuffle=True, num_workers=4, collate_fn=pad_collate)
-        val_loader = DataLoader(val_dataset, batch_size=settings.BATCH_SIZE, shuffle=False, num_workers=4, collate_fn=pad_collate)
+        collate_fn =  collate_as_dict if pruning_method=='cofi' else pad_collate 
+        train_loader = DataLoader(train_dataset, batch_size=settings.BATCH_SIZE, shuffle=True, num_workers=4, collate_fn=collate_fn, drop_last=True)
+        val_loader = DataLoader(val_dataset, batch_size=settings.BATCH_SIZE, shuffle=False, num_workers=4, collate_fn=collate_fn,drop_last=True)
     
     dataloaders = {'train': train_loader, 'val': val_loader}
     
