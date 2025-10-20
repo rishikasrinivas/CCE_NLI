@@ -179,13 +179,14 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
     
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path: Optional[Union[str, os.PathLike]], encoder, teacher, *model_args, **kwargs):
-        if pretrained_model_name_or_path and '.safetensors' in pretrained_model_name_or_path and os.path.exists(pretrained_model_name_or_path):
-            print("Loading pretrained bert entailment")
-            weights = load_file(pretrained_model_name_or_path)
+        if pretrained_model_name_or_path and '.pth' in pretrained_model_name_or_path and os.path.exists(pretrained_model_name_or_path):
+            print("Loading pretrained llama entailment")
+            weights = torch.load(pretrained_model_name_or_path)['state_dict']
         else:
-            model,_ = train_utils.load_model(kwargs['max_data'], 'llama', kwargs['train_data'],store_dir=kwargs['output_dir'], ckpt=kwrgs['ckpt'], device='cuda')
+            print("Loading new llama entailment")
+            model,_ = train_utils.load_model('llama', kwargs['train_data'], ckpt=kwargs['ckpt'], device='cuda')
             weights = model.state_dict()
-
+       
        
         # Convert old format to new format if needed from a PyTorch state_dict
         old_keys = []

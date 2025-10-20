@@ -209,26 +209,14 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
                     logits = model(s1, s1len, s2, s2len)
                     loss = criterion(logits, targets)
         else:
-            if model_type in ['bert', 'llama']:
-                if torch.cuda.is_available():
-                    batch = {k: v.to(device) for k, v in batch.items()}
-                    targets = batch['labels']
-                batch_size = targets.shape[0]
-                with ctx():
-                    output = model(**batch)
-                    loss = output.loss
-            else:
-
-                s1, s1len, s2, s2len, targets = batch
-                batch= {'s1':s1, 's1len':s1len, 's2': s2, 's2len':s2len, 'labels': targets}
-                if torch.cuda.is_available():
-                    batch = {k: v.to(device) for k, v in batch.items()}
-
-                    targets = targets.to(device)
-                batch_size = targets.shape[0]
-                with ctx():
-                    output = model(**batch)
-                    loss = output.loss
+           
+            if torch.cuda.is_available():
+                batch = {k: v.to(device) for k, v in batch.items()}
+                targets = batch['labels']
+            batch_size = targets.shape[0]
+            with ctx():
+                output = model(**batch)
+                loss = output.loss
             logits=output[1][2]
         if training:
             optimizer.zero_grad()
@@ -318,7 +306,7 @@ def build_model(model_type, vocab, vocab_size=None, pretrained=True, embedding_d
             raise ValueError(f"Unknown model_type: {model_type}")
     return model
 
-def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, pruning_method='', device='cuda', i=0):
+def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, pruning_method='', device='cuda', i=0, zs=None):
     """
     Loads or initializes a model.
     """
@@ -333,28 +321,17 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
         is_cofi=cofi
     )
     
-    if cofi and os.path.exists(f"code/cofi/CoFi_{model_type}/fine_tuned_teacher_snli_{model_type}/model.safetensors"):
-        #load config TODO
-        #load tokenizer TODO
-        model = model.from_pretrained(
-            pretrained_model_name_or_path=f"CoFi_{model_type}/fine_tuned_teacher_snli_{model_type}/model.safetensors",
-            from_tf=False,
-            teacher=False,
-            config=config,
-            train_data=train,
-            max_data=max_data,
-            output_dir = 'test',
-            cache_dir=f'CoFi_{model_type}',
-            use_auth_token= None,
-            encoder=tokenizer,
-        )
-    
-    if ckpt and not cofi: #and not cofi
-        print(f"Loading from checkpoint: {ckpt}")
-        ckpt_ = torch.load(ckpt, map_location=torch.device(device))
-        model.load_state_dict(ckpt_["state_dict"])
+    if ckpt: #and not cofi
+        if zs:
+            print(f"Loading zs")
+            model = load_model_with_zs(ckpt, model, zs=zs)
+        else:
+            print(f"Loading from checkpoint (no zs): {ckpt}")
+            ckpt_ = torch.load(ckpt, map_location=torch.device(device))
+            model.load_state_dict(ckpt_["state_dict"])
     elif not ckpt:
         # This logic for saving initial weights is fine
+        print("Loading pretrained weights")
         save_dir_type = "pretrained" if use_pretrained_weights else "untrained"
         save_dir = os.path.join(model_type.upper(), "models", save_dir_type)
         os.makedirs(save_dir, exist_ok=True)
@@ -366,6 +343,9 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
         ckpt = os.path.join(save_dir, filename)
     else:
         print(f"Loaded new CoFi instance (pretrained)")
+    
+    
+        
         
     return model.to(device), ckpt
 

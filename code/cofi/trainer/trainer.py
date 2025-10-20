@@ -35,9 +35,9 @@ import torch.nn as nn
 import torch.optim as optim
 import train_utils
 #import wandb
-from safetensors.torch import load_file 
+ 
 from transformers.utils import logging
-
+import util
 logger = logging.get_logger(__name__)
  
 glue_tasks = {"cola": "matthews_correlation",
@@ -153,8 +153,9 @@ class CoFiTrainer(Trainer):
     def __init__(
             self,
             model_name, 
+            dataset=None,
             model: PreTrainedModel = None,
-    
+            
             device: str =  'cuda',
             args: TrainingArguments = None,
             additional_args: AdditionalArguments = None,
@@ -175,6 +176,7 @@ class CoFiTrainer(Trainer):
 
         Trainer.__init__(self, model, args, data_collator, subset_train_dataset , subset_val_dataset, tokenizer, model_init, compute_metrics=compute_metrics, **kwargs)
         self.num_workers = 4
+        self.dataset=dataset
         self.additional_args = additional_args
         self.finetuned_teacher = False
         self.l0_module = l0_module
@@ -709,12 +711,16 @@ class CoFiTrainer(Trainer):
         zs = self.l0_module.forward(training=False)
         torch.save(zs, os.path.join(output_dir, f"zs.pt"))
 
-        self.model.save_pretrained(output_dir)
+        #self.model.save_pretrained(output_dir)
         
 
         # Assuming 'model' is your PyTorch or Hugging Face model
-        torch.save(self.model.state_dict(), f"{self.model_name}_weights.pt") #when pruning mlp. llm should be frozen so llm part of bert_weights_llm and bert_weights_mlp should be same!
-
+        util.save_checkpoint(
+            train_utils.serialize(self.model, self.model_name, self.dataset),
+            is_best=True,
+            exp_dir=output_dir,
+        )
+       
 
     def calculate_layer_distillation_loss(self, teacher_outputs, student_outputs, zs):
         def normalize(rep):
@@ -941,11 +947,11 @@ class CoFiTrainer(Trainer):
     def finetune_teacher(self,teacher):
         save_teacher_dir= f'fine_tuned_teacher_snli_{self.model_name}'
         teacher_model_path=os.path.join(self.teacher_model_dir, save_teacher_dir)
-        if save_teacher_dir in os.listdir(self.teacher_model_dir) and 'model.safetensors' in  os.listdir(teacher_model_path):
+        if save_teacher_dir in os.listdir(self.teacher_model_dir) and 'model_best.pth' in  os.listdir(teacher_model_path):
             print(f"Reloading Finetuning SNLI teacher model ")
             print(os.listdir(self.teacher_model_dir))
             
-            state_dict = load_file(os.path.join(teacher_model_path,'model.safetensors'))
+            state_dict = torch.load(os.path.join(teacher_model_path,'model_best.pth'))['state_dict']
             self.teacher_model.load_state_dict(state_dict)
             for n,p in self.teacher_model.named_parameters():
                 p.requires_grad = False
@@ -963,7 +969,12 @@ class CoFiTrainer(Trainer):
         teacher, _ = train_utils.finetune_pruned_model(model=teacher,model_type=self.model_name, optimizer=self.teacher_optimizer, pruning_method='cofi', criterion=criterion, dataloaders = dataloaders, finetune_epochs=10, prune_metrics_dir=teacher_model_path,device = self.device)
         weights = teacher.state_dict()
        
-        teacher.save_pretrained(teacher_model_path)
+        
+        util.save_checkpoint(
+            train_utils.serialize(teacher, self.model_name, self.dataset),
+            is_best=True,
+            exp_dir=teacher_model_path
+        )
         return 
     
     

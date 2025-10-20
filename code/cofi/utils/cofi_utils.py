@@ -17,12 +17,7 @@ def initialize_layer_transformation(model):
         torch.eye(len(model.layer_transformation.weight)))
     model.layer_transformation.bias.data.fill_(0)
 
-def load_model_with_zs(model_path, model, zs=None, teacher=True, encoder=None):
-    config_path = os.path.join(model_path, "config.json")
-    config = None
-    if os.path.exists(config_path):
-        config = AutoConfig.from_pretrained(model_path)
-        
+def load_model_with_zs(model_path, model, zs=None):
         
     '''model = model_class.from_pretrained(
         pretrained_model_name_or_path= os.path.join(model_path, "model.safetensors"), # if llm part of student model is alr trained itll be here otherwise a default model will be loaded and finetuned
@@ -31,9 +26,11 @@ def load_model_with_zs(model_path, model, zs=None, teacher=True, encoder=None):
         config=config,
         encoder=encoder,
     )'''
-        
-    p =  os.path.join(model_path, "model.safetensors")
-    loaded_weights = load_file(p)
+    if "model_best.pth" not in model_path:
+        p =  os.path.join(model_path, "model_best.pth")
+    else:
+        p = model_path
+    loaded_weights = torch.load(p)['state_dict']
     model.load_state_dict(loaded_weights)
     print(f"Load weights from {model_path}")
 
@@ -41,7 +38,7 @@ def load_model_with_zs(model_path, model, zs=None, teacher=True, encoder=None):
 
     if model.model_name == 'bowman':
         update_LSTM_params(model, zs)
-        prune_hidden_mlp(zs,model,)
+        prune_hidden_mlp(zs,model)
     else:
         update_LLM_params(model, zs) #changes weights
         prune_model_with_z(zs, model) #changes strucutre
@@ -49,9 +46,9 @@ def load_model_with_zs(model_path, model, zs=None, teacher=True, encoder=None):
     print(f"Model Size after pruning: {calculate_parameters(model)}")
     return model
 
-def load_model(model_path, model, zs=None, teacher=True, encoder=None):
+def load_model(model_path, model, zs=None):
     assert zs is not None
-    model = load_model_with_zs(model_path, model, zs, teacher, encoder)
+    model = load_model_with_zs(model_path, model, zs)
     print(f"Model Size: {calculate_parameters(model)}")
     return model
 

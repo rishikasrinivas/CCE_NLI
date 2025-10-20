@@ -48,6 +48,7 @@ def save_features(
     model_type,
     loader,
     save_activs_dir,
+    is_cofi,
 ):
     all_states = []
     os.makedirs(save_activs_dir, exist_ok=True)
@@ -86,7 +87,19 @@ def save_features(
 
                 s2_tokenized = {k: v.to('cuda') for k, v in s2_tokenized.items()}
                 s1_tokenized = {k: v.to('cuda') for k, v in s1_tokenized.items()}
-                final_reprs = model.get_final_reprs(s1_tokenized, s2_tokenized)
+                
+                if is_cofi:
+                    result= {
+                        "pre_input_ids": s1_tokenized["input_ids"].cpu(),
+                        "pre_attention_mask": s1_tokenized["attention_mask"].cpu(),
+                        "hyp_input_ids": s2_tokenized["input_ids"].cpu(),
+                        "hyp_attention_mask": s2_tokenized["attention_mask"].cpu(),
+                        "labels":torch.tensor([l for l in targets])
+                    }
+                    final_reprs = model.get_final_reprs(**result)
+                else:
+                    final_reprs = model.get_final_reprs(s1_tokenized, s2_tokenized)
+                
             all_states.extend(list(final_reprs.cpu().numpy()))
     else:
         for src, src_feats, src_multifeats, src_lengths, idx in tqdm(loader):
@@ -107,7 +120,14 @@ def save_features(
                 s1len = src_lengths_comb[:, 0]
                 s2 = src_one_comb[:, :, 1]
                 s2len = src_lengths_comb[:, 1]
-                final_reprs = model.get_final_reprs(s1, s1len, s2, s2len)
+    
+
+                if is_cofi:
+                    
+                    results = {'s1': s1, 's1len': s1len, 's2':s2, 's2len': s2len, 'labels':0}
+                    final_reprs = model.get_final_reprs(**results)
+                else:
+                    final_reprs = model.get_final_reprs(s1, s1len, s2, s2len)
             # Pack the sequence
 
             all_states.extend(list(final_reprs.cpu().numpy()))

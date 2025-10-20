@@ -84,12 +84,15 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path: Optional[Union[str, os.PathLike]], encoder, teacher, *model_args, **kwargs):
-        if pretrained_model_name_or_path and '.safetensors' in pretrained_model_name_or_path and os.path.exists(pretrained_model_name_or_path):
+        if pretrained_model_name_or_path and '.pth' in pretrained_model_name_or_path and os.path.exists(pretrained_model_name_or_path):
             print("Loading pretrained bert entailment")
-            weights = load_file(pretrained_model_name_or_path)
+            weights = torch.load(pretrained_model_name_or_path)['state_dict']
         else:
+            print("Loading new bert entailment")
             model,_ = train_utils.load_model('bert', kwargs['train_data'], ckpt=kwargs['ckpt'], device='cuda')
             weights = model.state_dict()
+       
+                
         # Convert old format to new format if needed from a PyTorch state_dict
         old_keys = []
         new_keys = []

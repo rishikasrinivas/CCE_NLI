@@ -10,16 +10,15 @@
 glue_low=(MRPC RTE STSB CoLA)
 glue_high=(MNLI QQP QNLI SST2 SNLI)
 
-proj_dir=./code/cofi
+proj_dir="${10^^}"
 
-code_dir=${proj_dir}
+code_dir=./code/cofi/
 path_to_pretrained="${10^^}/models/pretrained/${10}_pretrained_inits.pth"
 echo "path to pretrained model ${path_to_pretrained}"
 
 
 # task and data
 task_name=$1
-data_dir=$proj_dir/data/glue_data/${task_name}
 
 # pretrain model
 
@@ -59,8 +58,9 @@ scheduler_type=linear
 ex_name_suffix=$2
 ex_name=${task_name}_${ex_name_suffix}
 ex_cate=$3
-teacher_model_dir=${proj_dir}/CoFi_${10}
-output_dir=${teacher_model_dir}/out_${target_sparsity}_${11}/${task_name}/${ex_cate}/${ex_name}
+iteration=${12}
+teacher_model_dir=${proj_dir}/models/CoFi/${10^^}/Run0.25
+output_dir=${teacher_model_dir}/${iteration}_Pruning_Iter
 
 
 if [[ " ${glue_low[*]} " =~ ${task_name} ]]; then

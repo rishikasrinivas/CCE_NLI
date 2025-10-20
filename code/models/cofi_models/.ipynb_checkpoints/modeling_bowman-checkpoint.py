@@ -41,11 +41,11 @@ class CoFiBowmanEntailmentClassifier(torch.nn.Module):
     
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path: Optional[Union[str, os.PathLike]], teacher, *model_args, **kwargs):
-        if pretrained_model_name_or_path and '.safetensors' in pretrained_model_name_or_path and os.path.exists(pretrained_model_name_or_path):
-            print("Loading pretrained bert entailment")
-            weights = load_file(pretrained_model_name_or_path)
+        if pretrained_model_name_or_path and '.pth' in pretrained_model_name_or_path and os.path.exists(pretrained_model_name_or_path):
+            print("Loading pretrained bowman entailment")
+            weights = torch.load(pretrained_model_name_or_path)['state_dict']
         else:
-            print(kwargs.keys())
+            print(f"Loading new bowman model")
             model,_ = train_utils.load_model('bowman', kwargs['train_data'], ckpt=kwargs['ckpt'], device='cuda')
             weights = model.state_dict()
                 
@@ -145,7 +145,7 @@ class CoFiBowmanEntailmentClassifier(torch.nn.Module):
         # Save config
         # Save model weights
         weights_path = os.path.join(save_directory, 
-                                    "model.safetensors" if safe_serialization else "pytorch_model.bin")
+                                    "model.safetensors" if safe_serialization else "model_best.pth")
 
         if safe_serialization:
             save_file(self.state_dict(), weights_path)

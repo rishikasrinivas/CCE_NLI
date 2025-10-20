@@ -291,6 +291,7 @@ def main():
     trainer = CoFiTrainer(
         model_name = additional_args.model_name,
         model=model,
+        dataset=train,
         args=training_args,
         additional_args=additional_args,
         full_train_dataset=dl['train'] if training_args.do_train else None,

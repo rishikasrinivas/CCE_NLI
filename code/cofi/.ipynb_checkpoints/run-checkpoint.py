@@ -6,7 +6,6 @@ import random
 from copy import deepcopy
 import collections
 import datasets
-from datasets import load_from_disk
 import numpy as np
 import torch
 import transformers
@@ -15,17 +14,18 @@ from datasets import load_dataset, DatasetDict
 from transformers import AutoConfig, AutoTokenizer, EvalPrediction, default_data_collator, DataCollatorWithPadding
 from transformers import (HfArgumentParser, TrainingArguments, PretrainedConfig,
                           glue_output_modes, glue_tasks_num_labels, set_seed)
-
+import sys
+print(os.listdir(os.getcwd()))
+sys.path.append('/workspace/CCE_NLI/code/')
 from args import AdditionalArguments, DataTrainingArguments
-from utils.cofi_utils import *
-from models.l0_module import L0Module
-from models.modeling_bert import CoFiBertForSequenceClassification
-from models.modeling_roberta import CoFiRobertaForSequenceClassification
-from models.modeling_llama import CoFiLlamaForSequenceClassification
-from models.modeling_bowman import CoFiBowmanEntailmentClassifier, TextEncoder
-from trainer.trainer import CoFiTrainer 
-from utils.utils import *
-from models.model_args import ModelArguments
+from cofi.utils.cofi_utils import *
+from models.cofi_models.l0_module import L0Module
+from models.cofi_models.modeling_bert import CoFiBertForSequenceClassification
+from models.cofi_models.modeling_llama import CoFiLlamaForSequenceClassification
+from models.cofi_models.modeling_bowman import CoFiBowmanEntailmentClassifier, TextEncoder
+from cofi.trainer.trainer import CoFiTrainer 
+from cofi.utils.utils import *
+from models.cofi_models.model_args import ModelArguments
 import train_utils
 #import wandb
 import data.snli as snli
@@ -101,8 +101,8 @@ def main():
  
     
     max_data = None if data_args.data_debug > 0 else None
-    train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, max_data=max_data, debug=False)
-    train_subset,val_subset,dls = train_utils.create_dataloaders(model_type=additional_args.model_name, max_data=30000, debug=True)
+    train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, pruning_method='cofi', max_data=max_data, debug=False)
+    train_subset,val_subset,dls = train_utils.create_dataloaders(model_type=additional_args.model_name, pruning_method='cofi', max_data=30000, debug=True)
     label_list = list(set(train.labels))
     vocab= {'stoi': train.stoi, 'itos': train.itos}
     
@@ -153,7 +153,7 @@ def main():
                 pretrained_model_name_or_path=f"fine_tuned_teacher_snli_{additional_args.model_name}/model.safetensors", #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
                 train_data=train,
                 max_data=max_data,
-                ckpt=None,
+                ckpt=data_args.path_to_pretrained if os.path.exists(data_args.path_to_pretrained) else None,
                 teacher=True,
                 config=config
 
@@ -166,7 +166,7 @@ def main():
                 pretrained_model_name_or_path=f"fine_tuned_teacher_snli_{additional_args.model_name}/model.safetensors", #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
                 train_data=train,
             
-                ckpt=None, #will be pretrained weights
+                ckpt=data_args.path_to_pretrained if os.path.exists(data_args.path_to_pretrained) else None,
                 max_data=max_data,
                 teacher=True,
                 encoder=tokenizer,
@@ -186,7 +186,7 @@ def main():
         config=config,
         train_data=train,
         max_data=max_data,
-        ckpt=None, #will be pretrained weights,
+        ckpt=data_args.path_to_pretrained if os.path.exists(data_args.path_to_pretrained) else None, #will be pretrained weights,
         encoder=tokenizer,
         output_dir = training_args.output_dir,
         cache_dir=model_args.cache_dir,
@@ -291,6 +291,7 @@ def main():
     trainer = CoFiTrainer(
         model_name = additional_args.model_name,
         model=model,
+        dataset=train,
         args=training_args,
         additional_args=additional_args,
         full_train_dataset=dl['train'] if training_args.do_train else None,

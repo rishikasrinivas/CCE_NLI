@@ -416,6 +416,7 @@ def extract_features(
     device,
     save_activations_dir,
     validation,
+    is_cofi,
 ):
     model.eval()
     loader = DataLoader(
@@ -465,6 +466,7 @@ def extract_features(
             model_name,
             loader,
             save_activations_dir,
+            is_cofi,
         )
         model.cpu()
         
@@ -800,7 +802,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
 
             
 
-def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved, device, model_=None, model_type=None,dataset=None,debug=False, validation=None):
+def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved, device, model_=None, model_type=None,dataset=None,debug=False, validation=None,is_cofi=False):
     os.makedirs(save_masks_dir, exist_ok=True)
     os.makedirs(save_exp_dir, exist_ok=True)
     
@@ -835,7 +837,8 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
         dataset,
         device,
         activations_dir,
-        validation=validation
+        validation=validation,
+        is_cofi=is_cofi
     )
 
     
@@ -885,6 +888,7 @@ def main():
     parser.add_argument("--filename", default="Pretrained")
     parser.add_argument("--ckpt", default="/workspace/CCE_NLI/BERT/models/pretrained/bert_pretrained_inits.pth")
     parser.add_argument("--untrained_model", action="store_true", default=False)  # If `--untrained_model` is used, set to True 
+    parser.add_argument("--is_cofi", action="store_true", default=False)  # If `--untrained_model` is used, set to True 
     
     
     
@@ -919,7 +923,18 @@ def main():
     dataset = analysis.AnalysisDataset(lines, vocab)
     
     device = 'cuda' if settings.CUDA else 'cpu'    
-    formula_masks = initiate_exp_run(model_type=args.model_type, save_exp_dir = f"./{args.model_type.upper()}/exp/lottery_ticket/{args.filename}_formulalen2/Expls/",  save_masks_dir= f"./{args.model_type.upper()}/exp/lottery_ticket/{args.filename}_formulalen2/Masks/", masks_saved=False,model_=model, dataset=dataset, activations_dir = f"./{args.model_type.upper()}/activations/{args.filename}_formulalen2", device='cpu', validation=dataloaders['val'])
+    formula_masks = initiate_exp_run(
+        model_type=args.model_type, 
+        save_exp_dir = f"./{args.model_type.upper()}/exp/lottery_ticket/{args.filename}_formulalen2/Expls/",  
+        save_masks_dir= f"./{args.model_type.upper()}/exp/lottery_ticket/{args.filename}_formulalen2/Masks/", 
+        masks_saved=False,
+        model_=model, 
+        dataset=dataset, 
+        activations_dir = f"./{args.model_type.upper()}/activations/{args.filename}_formulalen2", 
+        device='cpu', 
+        validation=dataloaders['val'],
+        is_cofi=args.is_cofi
+    )
 
     with open(os.path.join(path_to_formula_masks, "formula_masks.json"), "w") as f:
         json.dump(formula_masks, f)
