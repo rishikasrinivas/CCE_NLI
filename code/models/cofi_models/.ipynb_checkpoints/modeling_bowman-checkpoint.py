@@ -91,10 +91,11 @@ class CoFiBowmanEntailmentClassifier(torch.nn.Module):
         mlp_input = self.mlp[0](mlp_input)
         
         
-        final_layer_1024_outs = mlp_input
+       
             
         mlp_input = self.mlp[1](mlp_input)#relu
         mlp_input = self.mlp[2](mlp_input)#dropout
+        final_layer_1024_outs = mlp_input
         if final_mlp_hidden_z is not None:
             print("MLP INPUT SHAPE ",mlp_input.shape )
             print("final_mlp_hidden_zSHAPE ",final_mlp_hidden_z.shape )
@@ -122,7 +123,7 @@ class CoFiBowmanEntailmentClassifier(torch.nn.Module):
         prods = s1enc * s2enc
 
         mlp_input = torch.cat([s1enc, s2enc, diffs, prods], 1)
-        print(mlp_input.shape)
+
 
         mlp_input = self.bn(mlp_input)
         mlp_input = self.dropout(mlp_input)

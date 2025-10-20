@@ -218,9 +218,10 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
             
         pre_final_layer_reps=mlp_input
         mlp_input = mlp_unpacked[0](mlp_input)
-        final_layer_reps=mlp_input
+        
         mlp_input = mlp_unpacked[1](mlp_input)
         mlp_input = mlp_unpacked[2](mlp_input)
+        final_layer_reps=mlp_input
         
         if final_mlp_hidden_z is not None:
             #print("MULT BY ZS Hidden (1024->3): ", final_mlp_hidden_z.shape)
@@ -254,6 +255,67 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
             hidden_states=(outputs_pre.hidden_states, outputs_hyp.hidden_states),
             attentions=(outputs_pre.attentions, outputs_hyp.attentions)
         )
+    def get_final_reprs(
+            self,
+            pre_input_ids=None,
+            pre_attention_mask=None,
+            hyp_input_ids=None,
+            hyp_attention_mask=None,
+            token_type_ids=None,
+            position_ids=None,
+            inputs_embeds=None,
+            labels=None,
+            output_attentions=None,
+            output_hidden_states=None,
+            return_dict=None,
+           
+    ):
+
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+   
+        outputs_pre = self.bert(
+            pre_input_ids,
+            attention_mask=pre_attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        ) #! [32, 68, 768]
+        
+      
+        outputs_hyp = self.bert(
+            hyp_input_ids,
+            attention_mask=hyp_attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+        
+   
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+   
+    
+    
+        
+        hyp_out = outputs_hyp.last_hidden_state[:,0,:]
+        pre_out = outputs_pre.last_hidden_state[:,0,:]
+        diffs = pre_out - hyp_out
+        prods = pre_out * hyp_out
+        
+        mlp_input = torch.cat([pre_out, hyp_out,diffs,prods],dim=1)
+        
+        
+        mlp_input = self.bn(mlp_input)
+        mlp_input = self.dropout(mlp_input)
+      
+        rep = self.mlp[:-1](mlp_input) 
+        return rep
+
 
 
 class CoFiBertEmbeddings(BertEmbeddings):

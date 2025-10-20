@@ -315,10 +315,10 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             
         pre_final_layer_reps=mlp_input
         mlp_input = mlp_unpacked[0](mlp_input)
-        final_layer_reps=mlp_input
+        
         mlp_input = mlp_unpacked[1](mlp_input)
         mlp_input = mlp_unpacked[2](mlp_input)
-        
+        final_layer_reps=mlp_input
         if final_mlp_hidden_z is not None:
             #print("MULT BY ZS Hidden (1024->3): ", final_mlp_hidden_z.shape)
             mlp_input *= final_mlp_hidden_z
@@ -365,6 +365,60 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             hidden_states=(outputs_pre.hidden_states,outputs_hyp.hidden_states) ,
             attentions=(outputs_pre.attentions, outputs_hyp.attentions)
         )
+    def get_final_reprs(
+            self,
+            pre_input_ids=None,
+            pre_attention_mask=None,
+            hyp_input_ids=None,
+            hyp_attention_mask=None,
+            position_ids=None,
+            inputs_embeds=None,
+            labels=None,
+            use_cache=None,
+            past_key_values = None,
+            output_attentions=None,
+            output_hidden_states=None,
+           
+    ):
+        outputs_pre = self.model(
+            pre_input_ids,
+            attention_mask=pre_attention_mask,
+            position_ids=position_ids,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+         
+        ) #! [32, 68, 768]
+        
+        #hyp_input_ids = hyp_input_ids.unsqueeze(0)  # Shape becomes [1, 46]
+        #hyp_attention_mask = hyp_attention_mask.unsqueeze(0)
+        outputs_hyp = self.model(
+            hyp_input_ids,
+            attention_mask=hyp_attention_mask,
+            position_ids=position_ids,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+  
+        )
+        
+   
+    
+   
+
+        hyp_out = outputs_hyp.last_hidden_state[:,0,:]
+        pre_out = outputs_pre.last_hidden_state[:,0,:]
+        diffs = pre_out - hyp_out
+        prods = pre_out * hyp_out
+        
+        mlp_input = torch.cat([pre_out, hyp_out,diffs,prods],dim=1)
+        
+        
+        mlp_input = self.bn(mlp_input)
+        mlp_input = self.dropout(mlp_input)
+        rep = self.mlp[:-1](mlp_input) 
+        
+        return rep
     
 class CoFiLlamaBiModel(LlamaModel):
     _no_split_modules = ["ModifiedLlamaDecoderLayer"]
