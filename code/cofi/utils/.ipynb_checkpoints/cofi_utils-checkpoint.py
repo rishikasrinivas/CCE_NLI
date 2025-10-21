@@ -424,7 +424,7 @@ def load_zs(model_path):
     else:
         return None
 
-def load_pruned_model(model, weights, teacher):
+def load_pruned_model(model, weights):
     if model.model_name == 'bowman':
         model.load_state_dict(weights, strict=False)
         print(model.mlp[0])

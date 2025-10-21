@@ -1,6 +1,0 @@
-Iteration,Total_Baseline,Total_Current,Same_Neuron_Same_Cluster,Pct_SNSC,Same_Neuron_Diff_Cluster,Pct_SNDC,Diff_Neuron_Same_Cluster,Pct_DNSC,Diff_Neuron_Diff_Cluster,Pct_DNDC,New_Concepts,Pct_New,Disappeared
-1,515,521,223,42.80%,3,0.58%,159,30.52%,14,2.69%,122,23.42%,116
-2,515,542,206,38.01%,4,0.74%,183,33.76%,12,2.21%,137,25.28%,110
-3,515,547,199,36.38%,5,0.91%,192,35.10%,14,2.56%,137,25.05%,105
-4,515,517,171,33.08%,8,1.55%,195,37.72%,9,1.74%,134,25.92%,132
-5,515,511,166,32.49%,4,0.78%,208,40.70%,13,2.54%,120,23.48%,124

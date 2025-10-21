@@ -83,7 +83,7 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
         self.num_labels=3
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path: Optional[Union[str, os.PathLike]], encoder, teacher, *model_args, **kwargs):
+    def from_pretrained(cls, pretrained_model_name_or_path: Optional[Union[str, os.PathLike]],  *model_args, **kwargs):
         if pretrained_model_name_or_path and '.pth' in pretrained_model_name_or_path and os.path.exists(pretrained_model_name_or_path):
             print("Loading pretrained bert entailment")
             weights = torch.load(pretrained_model_name_or_path)['state_dict']
@@ -117,7 +117,7 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
         
         model = cls(config)
         
-        load_pruned_model(model, weights, teacher)
+        load_pruned_model(model, weights)
        
         return model
 

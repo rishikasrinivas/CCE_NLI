@@ -40,7 +40,7 @@ class CoFiBowmanEntailmentClassifier(torch.nn.Module):
     
     
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path: Optional[Union[str, os.PathLike]], teacher, *model_args, **kwargs):
+    def from_pretrained(cls, pretrained_model_name_or_path: Optional[Union[str, os.PathLike]], *model_args, **kwargs):
         if pretrained_model_name_or_path and '.pth' in pretrained_model_name_or_path and os.path.exists(pretrained_model_name_or_path):
             print("Loading pretrained bowman entailment")
             weights = torch.load(pretrained_model_name_or_path)['state_dict']
@@ -66,7 +66,7 @@ class CoFiBowmanEntailmentClassifier(torch.nn.Module):
             weights[new_key] = weights.pop(old_key)
 
         model = cls(kwargs['encoder'], 'cuda')
-        load_pruned_model(model, weights, teacher)
+        load_pruned_model(model, weights)
         return model
     
     def forward(self, s1, s1len, s2, s2len, labels,final_mlp_hidden_z=None):
