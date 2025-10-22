@@ -16,7 +16,7 @@ from transformers import (HfArgumentParser, TrainingArguments, PretrainedConfig,
                           glue_output_modes, glue_tasks_num_labels, set_seed)
 import sys
 print(os.listdir(os.getcwd()))
-sys.path.append('/workspace/CCE_NLI/code/')
+sys.path.append('code/')
 from args import AdditionalArguments, DataTrainingArguments
 from cofi.utils.cofi_utils import *
 from models.cofi_models.l0_module import L0Module
