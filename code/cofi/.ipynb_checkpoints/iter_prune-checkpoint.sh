@@ -9,7 +9,7 @@ for sparsity in ${sparsities}
 do
     #./run.sh ${model_name} ${encoder_name} ${ckpt} ${sparsity} "llm" "structured_heads+structured_mlp+hidden+layer"
     echo "Running pruning for $sparsity" 
-    ./code/cofi/run.sh ${model_name} ${encoder_name} ${sparsity} "structured_heads+structured_mlp+hidden+layer+final_mlp_hidden" #for bert and llama
+    ./code/cofi/run.sh ${model_name} ${encoder_name} ${sparsity} "structured_heads+structured_mlp+hidden+layer+final_mlp_hidden" ${pruning_iter} #for bert and llama
     #./code/cofi/run.sh ${model_name} ${encoder_name} ${sparsity} "final_mlp_hidden" ${pruning_iter}#for bwoman
     ((pruning_iter++))
 done
