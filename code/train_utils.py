@@ -341,8 +341,8 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
             serialize(model, model_type, train), False, save_dir, filename
         )
         ckpt = os.path.join(save_dir, filename)
-    else:
-        print(f"Loaded new CoFi instance (pretrained)")
+        if cofi:
+            print(f"Loaded new CoFi instance (pretrained)")
     
     
         

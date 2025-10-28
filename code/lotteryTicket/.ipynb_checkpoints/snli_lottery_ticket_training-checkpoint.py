@@ -89,14 +89,13 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
     os.makedirs(prune_metrics_dir_base, exist_ok=True)
     
     baseline_acc = -1.0
-    if start > 0:
-        model.load_state_dict(torch.load(os.path.join(prune_metrics_dir_base, '0_Pruning_Iter', 'model_best.pth'))['state_dict'])
+    if start:
+        model.load_state_dict(torch.load(os.path.join(start))['state_dict'])
         baseline_acc = train_utils.run_eval(model, dataloaders['val'])
         
-        prune_metrics_dir = os.path.join(prune_metrics_dir_base, f"{start-1}_Pruning_Iter")
-        if os.path.exists(prune_metrics_dir):
-            print(f"Alr lt'd {prune_metrics_dir}")
-            state_dict =  torch.load(os.path.join(prune_metrics_dir, 'model_best.pth'), map_location=torch.device('cpu'))['state_dict']
+        if os.path.exists(start):
+            print(f"Alr lt'd {start}")
+            state_dict =  torch.load(os.path.join(start), map_location=torch.device('cpu'))['state_dict']
             for layer in state_dict.keys():
                 mask = get_mask(state_dict[layer])
                 base_ckpt['state_dict'][layer] *= mask
@@ -181,7 +180,7 @@ def parse_args():
     #parser.add_argument("--prune_epochs", default=10, type=int)
     parser.add_argument("--finetune_epochs", default=5, type=int)
     parser.add_argument("--prune_iters", default=5000, type=int)
-    parser.add_argument("--restart_from_ckpt", default=0, type=int)
+    parser.add_argument("--restart_from_ckpt", default=None, type=str)
     
     
     parser.add_argument("--max_thresh", default=0.95, type=float)
