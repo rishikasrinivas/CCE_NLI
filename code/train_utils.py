@@ -266,7 +266,7 @@ def finetune_pruned_model(model, model_type, pruning_method, optimizer, criterio
             metrics["best_val_acc"] = val_metrics["acc"]
             metrics["best_val_epoch"] = epoch
             util.save_metrics(metrics, prune_metrics_dir)
-            util.save_checkpoint(model.state_dict(), is_best=True, exp_dir=prune_metrics_dir)
+            util.save_checkpoint(serialize(model, model_type, dataloaders['train']), is_best=True, exp_dir=prune_metrics_dir)
         acc = metrics["best_val_acc"]
         epoch += 1
 
