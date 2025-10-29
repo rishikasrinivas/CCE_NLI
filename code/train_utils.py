@@ -1,3 +1,5 @@
+import sys
+sys.path.append("code/models/")
 import models.cofi_models as cofi_models
 import models.nli_models as nli_models
 import torch
@@ -81,11 +83,15 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
     # --- PART 2: Branch logic based on model type ---
     if model_type in ['bert', 'llama']:
         # Define paths for the second level of caching (the converted batches)
-        train_cache_path = f'{root_dir}/converted_batches_train_{model_type}_{pruning_method}.pth' #add _pruningalg
-        val_cache_path = f'{root_dir}/converted_batches_val_{model_type}_{pruning_method}.pth' #add _pruningalg
+        if pruning_method=='cofi':
+            filepath='cofi'
+        else:
+            filepath='unstructured'
+        train_cache_path = f'{root_dir}/converted_batches_train_transformers_{filepath}.pth' #add _pruningalg
+        val_cache_path = f'{root_dir}/converted_batches_val_transformers_{filepath}.pth' #add _pruningalg
 
         if os.path.exists(train_cache_path) and os.path.exists(val_cache_path):
-            print(f"✅ Loading pre-converted {model_type} batches from cache...")
+            print(f"✅ Loading pre-converted {model_type} batches from cache...{train_cache_path}")
             converted_train_batches = torch.load(train_cache_path)
             converted_val_batches = torch.load(val_cache_path)
         else:
@@ -242,7 +248,6 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
         acc_meter.update(acc.item(), batch_size)
         ranger.set_description(f"{split} epoch {epoch} loss {loss_meter.avg:.3f} acc {acc_meter.avg:.3f}")
     return {"loss": loss_meter.avg, "acc": acc_meter.avg}
-
 def finetune_pruned_model(model, model_type, pruning_method, optimizer, criterion, dataloaders, finetune_epochs, prune_metrics_dir, baseline_acc=-1.0, device='cuda'):
     """
     Finetunes a model for a fixed number of epochs and saves the best-performing one.
@@ -251,6 +256,7 @@ def finetune_pruned_model(model, model_type, pruning_method, optimizer, criterio
 
     #EDIT: finetune until accuracy surpasses that of original model
     epoch = 0
+    acc = 0.0
     while (baseline_acc != -1.0 and acc < baseline_acc) or (baseline_acc == -1.0 and epoch < finetune_epochs):
         train_metrics = run("train", epoch, model, model_type, pruning_method, optimizer, criterion, dataloaders, finetune_epochs, device)
         val_metrics = run("val", epoch, model, model_type, pruning_method, optimizer, criterion, dataloaders, finetune_epochs, device)

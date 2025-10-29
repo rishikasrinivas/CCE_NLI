@@ -65,49 +65,6 @@ def check_sparsity(model, args):
         model.config.use_cache = use_cache 
     return float(count)/total_params 
 
-#NOT USING NOW (left in case)
-def get_inputs_bert(model, embedder, dataloader, dtype, device):
-    #100 batches each eith 100 samples
-    #so to store s1 and s2 from each batch of 100 we're stroing 2 samples
-    inps = torch.zeros((NUM_SAMPLES, NUM_SAMPLES, model.encoder.config.max_position_embeddings), dtype=dtype, device=device)
-    attention_mask = torch.zeros((NUM_SAMPLES, NUM_SAMPLES), dtype=dtype, device=device)
-    inps.requires_grad = False
-    i=0
-    for batch in dataloader:
-        if i >= NUM_SAMPLES-1: break
-        try:
-            s1, s1len, s2, s2len, target = batch #s1 is longest sent x 100 since batch size is 100
-            s1= s1.transpose(1,0)
-            s1 = s1.to(device)
-            s2=s2.transpose(1,0)
-            s2 = s2.to(device)
-            for sentence1, sentence2 in zip(s1,s2):
-                sentence1=sentence1.unsqueeze(0)
-                s1_tokens = model.indices_to_bert_tokens(sentence1)
-                s1_tokens = {k: v.to(device) for k, v in s1_tokens.items()}
-                s1_tokens_embed = embedder(s1_tokens['input_ids'])
-                inps[i][:s1_tokens_embed.shape[1], :] = s1_tokens_embed.squeeze(0)
-                print(s1_tokens)
-                return
-                attention_mask[i][:s1_tokens['attention_mask'].shape[1]] = s1_tokens['attention_mask']
-                i+=1
-                
-                if i >= NUM_SAMPLES-1: break
-                sentence2=sentence2.unsqueeze(0)
-                s2_tokens = model.indices_to_bert_tokens(sentence2)
-                s2_tokens = {k: v.to(device) for k, v in s2_tokens.items()}
-                s2_tokens_embed = embedder(s2_tokens['input_ids'])
-                inps[i][:s2_tokens_embed.shape[1], :] = s2_tokens_embed.squeeze(0)
-                attention_mask[i][:s2_tokens['attention_mask'].shape[1]] = s2_tokens['attention_mask']
-                i+=1
-                
-                
-        except ValueError:
-            print("Caught ValueError")
-    outs = torch.zeros_like(inps)
-        
-    return inps, outs, attention_mask, None #position_ids
-
 #Using this to get bert and llama inputs
 def get_model_inputs(model, args, dataloader, dev, dev2, seqlen, layers):
     dtype = next(iter(model.parameters())).dtype
@@ -116,7 +73,7 @@ def get_model_inputs(model, args, dataloader, dev, dev2, seqlen, layers):
         (NUM_SAMPLES, seqlen, model.encoder.config.hidden_size), dtype=dtype, device=dev2
     )
     
-    cache = {'i': 0, 'attention_mask': None, 'position_embeddings': None}
+    cache = {'i': 0, 'attention_mask': [], 'position_embeddings': []}
 
     class Catcher_BERT(nn.Module):
         def __init__(self, module):
@@ -126,9 +83,9 @@ def get_model_inputs(model, args, dataloader, dev, dev2, seqlen, layers):
                 position_ids=None, head_mask=None, inputs_embeds=None, 
                 encoder_hidden_states=None, **kwargs):
             if cache['i'] < NUM_SAMPLES:
+                print("In catcher")
                 inps[cache['i']][:input_ids[0].shape[0],:] = input_ids[0].to(dev2)
-                cache['attention_mask'] = attention_mask
-                cache['position_embeddings'] = position_ids
+                print("Saved input")
                 cache['i'] += 1
            
                 raise ValueError
@@ -144,8 +101,8 @@ def get_model_inputs(model, args, dataloader, dev, dev2, seqlen, layers):
             
             if cache['i'] < NUM_SAMPLES:
                 inps[cache['i']][:inp[0].shape[0], :] = inp[0].to(dev2)
-                cache['attention_mask'] = kwargs['attention_mask']
-                cache['position_embeddings'] = kwargs['position_embeddings']
+                cache['attention_mask'].append(kwargs['attention_mask'][0])
+                cache['position_embeddings'].append(kwargs['position_embeddings'])
                 cache['i'] += 1
                 raise ValueError
             else:
@@ -160,11 +117,11 @@ def get_model_inputs(model, args, dataloader, dev, dev2, seqlen, layers):
         
     for batch in dataloader:
         if cache['i'] >= NUM_SAMPLES: break
-        s1,s1l,s2,s2l = batch[0], batch[1], batch[2], batch[3]
+        s1,s2, _= batch
         
         try:
             model.to(dev)
-            model(s1.to(dev),s1l.to(dev),s2.to(dev),s2l.to(dev))
+            model(s1.to(dev),s2.to(dev))
         except ValueError:
             if cache['i'] >= NUM_SAMPLES:
                 break
@@ -187,10 +144,8 @@ def get_inputs_bowman(model,embedder, dataloader, dtype, device):
     for batch in dataloader:
         if i >= NUM_SAMPLES: break
         try:
-            s1, s1len, s2, s2len, target = batch #s1 is longest sent x 100 since batch size is 100
+            s1, s2, target = batch #s1 is longest sent x 100 since batch size is 100
 
-            s1= s1.transpose(1,0)
-            s2= s2.transpose(1,0)
             s1 = s1.to(device)
             s2 = s2.to(device)
             
@@ -225,17 +180,10 @@ def get_inputs_bowman(model,embedder, dataloader, dtype, device):
     return inps, outs, lengths
 
 def get_bert_encodings(model, embedder, s1, s2, device):
-    s1_tokens = model.indices_to_bert_tokens(s1.transpose(1,0))
-    s1_tokens = {k: v.to(device) for k, v in s1_tokens.items()}
-    s1_tokens_embed = embedder(s1_tokens['input_ids'])
 
-    s2_tokens = model.indices_to_bert_tokens(s2.transpose(1,0))
-    s2_tokens = {k: v.to(device) for k, v in s2_tokens.items()}
-    s2_tokens_embed = embedder(s2_tokens['input_ids'])
-
-    s1enc= model.encoder(**s1_tokens)
+    s1enc= model.encoder(**s1.to(device))
     s1enc = s1enc.last_hidden_state[:, 0, :]
-    s2enc= model.encoder(**s2_tokens)
+    s2enc= model.encoder(**s2.to(device))
     s2enc = s2enc.last_hidden_state[:, 0, :]
                         
     return s1enc, s2enc
@@ -251,13 +199,17 @@ def get_inputs_mlp(model, embedder, args, dataloader, dtype, device):
         if i == num_inps:
             break
         try:
-            s1, s1len, s2, s2len, target = batch #s1 is longest sent x 100 since batch size is 100
-            s1 = s1.to(device)
-            s2 = s2.to(device)
+            
 
             if args.model_type in ['bert', 'llama']:
+                s1, s2,  target = batch #s1 is longest sent x 100 since batch size is 100
+                s1 = s1.to(device)
+                s2 = s2.to(device)
                 s1enc, s2enc = get_bert_encodings(model, embedder, s1,s2, device)
             elif args.model_type == 'bowman':
+                s1, s1l, s2, s2l, _ = batch
+                s1 = s1.to(device)
+                s2 = s2.to(device)
                 s1enc = model.encoder(s1, s1len)
                 s2enc = model.encoder(s2, s2len)
 
@@ -430,11 +382,11 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
                 
                 input_tmp = inps[j].unsqueeze(0)
                 if args.model_type == 'llama' and seg=='enc':
-                    num_tokens = position_ids[0].shape[1]
+                    num_tokens = position_ids[j][0].shape[1]
                     
                     inputs = inps[j][:num_tokens,:].unsqueeze(0)
                     attn_masks = attention_mask[j][:num_tokens,:].unsqueeze(0)
-                    outs[j][:num_tokens, :] = layer(inputs, attention_mask=attn_masks ,position_embeddings=position_ids)[0]
+                    outs[j][:num_tokens, :] = layer(inputs, attention_mask=attn_masks ,position_embeddings=position_ids[j])[0]
                     outs[j][num_tokens:, :] = 0
                 elif args.model_type=='bert' and seg == 'enc':
             
@@ -462,11 +414,11 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
         for j in range(NUM_SAMPLES):
             with torch.no_grad():
                 if args.model_type == 'llama' and seg=='enc':
-                        num_tokens = position_ids[0].shape[1]
+                        num_tokens = position_ids[j][0].shape[1]
                         inputs = inps[j][:num_tokens,:].unsqueeze(0)
                         attn_masks = attention_mask[j][:num_tokens,:].unsqueeze(0)
 
-                        outs[j][:num_tokens, :] = layer(inputs, attention_mask=attn_masks,position_embeddings=position_ids)[0]
+                        outs[j][:num_tokens, :] = layer(inputs, attention_mask=attn_masks,position_embeddings=position_ids[j])[0]
                         outs[j][num_tokens:, :] = 0
                 elif args.model_type=='bert' and seg == 'enc':
                     outs[j] = layer(inps[j].unsqueeze(0))[0]# attention_mask=None)[0]
