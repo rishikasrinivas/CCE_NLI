@@ -376,6 +376,8 @@ def compute_best_sentence_iou(args):
 
 def pad_collate(batch, sort=True):
     src, src_feats, src_multifeats, src_len, idx = zip(*batch)
+   
+    
     idx = torch.tensor(idx)
     src_len = torch.tensor(src_len)
     src_pad = pad_sequence(src, padding_value=data.analysis.PAD_IDX)
@@ -417,6 +419,7 @@ def extract_features(
     save_activations_dir,
     validation,
     is_cofi,
+    train,
 ):
     model.eval()
     loader = DataLoader(
@@ -467,6 +470,7 @@ def extract_features(
             loader,
             save_activations_dir,
             is_cofi,
+            train,
         )
         model.cpu()
         
@@ -802,7 +806,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
 
             
 
-def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved, device, model_=None, model_type=None,dataset=None,debug=False, validation=None,is_cofi=False):
+def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved, device, train, model_=None, model_type=None,dataset=None,debug=False, validation=None,is_cofi=False):
     os.makedirs(save_masks_dir, exist_ok=True)
     os.makedirs(save_exp_dir, exist_ok=True)
     
@@ -838,7 +842,8 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
         device,
         activations_dir,
         validation=validation,
-        is_cofi=is_cofi
+        is_cofi=is_cofi,
+        train=train,
     )
 
     
@@ -888,15 +893,15 @@ def main():
     parser.add_argument("--filename", default="Pretrained")
     parser.add_argument("--ckpt", default="/workspace/CCE_NLI/BERT/models/pretrained/bert_pretrained_inits.pth")
     parser.add_argument("--untrained_model", action="store_true", default=False)  # If `--untrained_model` is used, set to True 
-    parser.add_argument("--is_cofi", action="store_true", default=False)  # If `--untrained_model` is used, set to True 
+    parser.add_argument("--pruning_method", default='')  # If `--untrained_model` is used, set to True 
     
     
     
     args = parser.parse_args()
 
     
-    path_to_activations = os.path.join(args.model_type.upper(), "activations", f"{args.filename}_formulalen2")
-    path_to_formula_masks = os.path.join(args.model_type.upper(), "formula_masks",  f"{args.filename}_formulalen2")
+    path_to_activations = os.path.join(args.model_type.upper(), "activations", f"{args.filename}_test")
+    path_to_formula_masks = os.path.join(args.model_type.upper(), "formula_masks",  f"{args.filename}_test")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     os.makedirs(path_to_activations, exist_ok=True)
@@ -907,15 +912,21 @@ def main():
     else:
         use_pretrained_weights = True
         
-    
+    pruning_method='cofi'
       
-    train,val ,dataloaders=train_utils.create_dataloaders(model_type=args.model_type, max_data=None)
-    model,ckpt = train_utils.load_model(model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=args.ckpt, device=device)
+    train,val ,dataloaders=train_utils.create_dataloaders(model_type=args.model_type, max_data=None, pruning_method=pruning_method)
+    if args.pruning_method=='cofi':
+        print(f"Loading zs")
+        zs_path= 'BERT/models/CoFi/Run0.25/1_Pruning_Iter/zs.pt' #os.path.join(args.model_type.upper(), "models", args.pruning_method, args.filename, '1_Pruning_Iter/zs.pt')
+        zs = torch.load(zs_path)
+    model,ckpt = train_utils.load_model(model_type=args.model_type, pruning_method=args.pruning_method, use_pretrained_weights = False, train=train, ckpt=args.ckpt, device=device, zs=zs)
+    
     
     # ==== BUILD VOCAB ====
     print(f"Loading weights from {ckpt}")
-    base_ckpt=torch.load(ckpt) #trained bowman/bert 
-    vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
+    #base_ckpt=torch.load(ckpt) #trained bowman/bert 
+    base_ckpt=torch.load("BERT/models/lottery_ticket/Run0.25/0_Pruning_Iter/model_best.pth")
+    vocab = {"itos": train.itos, "stoi": train.stoi}
 
     with open(settings.DATA, "r") as f:
         lines = f.readlines()
@@ -925,15 +936,16 @@ def main():
     device = 'cuda' if settings.CUDA else 'cpu'    
     formula_masks = initiate_exp_run(
         model_type=args.model_type, 
-        save_exp_dir = f"./{args.model_type.upper()}/exp/lottery_ticket/{args.filename}_formulalen2/Expls/",  
-        save_masks_dir= f"./{args.model_type.upper()}/exp/lottery_ticket/{args.filename}_formulalen2/Masks/", 
+        save_exp_dir = f"./{args.model_type.upper()}/exp/{pruning_method}/{args.filename}_test/Expls/",  
+        save_masks_dir= f"./{args.model_type.upper()}/exp/{pruning_method}/{args.filename}_test/Masks/", 
         masks_saved=False,
         model_=model, 
         dataset=dataset, 
-        activations_dir = f"./{args.model_type.upper()}/activations/{args.filename}_formulalen2", 
+        train=train,
+        activations_dir = f"./{args.model_type.upper()}/activations/{pruning_method}/{args.filename}", 
         device='cpu', 
         validation=dataloaders['val'],
-        is_cofi=args.is_cofi
+        is_cofi=True if args.pruning_method=='cofi' else False
     )
 
     with open(os.path.join(path_to_formula_masks, "formula_masks.json"), "w") as f:

@@ -2,6 +2,7 @@ import sys
 sys.path.append("code/models/")
 import models.cofi_models as cofi_models
 import models.nli_models as nli_models
+import cofi.utils.cofi_utils as cofi_utils
 import torch
 import util
 import tqdm as tqdm
@@ -292,12 +293,14 @@ def build_model(model_type, vocab, vocab_size=None, pretrained=True, embedding_d
     if is_cofi:
         if model_type=='bowman':
             tokenizer = TextEncoder(len(vocab['stoi']))
-            model = cofi_models.CoFiBowmanEntailmentClassifier(tokenizer, 'cuda')
+            model = cofi_models.modeling_bowman.CoFiBowmanEntailmentClassifier(tokenizer, 'cuda')
 
         elif model_type=='bert':
-            model = cofi_models.CoFiBertForSequenceClassification
+            from cofi_models import modeling_bert
+            model = modeling_bert.CoFiBertForSequenceClassification
+            
     
-    else:
+    else: 
         if model_type == 'bert':
             # CORRECTED: Removed the 'vocab' argument
             model = nli_models.BertEntailmentClassifier(vocab, pretrained=pretrained, device=device)
@@ -330,7 +333,8 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
     if ckpt: #and not cofi
         if zs:
             print(f"Loading zs")
-            model = load_model_with_zs(ckpt, model, zs=zs)
+            print(ckpt)
+            model = cofi_utils.load_model_with_zs(ckpt, model, zs=zs)
         else:
             print(f"Loading from checkpoint (no zs): {ckpt}")
             ckpt_ = torch.load(ckpt, map_location=torch.device(device))
@@ -360,8 +364,10 @@ def serialize(model, model_type, dataset):
     # CORRECTED: The condition now correctly checks if model_type is in the list
     if model_type in ['llama', 'bert']:
         return {
-            "encoder_name": model.encoder_name, 
+            "encoder_name": model.model_name, 
             "state_dict": model.state_dict(),
+            "stoi": dataset.stoi,
+            "itos": dataset.itos,
             # CORRECTED: stoi and itos are no longer needed for transformer models
         }
     # For bowman, we still need the vocab

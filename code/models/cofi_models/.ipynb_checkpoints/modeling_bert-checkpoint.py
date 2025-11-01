@@ -23,7 +23,7 @@ from safetensors.torch import load_file
 from huggingface_hub import hf_hub_download
 import train_utils
 
-from utils.cofi_utils import *
+from cofi.utils.cofi_utils import *
 logger = logging.getLogger(__name__)
 
 class CoFiLayerNorm(torch.nn.LayerNorm):
@@ -55,7 +55,7 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
         for param in self.bert.parameters():
             param.requires_grad = True
 
-   
+        print(self.bert)
         self.tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
         
         self.encoder_dim = config.hidden_size
@@ -73,6 +73,7 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
         
         
         
+        
         self.do_layer_distill = getattr(config, "do_layer_distill", False)
 
         if self.do_layer_distill:
@@ -84,6 +85,8 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path: Optional[Union[str, os.PathLike]],  *model_args, **kwargs):
+        print(pretrained_model_name_or_path)
+        
         if pretrained_model_name_or_path and '.pth' in pretrained_model_name_or_path and os.path.exists(pretrained_model_name_or_path):
             print("Loading pretrained bert entailment")
             weights = torch.load(pretrained_model_name_or_path)['state_dict']
@@ -110,12 +113,13 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
       
 
         if "config" not in kwargs:
-            config = AutoConfig.from_pretrained(pretrained_model_name_or_path)
+            config = AutoConfig.from_pretrained('bert-base-uncased')
             config.do_layer_distill = False
         else:
             config = kwargs["config"]
         
         model = cls(config)
+        
         
         load_pruned_model(model, weights)
        
@@ -270,7 +274,7 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
             return_dict=None,
            
     ):
-
+        
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
    
         outputs_pre = self.bert(

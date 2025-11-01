@@ -49,19 +49,19 @@ def save_features(
     loader,
     save_activs_dir,
     is_cofi,
+    train,
 ):
     all_states = []
     os.makedirs(save_activs_dir, exist_ok=True)
     model.eval()
     
     if model_type in ['bert', 'llama']:
-        itos=model.vocab['itos']
+        itos=train.itos
 
         model_name = "bert-base-uncased" if model_type == 'bert' else "knowledgator/Llama-encoder-1.0B"
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         converted_val_batches = []
         for src, src_feats, src_multifeats, src_lengths, idx in tqdm(loader):
-
             #  words = dataset.to_text(src)
             if settings.CUDA:
                 src = src.cuda()
@@ -90,11 +90,11 @@ def save_features(
                 
                 if is_cofi:
                     result= {
-                        "pre_input_ids": s1_tokenized["input_ids"].cpu(),
-                        "pre_attention_mask": s1_tokenized["attention_mask"].cpu(),
-                        "hyp_input_ids": s2_tokenized["input_ids"].cpu(),
-                        "hyp_attention_mask": s2_tokenized["attention_mask"].cpu(),
-                        "labels":torch.tensor([l for l in targets])
+                        "pre_input_ids": s1_tokenized["input_ids"].cuda(),
+                        "pre_attention_mask": s1_tokenized["attention_mask"].cuda(),
+                        "hyp_input_ids": s2_tokenized["input_ids"].cuda(),
+                        "hyp_attention_mask": s2_tokenized["attention_mask"].cuda(),
+                       
                     }
                     final_reprs = model.get_final_reprs(**result)
                 else:

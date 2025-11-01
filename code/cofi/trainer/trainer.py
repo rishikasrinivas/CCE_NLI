@@ -155,7 +155,7 @@ class CoFiTrainer(Trainer):
             model_name, 
             dataset=None,
             model: PreTrainedModel = None,
-            
+            config=None, 
             device: str =  'cuda',
             args: TrainingArguments = None,
             additional_args: AdditionalArguments = None,
@@ -183,7 +183,7 @@ class CoFiTrainer(Trainer):
         self.prepruning_finetune_steps = 100
         self.start_prune = False
         self.teacher_model_dir=teacher_model_dir
-        
+        self.config=config
         self.full_train_data=full_train_dataset
         self.full_val_data=full_eval_dataset
         self.subset_train_data=subset_train_dataset
@@ -713,6 +713,8 @@ class CoFiTrainer(Trainer):
 
         #self.model.save_pretrained(output_dir)
         
+        self.config.save_pretrained(os.path.join(output_dir, f"config.json"))
+
 
         # Assuming 'model' is your PyTorch or Hugging Face model
         util.save_checkpoint(

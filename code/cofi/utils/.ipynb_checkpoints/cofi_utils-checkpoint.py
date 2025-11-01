@@ -5,7 +5,7 @@ from transformers import AutoConfig, BertForSequenceClassification
 import torch
 from safetensors.torch import load_file
 
-from utils.utils import calculate_parameters
+from cofi.utils.utils import calculate_parameters
 
 def edit_config(config, additional_args):
     config.transform_embedding = additional_args.transform_embedding
@@ -18,20 +18,24 @@ def initialize_layer_transformation(model):
     model.layer_transformation.bias.data.fill_(0)
 
 def load_model_with_zs(model_path, model, zs=None):
-        
-    '''model = model_class.from_pretrained(
-        pretrained_model_name_or_path= os.path.join(model_path, "model.safetensors"), # if llm part of student model is alr trained itll be here otherwise a default model will be loaded and finetuned
+    if 'BOWMAN' in model_path:
+        config=None
+    else:
+        config=AutoConfig.from_pretrained(os.path.join("/".join(model_path.split("/")[:-1]), "config", "config.json"))
+    model = model.from_pretrained(
+        pretrained_model_name_or_path= os.path.join(model_path), # if llm part of student model is alr trained itll be here otherwise a default model will be loaded and finetuned
         from_tf=False,
         teacher=True,
         config=config,
-        encoder=encoder,
-    )'''
-    if "model_best.pth" not in model_path:
+    )
+    '''if "model_best.pth" not in model_path:
         p =  os.path.join(model_path, "model_best.pth")
     else:
         p = model_path
     loaded_weights = torch.load(p)['state_dict']
-    model.load_state_dict(loaded_weights)
+    
+    model.load_state_dict(loaded_weights)'''
+    
     print(f"Load weights from {model_path}")
 
     print(f"Model Size before pruning: {calculate_parameters(model)}")
@@ -122,11 +126,11 @@ def update_LLM_params(model, zs):
             if hasattr(model, "qa_outputs"):
                 model.qa_outputs.weight.data = model.qa_outputs.weight.data.mul(hidden_z)
             
-            bert.mlp[0].weight.data=bert.mlp[0].weight.data.mul(torc.cat([hidden_z for _ in range(4)]))
+            model.mlp[0].weight.data=model.mlp[0].weight.data.mul(torch.cat([hidden_z for _ in range(4)]))
 
         if 'final_mlp_hidden_z' in zs:
             final_mlp_hidden_z = zs['final_mlp_hidden_z'].cpu().clone()
-            bert.mlp[3].weight.data=bert.mlp[3].weight.data.mul(final_mlp_hidden_z)
+            model.mlp[3].weight.data=model.mlp[3].weight.data.mul(final_mlp_hidden_z)
             
 
 def prune_model_with_z(zs, model):
@@ -190,7 +194,7 @@ def prune_model_with_z(zs, model):
         layer = prune_linear_layer(layer, index, dim=dim)
         return layer
     
-    
+    print(model, type(model), hasattr(model, "bert"))
     if hasattr(model, "bert"):
 
         if "hidden_z" in zs:
@@ -229,7 +233,8 @@ def prune_model_with_z(zs, model):
                         prune_layer( bert.encoder.layer[layer].output.dense, index, dim=0)
                     prune_layer_norm(bert.encoder.layer[layer].output.LayerNorm, index)
         if 'final_mlp_hidden_z' in zs:
-            concat_index = torch.cat([index + (i * hidden_dims) for i in range(4)])  # 766 * 4 = 3064
+          
+            concat_index = torch.cat([index + (i * hidden_zs.shape[0]) for i in range(4)])  # 766 * 4 = 3064
             model.bn.weight = torch.nn.Parameter(model.bn.weight[concat_index].clone())
             model.bn.bias = torch.nn.Parameter(model.bn.bias[concat_index].clone())
             model.bn.num_features_tracked = concat_index.shape[0]
@@ -313,6 +318,7 @@ def prune_model_with_z(zs, model):
                 
 
     if kept_intermediate_dims is not None:
+        print(model, type(model), hasattr(model, "bert"))
         #print("Want to keep the intermediate dims: ", kept_intermediate_dims)
         prune_intermediate_layers(model, kept_intermediate_dims)
     
@@ -367,7 +373,7 @@ def prune_hidden_mlp(zs, model, concat_index=None):
     fin_index = torch.LongTensor(zs['final_mlp_hidden_z'].squeeze().nonzero().squeeze().tolist())
 
     try:
-        if concat_index:
+        if concat_index is not None:
             model.mlp[0] = prune_linear_layer(model.mlp[0], concat_index, dim=1) #3072
         print(f"Pruning mlp now first layer is: {model.mlp[0]}, {len(fin_index)}")
         
@@ -381,10 +387,11 @@ def prune_hidden_mlp(zs, model, concat_index=None):
     return model
 
 def prune_intermediate_layers(model, keep_dims):
+    print("MOL:", model)
     bert = model.bert if hasattr(model, "bert") else None
     llama = model.model if hasattr(model, "model") else None
     
-    assert (hasattr(model, "model")  and llama is not None) or  (hasattr(model, "bert") and bert is not None)
+    assert (hasattr(model, "model")  and llama is not None) or  (hasattr(model, "bert") and bert is not None),  (hasattr(model, "bert"))
     
     device = model.device
     for layer in keep_dims:
@@ -459,8 +466,8 @@ def load_pruned_model(model, weights):
     zs["intermediate_z"] = int_z
     zs["mlp_z"] = mlp_z
  
-    prune_model_with_z(zs, model)
-    
+    #prune_model_with_z(zs, model)
+    print(model)
     model.load_state_dict(weights, strict=False)
     
 
