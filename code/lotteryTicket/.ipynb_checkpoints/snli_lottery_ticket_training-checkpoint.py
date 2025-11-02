@@ -9,7 +9,7 @@ import torch.optim as optim
 import torch.nn as nn
 from tqdm import tqdm
 from transformers import AdamW
-
+import logging
 # --- Local Imports ---
 # Ensure your python path is set up correctly for these
 sys.path.append('code/')
@@ -21,18 +21,24 @@ import prune_utils
 from data import analysis
 from Pruner import Pruner_
 
-
+logger = logging.getLogger(__name__)
 def main(args):
-    max_data = 1000 if args.debug else None
+    
+    logging.basicConfig(filename='lottery_ticket.log', level=logging.INFO)
+    max_data = 1000 if args.debug else 200
     use_pretrained_weights = not args.untrained_model
     
+    logger.info(f"Creating Dataloaders with {max_data}")
     # CORRECTED: Added model_type to the create_dataloaders call
     train, val, dataloaders = train_utils.create_dataloaders(
         max_data=max_data, 
         model_type=args.model_type, 
-        debug=args.debug
+        debug=args.debug,
+        pruning_method='lottery_ticket'
     )
     
+    logger.info(f"Loading model from {args.ckpt}")
+    print(args.ckpt)
     # CORRECTED: Removed the unnecessary max_data argument
     model, ckpt = train_utils.load_model(
         model_type=args.model_type, 
@@ -42,7 +48,7 @@ def main(args):
         i=args.i
         
     )
-    
+  
     base_ckpt = torch.load(ckpt, map_location='cpu')
 
     # CORRECTED: This block is only relevant for the bowman model.
@@ -60,12 +66,15 @@ def main(args):
     device = 'cuda' if settings.CUDA else 'cpu'
     print(f"Running on {device}")
     
+    logger.info("Instantiating Pruner")
     pruner = Pruner_(model)
 
+    logger.info("Starting Pruning")
     return run_prune(
         model, pruner, args, base_ckpt, dataset, optimizer, 
         criterion, device, train, val, dataloaders, 
-        start=args.restart_from_ckpt
+        start=args.restart_from_ckpt,
+        start_idx =args.start_idx,
     )
 
 def get_mask(weights):
@@ -82,7 +91,7 @@ def apply_mask(model, base_ckpt):
             continue
     return base_ckpt
 
-def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, dataloaders, start):
+def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, device, train, val, dataloaders, start, start_idx):
     print("Entered run_prune")
     pruned_percents, final_accs = [], []
     prune_metrics_dir_base = os.path.join(args.model_type.upper(), "models", "lottery_ticket", args.filename)
@@ -90,8 +99,9 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
     
     baseline_acc = -1.0
     if start:
+        logger.info(f"Loading baseline model from {start}")
         model.load_state_dict(torch.load(os.path.join(start))['state_dict'])
-        baseline_acc = train_utils.run_eval(model, dataloaders['val'])
+        baseline_acc = train_utils.run_eval(model, dataloaders['val'], args.model_type, 'lottery_ticket')
         
         if os.path.exists(start):
             print(f"Alr lt'd {start}")
@@ -112,13 +122,13 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
             # Reload random inits with pruned weights (that were prnued after fting) 0'd out
             model.load_state_dict(base_ckpt['state_dict'])  
             final_weights_pruned = prune_utils.percent_pruned_weights(model)
-            print(f"After appling mask % Pruned: {final_weights_pruned}")
+            logger.info(f"After appling mask % Pruned: {final_weights_pruned}")
             model.cpu()
             
-    
-    for prune_iter in range(start, args.prune_iters):
-        print(f"\n--- Pruning Iteration {prune_iter} / {args.prune_iters} ---")
-        print(f"Baseline Accuracy : {baseline_acc}")
+    logger.info(f"Starting pruning from start_idx: {start_idx}")
+    for prune_iter in range(start_idx, args.prune_iters):
+        logger.info(f"\n--- Pruning Iteration {prune_iter} / {args.prune_iters} ---")
+        logger.info(f"Baseline Accuracy : {baseline_acc}")
         
         # Re-initialize the optimizer at the start of each finetuning run
         optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8) if args.model_type in ['bert', 'llama'] else optim.Adam(model.parameters())
@@ -128,13 +138,13 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         prune_metrics_dir = os.path.join(prune_metrics_dir_base, f"{prune_iter}_Pruning_Iter")
         os.makedirs(prune_metrics_dir, exist_ok=True)
 
-        
         # Finetune the model (it will save the best version)
         #EDIT: Adding baseline_acc as an argument
-        model = train_utils.finetune_pruned_model(
-            model, args.model_type, optimizer, criterion, dataloaders, 
-            args.finetune_epochs, prune_metrics_dir, baseline_acc, device
-        )
+        if prune_iter > 0:
+            model = train_utils.finetune_pruned_model(
+                model, args.model_type, 'lottery_ticket', optimizer, criterion, dataloaders, 
+                args.finetune_epochs, prune_metrics_dir, baseline_acc, device
+            )
 
         # Evaluate the best model from the finetuning phase
         # CORRECTED: Added model_type to the run_eval call
@@ -142,7 +152,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         if prune_iter == 0: baseline_acc = final_acc
         final_weights_pruned = prune_utils.percent_pruned_weights(model)
         
-        print(f"Iteration {prune_iter}: Percent Pruned: {final_weights_pruned:.2f}% | Validation Accuracy: {final_acc:.3f}")
+        logger.info(f"Iteration {prune_iter}: Percent Pruned: {final_weights_pruned:.2f}% | Validation Accuracy: {final_acc:.3f}")
         pruned_percents.append(final_weights_pruned)
         final_accs.append(final_acc)
 
@@ -181,6 +191,7 @@ def parse_args():
     parser.add_argument("--finetune_epochs", default=5, type=int)
     parser.add_argument("--prune_iters", default=5000, type=int)
     parser.add_argument("--restart_from_ckpt", default=None, type=str)
+    parser.add_argument("--start_idx", default=0, type=int)
     
     
     parser.add_argument("--max_thresh", default=0.95, type=float)
@@ -193,7 +204,7 @@ def parse_args():
     parser.add_argument("--test_iters", default=1, type=int)
     parser.add_argument("--log", action='store_true')
     parser.add_argument("--baseline", action='store_true')
-    parser.add_argument("--ckpt", default=None)
+    parser.add_argument("--ckpt", default=None, type=str)
     return parser.parse_args()
 
 
