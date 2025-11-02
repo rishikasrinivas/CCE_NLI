@@ -107,11 +107,11 @@ def main():
         
         # ===== Saving model =====
         util.save_checkpoint(
-                    train_utils.serialize(model, args.model_type, dataloaders['train'].dataset), False, prune_metrics_dir,filename = f"{i+args.offset+1}_Pruning_Iter/model_best.pth")
+                    train_utils.serialize(model, args.model_type, train), False, prune_metrics_dir,filename = f"{i+args.offset+1}_Pruning_Iter/model_best.pth")
 
         
         #===== Recording Acc =====
-        eval_test = train_utils.run_eval(model, dataloaders['val'])
+        eval_test = train_utils.run_eval(model, dataloaders['val'], args.model_type, 'wanda')
         print(f"After Pruning NLI Eval: {eval_test}")
         final_accs.append(eval_test)
       

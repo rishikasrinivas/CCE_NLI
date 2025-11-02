@@ -908,6 +908,7 @@ class CoFiTrainer(Trainer):
         # Sample Python dictionary
         results = {
             self.model_name: initial_acc
+            
         }
 
         # Write to JSON file
@@ -947,7 +948,7 @@ class CoFiTrainer(Trainer):
             inputs["token_type_ids"] = inputs["token_type_ids"][:, :max_length]
       
     def finetune_teacher(self,teacher):
-        save_teacher_dir= f'fine_tuned_teacher_snli_{self.model_name}'
+        save_teacher_dir= f'0_Pruning_Iter'
         teacher_model_path=os.path.join(self.teacher_model_dir, save_teacher_dir)
         if save_teacher_dir in os.listdir(self.teacher_model_dir) and 'model_best.pth' in  os.listdir(teacher_model_path):
             print(f"Reloading Finetuning SNLI teacher model ")

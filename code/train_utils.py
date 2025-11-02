@@ -7,7 +7,7 @@ import torch
 import util
 import tqdm as tqdm
 from contextlib import nullcontext
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 import torch.nn.utils.prune as prune
 import numpy as np
 #!pip install llm2vec #add to donwloads
@@ -53,8 +53,8 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
 
     # --- PART 1: Load or Create the Base SNLI Datasets ---
     # This is the first level of caching. It avoids re-reading the raw .txt files.
-    base_train_path = f'{root_dir}/train_dataset.pth'
-    base_val_path = f'{root_dir}/val_dataset.pth'
+    base_train_path = f'{root_dir}/train_dataset_{max_data}.pth'
+    base_val_path = f'{root_dir}/val_dataset_{max_data}.pth'
     
     #EDIT: Updated conditions to download specified amounts of data based on cache
     try:
@@ -88,8 +88,8 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
             filepath='cofi'
         else:
             filepath='unstructured'
-        train_cache_path = f'{root_dir}/converted_batches_train_transformers_{filepath}.pth' #add _pruningalg
-        val_cache_path = f'{root_dir}/converted_batches_val_transformers_{filepath}.pth' #add _pruningalg
+        train_cache_path = f'{root_dir}/converted_batches_train_{model_type}_{filepath}.pth' #add _pruningalg
+        val_cache_path = f'{root_dir}/converted_batches_val_{model_type}_{filepath}.pth' #add _pruningalg
 
         if os.path.exists(train_cache_path) and os.path.exists(val_cache_path):
             print(f"✅ Loading pre-converted {model_type} batches from cache...{train_cache_path}")
@@ -161,6 +161,9 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
         print("✅ Using original dataloaders for bowman model.")
         #collate fn changes if not cofi vs if cofi
         collate_fn =  collate_as_dict if pruning_method=='cofi' else pad_collate 
+        #subset_indices = range(200)
+        #sub_train_dataset = Subset(train_dataset, subset_indices)
+        #sub_val_dataset = Subset(val_dataset, subset_indices)
         train_loader = DataLoader(train_dataset, batch_size=settings.BATCH_SIZE, shuffle=True, num_workers=4, collate_fn=collate_fn, drop_last=True)
         val_loader = DataLoader(val_dataset, batch_size=settings.BATCH_SIZE, shuffle=False, num_workers=4, collate_fn=collate_fn,drop_last=True)
     
@@ -257,8 +260,8 @@ def finetune_pruned_model(model, model_type, pruning_method, optimizer, criterio
 
     #EDIT: finetune until accuracy surpasses that of original model
     epoch = 0
-    acc = 0.0
-    while (baseline_acc != -1.0 and acc < baseline_acc) or (baseline_acc == -1.0 and epoch < finetune_epochs):
+    acc = 0.0#or baseline_acc == -1.0 and 
+    while (baseline_acc != -1.0 and acc < baseline_acc) and (epoch < finetune_epochs):
         train_metrics = run("train", epoch, model, model_type, pruning_method, optimizer, criterion, dataloaders, finetune_epochs, device)
         val_metrics = run("val", epoch, model, model_type, pruning_method, optimizer, criterion, dataloaders, finetune_epochs, device)
         
@@ -273,7 +276,7 @@ def finetune_pruned_model(model, model_type, pruning_method, optimizer, criterio
             metrics["best_val_acc"] = val_metrics["acc"]
             metrics["best_val_epoch"] = epoch
             util.save_metrics(metrics, prune_metrics_dir)
-            util.save_checkpoint(serialize(model, model_type, dataloaders['train']), is_best=True, exp_dir=prune_metrics_dir)
+            util.save_checkpoint(serialize(model, model_type, dataloaders['train'].dataset), is_best=True, exp_dir=prune_metrics_dir)
         acc = metrics["best_val_acc"]
         epoch += 1
 
@@ -281,9 +284,9 @@ def finetune_pruned_model(model, model_type, pruning_method, optimizer, criterio
     best_model_path = os.path.join(prune_metrics_dir, 'model_best.pth')
     if os.path.exists(best_model_path):
         print(f"Loading best weights from epoch {metrics['best_val_epoch']} with accuracy {metrics['best_val_acc']:.3f}")
-        model.load_state_dict(torch.load(best_model_path))
+        model.load_state_dict(torch.load(best_model_path)['state_dict'])
 
-    return model, metrics["best_val_acc"]
+    return model
 
 
 def build_model(model_type, vocab, vocab_size=None, pretrained=True, embedding_dim=300, hidden_dim=512, device='cuda', is_cofi=False):
