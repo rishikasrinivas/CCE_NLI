@@ -52,6 +52,7 @@ def main(args):
       
     train,val,dataloaders=train_utils.create_dataloaders(model_type=args.model_type,pruning_method=args.pruning_method, max_data=max_data, debug=args.debug)
     
+    
     if args.pruning_method in ['lottery_ticket', 'wanda']:
         ckpt = os.path.join(args.model_type.upper(), "models", 'lottery_ticket', args.filename, '0_Pruning_Iter/model_best.pth')
     else:
@@ -69,7 +70,7 @@ def main(args):
     logger.info(f"Using {ckpt} for vocab (one-time)")
     base_ckpt=torch.load(ckpt, map_location = torch.device(device)) #trained bowman/bert 
         
-    vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
+    vocab = {"itos": train.itos, "stoi": train.stoi}
 
     with open(settings.DATA, "r") as f:
         lines = f.readlines()
