@@ -465,7 +465,7 @@ def extract_features(
             all_states = pickle.load(file)
     except:
         all_states = activation.save_features(
-            model.cuda(),
+            model.to(device),
             model_name,
             loader,
             save_activations_dir,

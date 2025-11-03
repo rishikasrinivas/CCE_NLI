@@ -54,18 +54,19 @@ def save_features(
     all_states = []
     os.makedirs(save_activs_dir, exist_ok=True)
     model.eval()
-    
+    device='cuda' if torch.cuda.is_available() else 'cpu'
     if model_type in ['bert', 'llama']:
         itos=train.itos
 
         model_name = "bert-base-uncased" if model_type == 'bert' else "knowledgator/Llama-encoder-1.0B"
         tokenizer = AutoTokenizer.from_pretrained(model_name)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token  = tokenizer.eos_token 
         converted_val_batches = []
         for src, src_feats, src_multifeats, src_lengths, idx in tqdm(loader):
             #  words = dataset.to_text(src)
-            if settings.CUDA:
-                src = src.cuda()
-                src_lengths = src_lengths.cuda()
+            src = src.to(device)
+            src_lengths = src_lengths.to(device)
             # Memory bank - hidden states for each step
             with torch.no_grad():
                 # Combine q/h pairs
@@ -84,16 +85,16 @@ def save_features(
                 s2_sentences = [" ".join([itos.get(idx, "") for idx in row if idx not in (0, 1)]) for row in s2_indices]
                 s1_tokenized = tokenizer(s1_sentences, return_tensors="pt", padding=True, truncation=True)
                 s2_tokenized = tokenizer(s2_sentences, return_tensors="pt", padding=True, truncation=True)
-
-                s2_tokenized = {k: v.to('cuda') for k, v in s2_tokenized.items()}
-                s1_tokenized = {k: v.to('cuda') for k, v in s1_tokenized.items()}
+                
+                s2_tokenized = {k: v.to(device) for k, v in s2_tokenized.items()}
+                s1_tokenized = {k: v.to(device) for k, v in s1_tokenized.items()}
                 
                 if is_cofi:
                     result= {
-                        "pre_input_ids": s1_tokenized["input_ids"].cuda(),
-                        "pre_attention_mask": s1_tokenized["attention_mask"].cuda(),
-                        "hyp_input_ids": s2_tokenized["input_ids"].cuda(),
-                        "hyp_attention_mask": s2_tokenized["attention_mask"].cuda(),
+                        "pre_input_ids": s1_tokenized["input_ids"].to(device),
+                        "pre_attention_mask": s1_tokenized["attention_mask"].to(device),
+                        "hyp_input_ids": s2_tokenized["input_ids"].to(device),
+                        "hyp_attention_mask": s2_tokenized["attention_mask"].to(device),
                        
                     }
                     final_reprs = model.get_final_reprs(**result)
@@ -105,9 +106,8 @@ def save_features(
         for src, src_feats, src_multifeats, src_lengths, idx in tqdm(loader):
       
             #  words = dataset.to_text(src)
-            if settings.CUDA:
-                src = src.cuda()
-                src_lengths = src_lengths.cuda()
+            src = src.to(device)
+            src_lengths = src_lengths.to(device)
             # Memory bank - hidden states for each step
             with torch.no_grad():
                 # Combine q/h pairs

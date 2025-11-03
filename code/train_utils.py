@@ -260,8 +260,8 @@ def finetune_pruned_model(model, model_type, pruning_method, optimizer, criterio
 
     #EDIT: finetune until accuracy surpasses that of original model
     epoch = 0
-    acc = 0.0#or baseline_acc == -1.0 and 
-    while (baseline_acc != -1.0 and acc < baseline_acc) and (epoch < finetune_epochs):
+    acc = 0.0
+    while (baseline_acc != -1.0 and acc < baseline_acc) or (baseline_acc == -1.0 and  epoch < finetune_epochs):
         train_metrics = run("train", epoch, model, model_type, pruning_method, optimizer, criterion, dataloaders, finetune_epochs, device)
         val_metrics = run("val", epoch, model, model_type, pruning_method, optimizer, criterion, dataloaders, finetune_epochs, device)
         

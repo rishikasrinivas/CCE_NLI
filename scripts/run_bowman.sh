@@ -7,7 +7,7 @@ for i in {2..4}; do
         --model_type bowman \
         --ckpt BOWMAN/models/lottery_ticket/Run0.25/0_Pruning_Iter/model_best.pth \
         --filename "Run0.25_$i" \
-        --finetune_epochs 1 \
+        --finetune_epochs 5 \
         --restart_from_ckpt BOWMAN/models/lottery_ticket/Run0.25/0_Pruning_Iter/model_best.pth \
         --start_idx 1
         
