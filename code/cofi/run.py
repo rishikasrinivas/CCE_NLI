@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import transformers
 import evaluate
+import json
 from datasets import load_dataset, DatasetDict
 from transformers import AutoConfig, AutoTokenizer, EvalPrediction, default_data_collator, DataCollatorWithPadding
 from transformers import (HfArgumentParser, TrainingArguments, PretrainedConfig,
@@ -105,6 +106,10 @@ def main():
     train_subset,val_subset,dls = train_utils.create_dataloaders(model_type=additional_args.model_name, pruning_method='cofi', max_data=30000, debug=True)
     label_list = list(set(train.labels))
     vocab= {'stoi': train.stoi, 'itos': train.itos}
+
+    if not os.path.exists("../DataLoaders/vocab.json"):
+        with open("../DataLoaders/vocab.json", "w") as f:
+            json.dump(vocab, f, indent=4) 
     
     # Labels
     is_regression=False

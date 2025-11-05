@@ -22,7 +22,7 @@ from torch.cuda.amp import autocast,GradScaler
 from transformers import AutoTokenizer
 from torch.nn.utils.rnn import pad_sequence
 
-
+import json
 def collate_as_dict(batch):
     """
     We don't sort here to take advantage of enforce_sorted=False since we'd
@@ -366,11 +366,13 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
 def serialize(model, model_type, dataset):
     # CORRECTED: The condition now correctly checks if model_type is in the list
     if model_type in ['llama', 'bert']:
+        with open("../DataLoaders/vocab.json", "r") as f:
+            vocab = json.load(f)
         return {
             "encoder_name": model.model_name, 
             "state_dict": model.state_dict(),
-            "stoi": dataset.stoi,
-            "itos": dataset.itos,
+            "stoi": vocab['stoi'],
+            "itos": vocab['itos'],
             # CORRECTED: stoi and itos are no longer needed for transformer models
         }
     # For bowman, we still need the vocab
