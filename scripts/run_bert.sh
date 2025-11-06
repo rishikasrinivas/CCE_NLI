@@ -13,9 +13,9 @@ for i in {3..4}; do
     
 
     #python3 code/pruning_explanation.py \
-        --model_type llama \
+        --model_type bert \
         --pruning_method wanda \
-        --ckpt "LLAMA/models/lottery_ticket/Run0.25_2/0_Pruning_Iter/model_best.pth" \
+        --ckpt "BERT/models/lottery_ticket/Run0.25_2/0_Pruning_Iter/model_best.pth" \
         --filename "Run0.25_2"
 
     python3 code/pruning_explanation.py \

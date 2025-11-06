@@ -20,9 +20,9 @@ for i in {3..4}; do
 
     python3 code/pruning_explanation.py \
         --model_type llama \
-        --pruning_method lottery_ticket \
-        --ckpt "LLAMA/models/lottery_ticket/Run0.25_2/0_Pruning_Iter/model_best.pth" \
-        --filename "Run0.25_$i"
+        --pruning_method wanda \
+        --ckpt "LLAMA/models/wanda/Run0.25_2/0_Pruning_Iter/model_best.pth" \
+        --filename "Run0.25_2"
 
 
    

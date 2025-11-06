@@ -54,7 +54,9 @@ def save_features(
     all_states = []
     os.makedirs(save_activs_dir, exist_ok=True)
     model.eval()
+    
     device='cuda' if torch.cuda.is_available() else 'cpu'
+    model.to(device)
     if model_type in ['bert', 'llama']:
         itos=train.itos
 
