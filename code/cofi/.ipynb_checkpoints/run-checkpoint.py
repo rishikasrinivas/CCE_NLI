@@ -138,7 +138,7 @@ def main():
             use_auth_token=True if model_args.use_auth_token else None,
         )
         if not os.path.exists(os.path.join(training_args.output_dir, 'config.json')):
-            config.save_pretrained(os.path.join(training_args.output_dir, 'config.json'))
+            #config.save_pretrained(os.path.join(training_args.output_dir, 'config.json'))
             print(f"Saved config to ", os.path.join(training_args.output_dir, 'config.json'))
         
         tokenizer = AutoTokenizer.from_pretrained(

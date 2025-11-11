@@ -88,8 +88,12 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
             filepath='cofi'
         else:
             filepath='unstructured'
-        train_cache_path = f'{root_dir}/converted_batches_train_{model_type}_{filepath}.pth' #add _pruningalg
-        val_cache_path = f'{root_dir}/converted_batches_val_{model_type}_{filepath}.pth' #add _pruningalg
+        if debug:
+            train_cache_path = f'{root_dir}/converted_batches_train_{model_type}_{filepath}_debug{max_data}.pth' #add _pruningalg
+            val_cache_path = f'{root_dir}/converted_batches_val_{model_type}_{filepath}_debug{max_data}.pth' #add _pruningalg
+        else:
+            train_cache_path = f'{root_dir}/converted_batches_train_{model_type}_{filepath}.pth' #add _pruningalg
+            val_cache_path = f'{root_dir}/converted_batches_val_{model_type}_{filepath}.pth' #add _pruningalg
 
         if os.path.exists(train_cache_path) and os.path.exists(val_cache_path):
             print(f"✅ Loading pre-converted {model_type} batches from cache...{train_cache_path}")
@@ -105,7 +109,7 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
             itos = train_dataset.itos
             
             # Use a temporary loader to create batches from the base dataset
-            temp_train_loader = DataLoader(train_dataset, batch_size=settings.BATCH_SIZE, shuffle=False, num_workers=4, collate_fn=pad_collate)
+            temp_train_loader = DataLoader(train_dataset, batch_size=settings.BATCH_SIZE, shuffle=False, num_workers=4, collate_fn=pad_collate, drop_last=True)
             converted_train_batches = []
             for batch in tqdm(temp_train_loader, desc="Converting train batches"):
                 s1_pad, _, s2_pad, _, targets = batch
@@ -127,7 +131,7 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
                 
                     converted_train_batches.append(result)
 
-            temp_val_loader = DataLoader(val_dataset, batch_size=settings.BATCH_SIZE, num_workers=4, collate_fn=pad_collate)
+            temp_val_loader = DataLoader(val_dataset, batch_size=settings.BATCH_SIZE, num_workers=4, collate_fn=pad_collate, drop_last=True)
             converted_val_batches = []
             for batch in tqdm(temp_val_loader, desc="Converting val batches"):
                 s1_pad, _, s2_pad, _, targets = batch
@@ -284,6 +288,7 @@ def finetune_pruned_model(model, model_type, pruning_method, optimizer, criterio
     best_model_path = os.path.join(prune_metrics_dir, 'model_best.pth')
     if os.path.exists(best_model_path):
         print(f"Loading best weights from epoch {metrics['best_val_epoch']} with accuracy {metrics['best_val_acc']:.3f}")
+        print(torch.load(best_model_path).keys())
         model.load_state_dict(torch.load(best_model_path)['state_dict'])
 
     return model

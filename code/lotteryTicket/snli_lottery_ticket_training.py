@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 def main(args):
     
     logging.basicConfig(filename='lottery_ticket.log', level=logging.INFO)
-    max_data = 1000 if args.debug else 200
+    max_data = 1000 if args.debug else None
     use_pretrained_weights = not args.untrained_model
     
     logger.info(f"Creating Dataloaders with {max_data}")
@@ -44,12 +44,11 @@ def main(args):
         model_type=args.model_type, 
         train=train, 
         use_pretrained_weights=use_pretrained_weights, 
-        ckpt=args.ckpt, 
-        i=args.i
-        
+        ckpt=None if not os.path.exists(args.pretrained_ckpt) else args.pretrained_ckpt, 
     )
-  
-    base_ckpt = torch.load(ckpt, map_location='cpu')
+    logger.info(f"Using random inits as {ckpt}")
+    base_ckpt = torch.load(args.pretrained_ckpt, map_location='cpu')
+    
 
     # CORRECTED: This block is only relevant for the bowman model.
     # It will raise a KeyError for transformer models otherwise.
@@ -141,6 +140,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         # Finetune the model (it will save the best version)
         #EDIT: Adding baseline_acc as an argument
         if prune_iter > 0:
+            logger.info(f"Finetuning at iteration : {prune_iter}")
             model = train_utils.finetune_pruned_model(
                 model, args.model_type, 'lottery_ticket', optimizer, criterion, dataloaders, 
                 args.finetune_epochs, prune_metrics_dir, baseline_acc, device
@@ -163,7 +163,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         # Prune the model further for the next iteration
         model = pruner.prune() 
         base_ckpt = apply_mask(model, base_ckpt)
-
+        logger.info("Reinitializing from base")
         # Load the pruned initial weights for the next round of training ("rewinding")
         model.load_state_dict(base_ckpt['state_dict']) 
         
@@ -205,6 +205,7 @@ def parse_args():
     parser.add_argument("--log", action='store_true')
     parser.add_argument("--baseline", action='store_true')
     parser.add_argument("--ckpt", default=None, type=str)
+    parser.add_argument("--pretrained_ckpt", default=None, type=str)
     return parser.parse_args()
 
 

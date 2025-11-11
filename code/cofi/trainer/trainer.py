@@ -713,7 +713,7 @@ class CoFiTrainer(Trainer):
 
         #self.model.save_pretrained(output_dir)
         
-        self.config.save_pretrained(os.path.join(output_dir, f"config.json"))
+        self.config.save_pretrained(os.path.join(output_dir))
 
 
         # Assuming 'model' is your PyTorch or Hugging Face model
@@ -950,12 +950,19 @@ class CoFiTrainer(Trainer):
     def finetune_teacher(self,teacher):
         save_teacher_dir= f'0_Pruning_Iter'
         teacher_model_path=os.path.join(self.teacher_model_dir, save_teacher_dir)
+        #Load from safensors (not uniform for all pruning iters though)
+        '''if save_teacher_dir in os.listdir(self.teacher_model_dir) and 'model.safetensors' in os.listdir(teacher_model_path):
+            print(f"Reloading Finetuning SNLI teacher model ")
+            state_dict = load_file(os.path.join(teacher_model_path,'model.safetensors'))
+            self.teacher_model.load_state_dict(state_dict)'''
+            
+        # Load rfrm pth (deal)
         if save_teacher_dir in os.listdir(self.teacher_model_dir) and 'model_best.pth' in  os.listdir(teacher_model_path):
             print(f"Reloading Finetuning SNLI teacher model ")
             print(os.listdir(self.teacher_model_dir))
             
             state_dict = torch.load(os.path.join(teacher_model_path,'model_best.pth'))['state_dict']
-            self.teacher_model.load_state_dict(state_dict)
+            self.teacher_model.load_state_dict(state_dict, strict=False)
             for n,p in self.teacher_model.named_parameters():
                 p.requires_grad = False
             self.store_results(self.teacher_model)
@@ -969,7 +976,7 @@ class CoFiTrainer(Trainer):
         
        
         criterion = nn.CrossEntropyLoss()
-        teacher, _ = train_utils.finetune_pruned_model(model=teacher,model_type=self.model_name, optimizer=self.teacher_optimizer, pruning_method='cofi', criterion=criterion, dataloaders = dataloaders, finetune_epochs=10, prune_metrics_dir=teacher_model_path,device = self.device)
+        teacher = train_utils.finetune_pruned_model(model=teacher,model_type=self.model_name, optimizer=self.teacher_optimizer, pruning_method='cofi', criterion=criterion, dataloaders = dataloaders, finetune_epochs=1, prune_metrics_dir=teacher_model_path,device = self.device)
         weights = teacher.state_dict()
        
         
@@ -978,6 +985,7 @@ class CoFiTrainer(Trainer):
             is_best=True,
             exp_dir=teacher_model_path
         )
+        #teacher.save_pretrained(teacher_model_path)
         return 
     
     
