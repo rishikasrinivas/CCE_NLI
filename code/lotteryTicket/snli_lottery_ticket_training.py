@@ -194,7 +194,7 @@ def parse_args():
     parser.add_argument("--start_idx", default=0, type=int)
     
     
-    parser.add_argument("--max_thresh", default=0.95, type=float)
+    parser.add_argument("--max_thresh", default=0.77, type=float)
     
     parser.add_argument("--embedding_dim", default=300, type=int)
     parser.add_argument("--hidden_dim", default=512, type=int)
