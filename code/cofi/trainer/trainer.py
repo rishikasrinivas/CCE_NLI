@@ -713,8 +713,8 @@ class CoFiTrainer(Trainer):
         torch.save(zs, os.path.join(output_dir, f"zs.pt"))
 
         #self.model.save_pretrained(output_dir)
-        
-        self.config.save_pretrained(os.path.join(output_dir))
+        if self.config:
+            self.config.save_pretrained(os.path.join(output_dir))
 
 
         # Assuming 'model' is your PyTorch or Hugging Face model
