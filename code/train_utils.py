@@ -60,9 +60,12 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
     try:
         print("✅ Loading base SNLI dataset from cache...")
         if debug:
+            print("debug")
+            
             train_dataset = torch.load(f'{root_dir}/train_dataset_debug{max_data}.pth')
             val_dataset = torch.load(f'{root_dir}/val_dataset_debug{max_data}.pth')
         else:
+            print("full")
             train_dataset = torch.load(f'{root_dir}/train_dataset.pth')
             val_dataset = torch.load(f'{root_dir}/val_dataset.pth')
     except:
@@ -306,6 +309,9 @@ def build_model(model_type, vocab, vocab_size=None, pretrained=True, embedding_d
         elif model_type=='bert':
             from cofi_models import modeling_bert
             model = modeling_bert.CoFiBertForSequenceClassification
+        elif model_type=='llama':
+            from cofi_models import modeling_llama
+            model = modeling_bert.CoFiLlamaForSequenceClassification
             
     
     else: 
@@ -347,6 +353,7 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
             print(f"Loading from checkpoint (no zs): {ckpt}")
             ckpt_ = torch.load(ckpt, map_location=torch.device(device))
             model.load_state_dict(ckpt_["state_dict"])
+            
     elif not ckpt:
         # This logic for saving initial weights is fine
         print("Loading pretrained weights")

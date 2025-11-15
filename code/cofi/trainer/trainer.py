@@ -518,6 +518,7 @@ class CoFiTrainer(Trainer):
             delattr(self, "_past")
 
         # wandb.log({'global_step':self.global_step,'training_loss':tr_loss.item() / self.global_step})
+       
         return TrainOutput(self.global_step, tr_loss.item() / self.global_step, None)
     from accelerate.utils import tqdm
     import torch.nn as nn
@@ -986,7 +987,7 @@ class CoFiTrainer(Trainer):
             exp_dir=teacher_model_path
         )
         #teacher.save_pretrained(teacher_model_path)
-        return 
+        return self.teacher_model
     
     
    

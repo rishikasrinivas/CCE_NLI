@@ -21,13 +21,16 @@ def load_model_with_zs(model_path, model, zs=None):
     if 'BOWMAN' in model_path:
         config=None
     else:
-        config=AutoConfig.from_pretrained(os.path.join("/".join(model_path.split("/")[:-1]), "config", "config.json"))
+        #config=AutoConfig.from_pretrained(os.path.join("/".join(model_path.split("/")[:-1]), "config.json"))
+        config=AutoConfig.from_pretrained(os.path.join(model_path, "config.json"))
     model = model.from_pretrained(
-        pretrained_model_name_or_path= os.path.join(model_path), # if llm part of student model is alr trained itll be here otherwise a default model will be loaded and finetuned
+        pretrained_model_name_or_path= os.path.join(model_path, 'model_best.pth'), # if llm part of student model is alr trained itll be here otherwise a default model will be loaded and finetuned
         from_tf=False,
         teacher=True,
         config=config,
     )
+    if zs is None:
+        return model
     '''if "model_best.pth" not in model_path:
         p =  os.path.join(model_path, "model_best.pth")
     else:
@@ -51,7 +54,6 @@ def load_model_with_zs(model_path, model, zs=None):
     return model
 
 def load_model(model_path, model, zs=None):
-    assert zs is not None
     model = load_model_with_zs(model_path, model, zs)
     print(f"Model Size: {calculate_parameters(model)}")
     return model

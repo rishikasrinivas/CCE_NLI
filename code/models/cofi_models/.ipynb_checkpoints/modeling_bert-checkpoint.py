@@ -163,7 +163,7 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
     ):
 
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-   
+    
         outputs_pre = self.bert(
             pre_input_ids,
             attention_mask=pre_attention_mask,

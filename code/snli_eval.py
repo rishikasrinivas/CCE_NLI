@@ -16,14 +16,14 @@ import numpy as np
 from collections import defaultdict
 import spacy
 import pandas as pd
-
+from transformers import AutoConfig, AutoTokenizer
 import settings
 import models
 import util
 import train_utils
 import data.snli
 
-
+from cofi.utils.cofi_utils import load_model
 def predict(model, premise, hypothesis, nlp, stoi, args):
     pre, prelen = tokenize(premise, nlp, stoi)
     hyp, hyplen = tokenize(hypothesis, nlp, stoi)
@@ -87,65 +87,103 @@ def main(args):
     
     train,_,dataloaders=train_utils.create_dataloaders(max_data=10000, model_type=args.model_type, pruning_method=args.pruning_method)
     # ==== BUILD MODEL ====
-    model = train_utils.build_model(vocab_size=len(train.stoi), model_type=args.model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512)
-    
-    
-    
-
-    
-    model.eval()
-
-    if settings.CUDA:
-        model = model.cuda()
+    model = train_utils.build_model(vocab_size=len(train.stoi), model_type=args.model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512, is_cofi=args.pruning_method=='cofi')
+   
     val_loader = dataloaders['val']
     accs = {}
+    
+    def fill_inputs_with_zs(zs, inputs):
+        for key in zs:
+            inputs[key] = zs[key]
+        return inputs
+
     for folder in os.listdir(args.root_dir):
-        torch.cuda.empty_cache()
-        if '.ipy' in folder or not folder[0].isdigit(): continue
-        model.load_state_dict(torch.load(os.path.join(args.root_dir, folder, 'model_best.pth'))['state_dict'])
-        all_preds = []
-        all_targets = []
-        if args.model_type=='bowman':
-            for (s1, s1len, s2, s2len, targets) in val_loader:
-                if settings.CUDA:
-                    s1 = s1.cuda()
-                    s1len = s1len.cuda()
-                    s2 = s2.cuda()
-                    s2len = s2len.cuda()
 
-                with torch.no_grad():
-                    logits = model(s1, s1len, s2, s2len)
-
-                preds = logits.argmax(1)
-
-                all_preds.append(preds.cpu().numpy())
-                all_targets.append(targets.cpu().numpy())
-        else:
-            for s1, s2, targets in val_loader:
-                s1={k:v.cuda() for k,v in s1.items()}
-                s2={k:v.cuda() for k,v in s2.items()}
-
-                with torch.no_grad():
-                    logits = model(s1, s2)
-
-                preds = logits.argmax(1)
-
-                all_preds.append(preds.cpu().numpy())
-                all_targets.append(targets.cpu().numpy())
+        if args.pruning_method == 'cofi':
+            tokenizer = AutoTokenizer.from_pretrained(os.path.join(args.root_dir, folder), trust_remote_code=True)
             
+            if folder == '0_Pruning_Iter':
+                zs=None
+            else:
+                zs=torch.load(os.path.join(args.root_dir, folder,"zs.pt"))
+            pruned_model = load_model(os.path.join(args.root_dir, folder), model, zs)
+            pruned_model.eval()
 
-        all_preds = np.concatenate(all_preds, 0)
-        all_targets = np.concatenate(all_targets, 0)
+            pruned_model.cuda()
+            all_preds = []
+            all_targets = []
 
-        acc = (all_preds == all_targets).mean()
+            # CORRECTED: Added conditional logic for batch handling
+            for batch in dataloaders['val']:
+                if torch.cuda.is_available():
+                    #batch = fill_inputs_with_zs(zs, batch)
+                    batch = {k: v.to('cuda') for k, v in batch.items()}
+                    targets = batch['labels']
 
-        print(f" Val acc: {acc:.3f}")
+
+                batch_size = targets.shape[0]
+
+                with torch.no_grad():
+                    logits = pruned_model(**batch)
+
+                preds = logits[1][2].argmax(1)
+                all_preds.append(preds.cpu().numpy())
+                all_targets.append(targets.cpu().numpy())
+
+            all_preds = np.concatenate(all_preds, 0)
+            all_targets = np.concatenate(all_targets, 0)
+            acc = (all_preds == all_targets).mean()
+            print(np.round(acc, 3))
+        else:
+            torch.cuda.empty_cache()
+            if '.ipy' in folder or not folder[0].isdigit(): continue
+            model.load_state_dict(torch.load(os.path.join(args.root_dir, folder, 'model_best.pth'))['state_dict'])
+            all_preds = []
+            all_targets = []
+            model.eval()
+
+            if settings.CUDA:
+                model = model.cuda()
+            if args.model_type=='bowman':
+                for (s1, s1len, s2, s2len, targets) in val_loader:
+                    if settings.CUDA:
+                        s1 = s1.cuda()
+                        s1len = s1len.cuda()
+                        s2 = s2.cuda()
+                        s2len = s2len.cuda()
+
+                    with torch.no_grad():
+                        logits = model(s1, s1len, s2, s2len)
+
+                    preds = logits.argmax(1)
+
+                    all_preds.append(preds.cpu().numpy())
+                    all_targets.append(targets.cpu().numpy())
+            else:
+                for s1, s2, targets in val_loader:
+                    s1={k:v.cuda() for k,v in s1.items()}
+                    s2={k:v.cuda() for k,v in s2.items()}
+
+                    with torch.no_grad():
+                        logits = model(s1, s2)
+
+                    preds = logits.argmax(1)
+
+                    all_preds.append(preds.cpu().numpy())
+                    all_targets.append(targets.cpu().numpy())
+
+
+            all_preds = np.concatenate(all_preds, 0)
+            all_targets = np.concatenate(all_targets, 0)
+
+            acc = (all_preds == all_targets).mean()
+
+            print(f" Val acc: {acc:.3f}")
         accs[folder]=np.round(acc,3)
     pd.DataFrame({'folder':accs.keys(), 'accs':accs.values()}).to_csv(f"{args.root_dir}/accuracy.csv")
 
 
    
-
 
 
     # ==== INTERACTIVE ====

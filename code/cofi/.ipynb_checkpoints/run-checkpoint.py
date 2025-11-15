@@ -124,7 +124,7 @@ def main():
     
     if model_args.model_name_or_path.startswith("bert"):
         Model = CoFiBertForSequenceClassification 
-    elif model_args.model_name_or_path.startswith('knowledge'):
+    elif model_args.model_name_or_path.startswith('knowledg'):
         Model = CoFiLlamaForSequenceClassification
     # ======= Load the model params ========
     
@@ -319,8 +319,10 @@ def main():
     if training_args.do_train:
         trainer.train()
         
-        trainer.save_model()
-        tokenizer.save_pretrained(training_args.output_dir)
+        if additional_args.target_sparsity > 0:
+            trainer.save_model()
+            tokenizer.save_pretrained(training_args.output_dir)
+       
         print(trainer.evaluate())
 
     
