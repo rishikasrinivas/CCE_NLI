@@ -108,7 +108,7 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
             model_name = "bert-base-uncased" if model_type == 'bert' else "knowledgator/Llama-encoder-1.0B"
             tokenizer = AutoTokenizer.from_pretrained(model_name)
             if tokenizer.pad_token is None:
-                tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+                tokenizer.pad_token  = tokenizer.eos_token 
             itos = train_dataset.itos
             
             # Use a temporary loader to create batches from the base dataset
@@ -311,7 +311,7 @@ def build_model(model_type, vocab, vocab_size=None, pretrained=True, embedding_d
             model = modeling_bert.CoFiBertForSequenceClassification
         elif model_type=='llama':
             from cofi_models import modeling_llama
-            model = modeling_bert.CoFiLlamaForSequenceClassification
+            model = modeling_llama.CoFiLlamaForSequenceClassification
             
     
     else: 
