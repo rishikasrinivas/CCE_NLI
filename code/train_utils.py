@@ -60,12 +60,9 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
     try:
         print("✅ Loading base SNLI dataset from cache...")
         if debug:
-            print("debug")
-            
             train_dataset = torch.load(f'{root_dir}/train_dataset_debug{max_data}.pth')
             val_dataset = torch.load(f'{root_dir}/val_dataset_debug{max_data}.pth')
         else:
-            print("full")
             train_dataset = torch.load(f'{root_dir}/train_dataset.pth')
             val_dataset = torch.load(f'{root_dir}/val_dataset.pth')
     except:
@@ -108,11 +105,11 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
             model_name = "bert-base-uncased" if model_type == 'bert' else "knowledgator/Llama-encoder-1.0B"
             tokenizer = AutoTokenizer.from_pretrained(model_name)
             if tokenizer.pad_token is None:
-                tokenizer.pad_token  = tokenizer.eos_token 
+                tokenizer.add_special_tokens({'pad_token': '[PAD]'})
             itos = train_dataset.itos
             
             # Use a temporary loader to create batches from the base dataset
-            temp_train_loader = DataLoader(train_dataset, batch_size=settings.BATCH_SIZE, shuffle=False, num_workers=4, collate_fn=pad_collate, drop_last=True)
+            temp_train_loader = DataLoader(train_dataset, batch_size=settings.BATCH_SIZE, shuffle=False, num_workers=4, collate_fn=pad_collate)
             converted_train_batches = []
             for batch in tqdm(temp_train_loader, desc="Converting train batches"):
                 s1_pad, _, s2_pad, _, targets = batch
@@ -134,7 +131,7 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
                 
                     converted_train_batches.append(result)
 
-            temp_val_loader = DataLoader(val_dataset, batch_size=settings.BATCH_SIZE, num_workers=4, collate_fn=pad_collate, drop_last=True)
+            temp_val_loader = DataLoader(val_dataset, batch_size=settings.BATCH_SIZE, num_workers=4, collate_fn=pad_collate)
             converted_val_batches = []
             for batch in tqdm(temp_val_loader, desc="Converting val batches"):
                 s1_pad, _, s2_pad, _, targets = batch
@@ -291,7 +288,6 @@ def finetune_pruned_model(model, model_type, pruning_method, optimizer, criterio
     best_model_path = os.path.join(prune_metrics_dir, 'model_best.pth')
     if os.path.exists(best_model_path):
         print(f"Loading best weights from epoch {metrics['best_val_epoch']} with accuracy {metrics['best_val_acc']:.3f}")
-        print(torch.load(best_model_path).keys())
         model.load_state_dict(torch.load(best_model_path)['state_dict'])
 
     return model
@@ -309,9 +305,6 @@ def build_model(model_type, vocab, vocab_size=None, pretrained=True, embedding_d
         elif model_type=='bert':
             from cofi_models import modeling_bert
             model = modeling_bert.CoFiBertForSequenceClassification
-        elif model_type=='llama':
-            from cofi_models import modeling_llama
-            model = modeling_llama.CoFiLlamaForSequenceClassification
             
     
     else: 
@@ -344,7 +337,7 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
         is_cofi=cofi
     )
     
-    if ckpt: #and not cofi
+    if ckpt and os.path.exists(ckpt): #and not cofi
         if zs:
             print(f"Loading zs")
             print(ckpt)
@@ -353,15 +346,16 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
             print(f"Loading from checkpoint (no zs): {ckpt}")
             ckpt_ = torch.load(ckpt, map_location=torch.device(device))
             model.load_state_dict(ckpt_["state_dict"])
-            
-    elif not ckpt:
+    else:
         # This logic for saving initial weights is fine
         print("Loading pretrained weights")
         save_dir_type = "pretrained" if use_pretrained_weights else "untrained"
         save_dir = os.path.join(model_type.upper(), "models", save_dir_type)
         os.makedirs(save_dir, exist_ok=True)
-        filename = f"{model_type}_{i}_{save_dir_type}_inits.pth"
-
+        if not ckpt:
+            filename = f"{model_type}_{i}_{save_dir_type}_inits.pth"
+        else:
+            filename=ckpt.split('/')[-1]
         util.save_checkpoint(
             serialize(model, model_type, train), False, save_dir, filename
         )

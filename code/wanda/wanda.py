@@ -210,8 +210,8 @@ def get_inputs_mlp(model, embedder, args, dataloader, dtype, device):
                 s1, s1l, s2, s2l, _ = batch
                 s1 = s1.to(device)
                 s2 = s2.to(device)
-                s1enc = model.encoder(s1, s1len)
-                s2enc = model.encoder(s2, s2len)
+                s1enc = model.encoder(s1, s1l)
+                s2enc = model.encoder(s2, s2l)
 
             diffs = s1enc - s2enc
             prods = s1enc * s2enc

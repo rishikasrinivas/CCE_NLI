@@ -95,7 +95,8 @@ def main():
 
         #===== Pruning =====
         device = torch.device("cuda:0")
-        wanda.prune_wanda(args, model, 'enc', dataloaders, sparsity_ratio, device)
+        if args.model_type != 'bowman':
+            wanda.prune_wanda(args, model, 'enc', dataloaders, sparsity_ratio, device)
         
         wanda.prune_wanda(args, model, 'mlp', dataloaders, sparsity_ratio, device)
         

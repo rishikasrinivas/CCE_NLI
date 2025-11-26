@@ -25,8 +25,12 @@ logger = logging.getLogger(__name__)
 def main(args):
     
     logging.basicConfig(filename='lottery_ticket.log', level=logging.INFO)
-    max_data = 1000 if args.debug else None
+    max_data = 200 if args.debug else None
     use_pretrained_weights = not args.untrained_model
+    if args.debug:
+        print("IN DEBUG MODE")
+    else:
+        print("IN PROD MODE")
     
     logger.info(f"Creating Dataloaders with {max_data}")
     # CORRECTED: Added model_type to the create_dataloaders call
@@ -44,7 +48,7 @@ def main(args):
         model_type=args.model_type, 
         train=train, 
         use_pretrained_weights=use_pretrained_weights, 
-        ckpt=None if not os.path.exists(args.pretrained_ckpt) else args.pretrained_ckpt, 
+        ckpt=args.pretrained_ckpt, 
     )
     logger.info(f"Using random inits as {ckpt}")
     base_ckpt = torch.load(args.pretrained_ckpt, map_location='cpu')
@@ -139,7 +143,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
 
         # Finetune the model (it will save the best version)
         #EDIT: Adding baseline_acc as an argument
-        if prune_iter > 0:
+        if prune_iter >= 0:
             logger.info(f"Finetuning at iteration : {prune_iter}")
             model = train_utils.finetune_pruned_model(
                 model, args.model_type, 'lottery_ticket', optimizer, criterion, dataloaders, 
@@ -194,7 +198,7 @@ def parse_args():
     parser.add_argument("--start_idx", default=0, type=int)
     
     
-    parser.add_argument("--max_thresh", default=0.77, type=float)
+    parser.add_argument("--max_thresh", default=0.76, type=float)
     
     parser.add_argument("--embedding_dim", default=300, type=int)
     parser.add_argument("--hidden_dim", default=512, type=int)
