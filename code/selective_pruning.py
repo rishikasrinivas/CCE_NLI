@@ -84,7 +84,7 @@ if __name__ == "__main__":
                 'change_in_acc': round(specifically_pruned_model_val_acc-original_val_acc,3)
             }
     
-    CSV_OUTPUT = './code/lottery_ticket_foundational_vs_acc.csv'
+    CSV_OUTPUT = './code/lottery_ticket_foundational_vs_acc_bert.csv'
     with open(CSV_OUTPUT, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["unit", "isFoundational", "acc", "orig_acc", 'change_in_acc'])

@@ -1,8 +1,5 @@
 Model,Experiment,Method,Pruning_Percentage,Total_Concepts,Preserved_Concepts,Preservation_Rate_%
-BOWMAN,exp,lottery_ticket,0.0%Pruned,49,27,55.10204081632652
-BOWMAN,exp,lottery_ticket,25.0%Pruned,68,27,39.705882352941174
-BOWMAN,exp,lottery_ticket,43.75%Pruned,70,27,38.57142857142858
-BOWMAN,exp,lottery_ticket,57.812%Pruned,68,27,39.705882352941174
-BOWMAN,exp,lottery_ticket,68.359%Pruned,79,27,34.177215189873415
-BOWMAN,exp,lottery_ticket,76.27%Pruned,83,27,32.53012048192771
-BOWMAN,exp,lottery_ticket,82.202%Pruned,80,27,33.75
+BERT,exp,lottery_ticket,0.0%Pruned,505,310,61.386138613861384
+BERT,exp,lottery_ticket,25.0%Pruned,507,310,61.1439842209073
+BERT,exp,lottery_ticket,43.75%Pruned,513,310,60.42884990253411
+BERT,exp,lottery_ticket,57.812%Pruned,508,310,61.023622047244096

@@ -845,7 +845,6 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
         is_cofi=is_cofi,
         train=train,
     )
-
     
     
     with open(f"{save_masks_dir}/OrigActivations.pkl",'wb') as f:
@@ -912,9 +911,10 @@ def main():
     else:
         use_pretrained_weights = True
         
-    pruning_method='cofi'
+    pruning_method='wanda'
       
     train,val ,dataloaders=train_utils.create_dataloaders(model_type=args.model_type, max_data=None, pruning_method=pruning_method)
+    zs=None
     if args.pruning_method=='cofi':
         print(f"Loading zs")
         zs_path= 'BERT/models/CoFi/Run0.25/1_Pruning_Iter/zs.pt' #os.path.join(args.model_type.upper(), "models", args.pruning_method, args.filename, '1_Pruning_Iter/zs.pt')
@@ -925,7 +925,7 @@ def main():
     # ==== BUILD VOCAB ====
     print(f"Loading weights from {ckpt}")
     #base_ckpt=torch.load(ckpt) #trained bowman/bert 
-    base_ckpt=torch.load("BERT/models/lottery_ticket/Run0.25/0_Pruning_Iter/model_best.pth")
+    base_ckpt=torch.load("BERT/models/lottery_ticket/Run0.25_3/0_Pruning_Iter/model_best.pth")
     vocab = {"itos": train.itos, "stoi": train.stoi}
 
     with open(settings.DATA, "r") as f:

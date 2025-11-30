@@ -25,6 +25,6 @@ for i in {5..5}; do
     python3 code/pruning_explanation.py \
         --model_type bowman \
         --pruning_method lottery_ticket \
-        --ckpt "BOWMAN/models/lottery_ticket/Run0.25_$i/0_Pruning_Iter/model_best.pth" \
-        --filename "Run0.25_$i"
+        --ckpt "BOWMAN/models/lottery_ticket/Run0.25_5/0_Pruning_Iter/model_best.pth" \
+        --filename "Run0.25_5"
 done
