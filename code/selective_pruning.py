@@ -47,11 +47,11 @@ def parse_args():
         help="Data to eval interactively (pairs of sentences); use - for stdin",
     )
    
-    parser.add_argument("--ckpt", default="BOWMAN/models/lottery_ticket/Run0.25/0_Pruning_Iter/model_best.pth")
-    parser.add_argument("--model_type", default="bowman", choices=["bowman", "bert", "llama"])
-    parser.add_argument("--pruning_method", default="bowman", choices=["lottery_ticket", "wanda", "cofi"])
+    parser.add_argument("--ckpt", default="BERT/models/lottery_ticket/Run0.25_3/0_Pruning_Iter/model_best.pth")
+    parser.add_argument("--model_type", default="bert", choices=["bowman", "bert", "llama"])
+    parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "cofi"])
     return parser.parse_args()
-
+pruning neurons absed on top 5 foundational concepts
 
 if __name__ == "__main__":
     args = parse_args()
@@ -64,8 +64,8 @@ if __name__ == "__main__":
     original_val_acc = train_utils.run_eval(model, val_loader, args.model_type, args.pruning_method)
     print(f"Original Accuracy (Pruning out Nothing) | Accuracy = {original_val_acc}")
     for c in range(1,4):
-        for unit in pd.read_csv(f'BOWMAN/exp/lottery_ticket/Run0.25_4/Expls/68.359%Pruned/Cluster{c}IOUS1024N.csv')['unit']:
-            is_found = unit in [330, 492, 1010, 308]
+        for unit in pd.read_csv(f'BERT/exp/lottery_ticket/Run0.25_3/Expls/68.359%Pruned/Cluster{c}IOUS1024N.csv')['unit']:
+            is_found = unit not in [330, 492, 1010, 308]
 
             specifically_pruned_model = prune_neurons(model, args.ckpt, neurons_to_prune=[unit])
             specifically_pruned_model.eval()

@@ -968,16 +968,17 @@ class CoFiTrainer(Trainer):
                 p.requires_grad = False
             self.store_results(self.teacher_model)
             return self.teacher_model
+        
         os.makedirs(teacher_model_path , exist_ok=True)
         #use full data just for training teacher model
         dataloaders = {
             'train': self.full_train_dataloader,
             'val':self.full_eval_dataloader,
         }
-        
+        print(f"training using full loaders", len(self.full_train_dataloader.dataset))
        
         criterion = nn.CrossEntropyLoss()
-        teacher = train_utils.finetune_pruned_model(model=teacher,model_type=self.model_name, optimizer=self.teacher_optimizer, pruning_method='cofi', criterion=criterion, dataloaders = dataloaders, finetune_epochs=1, prune_metrics_dir=teacher_model_path,device = self.device)
+        teacher = train_utils.finetune_pruned_model(model=teacher,model_type=self.model_name, optimizer=self.teacher_optimizer, pruning_method='cofi', criterion=criterion, dataloaders = dataloaders, finetune_epochs=5, prune_metrics_dir=teacher_model_path,device = self.device)
         weights = teacher.state_dict()
        
         

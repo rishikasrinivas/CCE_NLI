@@ -2,7 +2,7 @@
 python -c "import os; print(os.path.abspath('analyze.py'))"
 
 
-for i in {3..5}; do
+for i in {4..5}; do
     if [[ $i -eq 3 ]]; then
         python3 code/lotteryTicket/snli_lottery_ticket_training.py \
             --model_type bert \
@@ -13,7 +13,7 @@ for i in {3..5}; do
     else
         python3 code/lotteryTicket/snli_lottery_ticket_training.py \
             --model_type bert \
-            --filename "Run0.25_5_off" \
+            --filename "Run0.25_$i" \
             --finetune_epochs 3 \
             --restart_from_ckpt "BERT/models/lottery_ticket/Run0.25_3/0_Pruning_Iter/model_best.pth" \
             --start_idx 1 \

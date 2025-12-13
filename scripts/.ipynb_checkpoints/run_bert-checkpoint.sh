@@ -2,7 +2,7 @@
 python -c "import os; print(os.path.abspath('analyze.py'))"
 
 
-for i in {3..5}; do
+for i in {4..5}; do
     if [[ $i -eq 3 ]]; then
         python3 code/lotteryTicket/snli_lottery_ticket_training.py \
             --model_type bert \
