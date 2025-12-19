@@ -17,7 +17,7 @@ def initialize_layer_transformation(model):
         torch.eye(len(model.layer_transformation.weight)))
     model.layer_transformation.bias.data.fill_(0)
 
-def load_model_with_zs(model_path, model, zs=None):
+def load_model_with_zs(model_path, model, zs=None, encoder=None, **kwargs):
     if 'BOWMAN' in model_path:
         config=None
     else:
@@ -28,6 +28,8 @@ def load_model_with_zs(model_path, model, zs=None):
         from_tf=False,
         teacher=True,
         config=config,
+        encoder=encoder,
+        **kwargs,
     )
     if zs is None:
         return model
@@ -53,8 +55,8 @@ def load_model_with_zs(model_path, model, zs=None):
     print(f"Model Size after pruning: {calculate_parameters(model)}")
     return model
 
-def load_model(model_path, model, zs=None):
-    model = load_model_with_zs(model_path, model, zs)
+def load_model(model_path, model, zs=None, encoder=None, **kwargs):
+    model = load_model_with_zs(model_path, model, zs, encoder, **kwargs)
     print(f"Model Size: {calculate_parameters(model)}")
     return model
 

@@ -176,6 +176,9 @@ class CoFiTrainer(Trainer):
 
         Trainer.__init__(self, model, args, data_collator, subset_train_dataset , subset_val_dataset, tokenizer, model_init, compute_metrics=compute_metrics, **kwargs)
         self.num_workers = 4
+        self.model=model
+        
+        
         self.dataset=dataset
         self.additional_args = additional_args
         self.finetuned_teacher = False
@@ -201,7 +204,15 @@ class CoFiTrainer(Trainer):
         self.teacher_model = teacher_model
         if self.teacher_model is not None:
             self.teacher_model = self.teacher_model.to(self.args.device)
-
+        print("BEFORE ENTERING CODE===="*80)
+        for n,p in self.model.named_parameters():
+            if n=='encoder.rnn.weight_ih_l0':
+                print("student ", n,p)
+        for n,p in self.teacher_model.named_parameters():
+            if n=='encoder.rnn.weight_ih_l0':
+                print("student ", n,p)
+        print("===="*80)
+            
         log_level = args.get_process_log_level()
         logging.set_verbosity(log_level)
         logger.setLevel(log_level)
@@ -254,7 +265,7 @@ class CoFiTrainer(Trainer):
                 ]
           
                 if self.model_name != 'bowman':
-                    self.teacher_optimizer = AdamW(self.teacher_model.parameters(),  lr=2e-5, eps=1e-8)  # AdamW optimizer is recommended for BERTAdamW(
+                    self.teacher_optimizer = AdamW(self.teacher_model.parameters(),  lr=2e-6, eps=1e-8)  # AdamW optimizer is recommended for BERTAdamW(
                 else:
                     self.teacher_optimizer = optim.Adam(self.teacher_model.parameters())
                 log_params(teacher_main_model_params, "teacher main params")
@@ -293,6 +304,8 @@ class CoFiTrainer(Trainer):
                 )
             else:
                 self.lr_scheduler = None
+                
+
     
     def train(self):
         
@@ -370,6 +383,15 @@ class CoFiTrainer(Trainer):
 
         #Train the teacher model first
         if not self.finetuned_teacher:
+            print("===="*80)
+            for n,p in self.model.named_parameters():
+                if n=='encoder.rnn.weight_ih_l0':
+                    print("student ", n,p)
+            for n,p in self.teacher_model.named_parameters():
+                if n=='encoder.rnn.weight_ih_l0':
+                    print("student ", n,p)
+            print("===="*80)
+            
             self.teacher_model = self.finetune_teacher(self.teacher_model)
             self.finetuned_teacher = True
 
@@ -560,12 +582,10 @@ class CoFiTrainer(Trainer):
 
         zs = None
         if self.start_prune:
-            print("Starting prune!")
             self.l0_module.eval()
             zs = self.l0_module.forward(training=False)
         
         if zs is not None:
-            print(f"GETTING SIZE")
             pruned_model_size_info = self.l0_module.calculate_model_size(zs)
 
     
@@ -688,38 +708,42 @@ class CoFiTrainer(Trainer):
             self.pruned_sparsity= output.metrics['pruned_model_sparsity']
             print(f"======{self.pruned_sparsity >= self.additional_args.target_sparsity}========")
             if self.pruned_sparsity >= self.additional_args.target_sparsity:
-                print("Pruning status ", output.metrics)
+                
                 best_so_far = self.eval_counter.update(self.epoch, self.global_step, eval_score)
-                if eval_score == best_so_far:
-                    best_dir = os.path.join(self.args.output_dir, "best")
+                print(f"Best so far: {best_so_far}, eval: {eval_score}")
+                if best_so_far:
+                    print("SAVING MODEL"
 
-                    if not os.path.exists(best_dir):
-                        os.makedirs(best_dir)
-
-                    if self.l0_module is not None:
-                        zs = self.l0_module.forward(training=False)
-                        torch.save(zs, os.path.join(best_dir, f"zs.pt"))
-                        torch.save(self.l0_module, os.path.join(
-                            best_dir, f"l0_module.pt"))
+                    
+                    
                     logger.warning(f"Saving the best model so far: [Epoch {int(self.epoch)} | Step: {self.global_step} | Model size: {output.metrics['remaining_params'] if 'remaining_params' in output.metrics else 'Full' } | Score: {round(eval_score, 5)}]")
-                    self.model.save_pretrained(best_dir)
+                    self.save_model(self.model, self.args.output_dir)
         return output.metrics
 
-    def save_model(self, output_dir: Optional[str] = None):
+    def save_model(self, model, output_dir: Optional[str] = None):
+        print("SAVING MODEL")
         output_dir = output_dir if output_dir is not None else self.args.output_dir
-        torch.save(self.l0_module, os.path.join(output_dir, f"l0_module.pt"))
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
 
-        zs = self.l0_module.forward(training=False)
-        torch.save(zs, os.path.join(output_dir, f"zs.pt"))
+        #torch.save(self.l0_module, os.path.join(output_dir, f"l0_module.pt"))
+
+        #zs = self.l0_module.forward(training=False)
+        #torch.save(zs, os.path.join(output_dir, f"zs.pt"))
 
         #self.model.save_pretrained(output_dir)
+        if self.l0_module is not None:
+                        zs = self.l0_module.forward(training=False)
+                        torch.save(zs, os.path.join(output_dir, f"zs.pt"))
+                        torch.save(self.l0_module, os.path.join(
+                            output_dir, f"l0_module.pt"))
         if self.config:
             self.config.save_pretrained(os.path.join(output_dir))
 
 
         # Assuming 'model' is your PyTorch or Hugging Face model
         util.save_checkpoint(
-            train_utils.serialize(self.model, self.model_name, self.dataset),
+            train_utils.serialize(model, self.model_name, self.dataset),
             is_best=True,
             exp_dir=output_dir,
         )
@@ -771,14 +795,16 @@ class CoFiTrainer(Trainer):
                 for layer_num, (t_layer_o, s_layer_o) in enumerate(zip(teacher_pre_layer_output, student_pre_layer_output)):
                     s_layer_o = self.model.layer_transformation(s_layer_o)
                     l = mse_loss(normalize(t_layer_o), normalize(s_layer_o))
-                    if mlp_z is None or mlp_z[layer_num] > 0:
-                        layer_loss += l
+                    if l==0:
+                        print("Sam outputs")
+                    #if mlp_z is None or mlp_z[layer_num] > 0:
+                    layer_loss += l
                 for layer_num, (t_layer_o, s_layer_o) in enumerate(zip(teacher_hyp_layer_output, student_hyp_layer_output)):
                     s_layer_o = self.model.layer_transformation(s_layer_o)
                     l = mse_loss(normalize(t_layer_o), normalize(s_layer_o))
-                    if mlp_z is None or mlp_z[layer_num] > 0:
-                        layer_loss += l
-               
+                    #if mlp_z is None or mlp_z[layer_num] > 0:
+                    layer_loss += l
+          
             # distilling layers with a minimal distance
             elif self.additional_args.layer_distill_version > 2:
                 l = []
@@ -960,6 +986,7 @@ class CoFiTrainer(Trainer):
         # Load rfrm pth (deal)
         if save_teacher_dir in os.listdir(self.teacher_model_dir) and 'model_best.pth' in  os.listdir(teacher_model_path):
             print(f"Reloading Finetuning SNLI teacher model ")
+            print(f"Loading from {teacher_model_path}")
             print(os.listdir(self.teacher_model_dir))
             
             state_dict = torch.load(os.path.join(teacher_model_path,'model_best.pth'))['state_dict']
@@ -967,6 +994,10 @@ class CoFiTrainer(Trainer):
             for n,p in self.teacher_model.named_parameters():
                 p.requires_grad = False
             self.store_results(self.teacher_model)
+            
+             
+            for (n,ns), (t,nt) in zip(self.model.named_parameters(), self.teacher_model.named_parameters()):
+                print(n,ns,nt)
             return self.teacher_model
         
         os.makedirs(teacher_model_path , exist_ok=True)
@@ -978,16 +1009,23 @@ class CoFiTrainer(Trainer):
         print(f"training using full loaders", len(self.full_train_dataloader.dataset))
        
         criterion = nn.CrossEntropyLoss()
-        teacher = train_utils.finetune_pruned_model(model=teacher,model_type=self.model_name, optimizer=self.teacher_optimizer, pruning_method='cofi', criterion=criterion, dataloaders = dataloaders, finetune_epochs=5, prune_metrics_dir=teacher_model_path,device = self.device)
+        
+        self.teacher_model = train_utils.finetune_pruned_model(model=teacher,model_type=self.model_name, optimizer=self.teacher_optimizer, pruning_method='cofi', criterion=criterion, dataloaders = dataloaders, finetune_epochs=6, prune_metrics_dir=teacher_model_path,device = self.device)
         weights = teacher.state_dict()
        
         
         util.save_checkpoint(
-            train_utils.serialize(teacher, self.model_name, self.dataset),
+            train_utils.serialize(self.teacher_model, self.model_name, self.dataset),
             is_best=True,
             exp_dir=teacher_model_path
         )
-        #teacher.save_pretrained(teacher_model_path)
+        
+        print(f"Saving to {teacher_model_path}")
+        for (n,ns), (t,nt) in zip(self.model.named_parameters(), self.teacher_model.named_parameters()):
+
+            if torch.equal(ns,nt):
+                print(f"Layers {n}, {t} are the same")
+        self.save_model(self.teacher_model, teacher_model_path)
         return self.teacher_model
     
     
@@ -1022,9 +1060,9 @@ class CoFiTrainer(Trainer):
           
             self.shortens_inputs(inputs)
             
-            student_outputs = model(**inputs) #! get the two outputs
+            student_outputs = self.model(**inputs) #! get the two outputs
      
-
+            
             zs = {key: inputs[key] for key in inputs if "_z" in key} #! extract the zs: keys are 'pre_input_ids', 'pre_attention_mask', 'hyp_input_ids', 'hyp_attention_mask', 'labels', 'head_z', 'intermediate_z', 'hidden_z', 'mlp_z', 'head_layer_z'
             distill_loss, distill_ce_loss, loss = self.calculate_distillation_loss(
                 teacher_outputs, student_outputs, zs)

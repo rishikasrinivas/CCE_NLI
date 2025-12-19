@@ -100,13 +100,18 @@ def main(args):
     for folder in os.listdir(args.root_dir):
 
         if args.pruning_method == 'cofi':
-            tokenizer = AutoTokenizer.from_pretrained(os.path.join(args.root_dir, folder), trust_remote_code=True)
+            if args.model_type in ['bert', 'llama']:
+                tokenizer = AutoTokenizer.from_pretrained(os.path.join(args.root_dir, folder), trust_remote_code=True)
+            else:
+                tokenizer = model.encoder
+                
             
             if folder == '0_Pruning_Iter':
                 zs=None
             else:
-                zs=torch.load(os.path.join(args.root_dir, folder,"zs.pt"))
-            pruned_model = load_model(os.path.join(args.root_dir, folder), model, zs)
+                zs=torch.load(os.path.join(args.root_dir, folder,"best/zs.pt"))
+                
+            pruned_model = load_model(os.path.join(args.root_dir, folder), model, zs,tokenizer, train_data=train, ckpt=os.path.join(args.root_dir, folder, 'best/model_best.pth'))
             pruned_model.eval()
 
             pruned_model.cuda()
@@ -117,6 +122,7 @@ def main(args):
             for batch in dataloaders['val']:
                 if torch.cuda.is_available():
                     #batch = fill_inputs_with_zs(zs, batch)
+                    
                     batch = {k: v.to('cuda') for k, v in batch.items()}
                     targets = batch['labels']
 
@@ -205,7 +211,7 @@ def parse_args():
     parser.add_argument("--root_dir", default="/workspace/CCE_NLI/BOWMAN/models/lottery_ticket/Run0.25/")
     parser.add_argument("--ckpt", default="BOWMAN/models/lottery_ticket/Run0.25/0_Pruning_Iter/model_best.pth")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "bert", "llama"])
-    parser.add_argument("--pruning_method", default="bowman", choices=["lottery_ticket", "wanda", "cofi"])
+    parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "cofi"])
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--eval_data_path", default="data/snli_1.0/")
     parser.add_argument("--cuda", action="store_true")
@@ -216,4 +222,3 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     main(args)
-    

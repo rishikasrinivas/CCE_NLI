@@ -181,7 +181,7 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
     from contextlib import nullcontext # Make sure this is imported
     torch.cuda.empty_cache()
     training = split == "train"
-    
+    model.to(device)
     if training:
         # CORRECTED: Disable autocast for this test
         ctx = autocast
@@ -200,7 +200,14 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=num_training_steps)
     loss_meter = util.AverageMeter()
     acc_meter = util.AverageMeter()
+    if split == 'train':
+        weight_at_start = model.encoder.rnn.weight_ih_l0[0, 0].item()
+        print(f"\n{'='*60}")
+        print(f"EPOCH {epoch} START - RNN weight[0,0]: {weight_at_start:.10f}")
+        print(f"{'='*60}")
+
     for batch in ranger:
+       
         if pruning_method != 'cofi':
             if model_type in ['bert', 'llama']: 
                 s1_batch, s2_batch, targets = batch
@@ -223,7 +230,8 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
                     logits = model(s1, s1len, s2, s2len)
                     loss = criterion(logits, targets)
         else:
-           
+            
+            
             if torch.cuda.is_available():
                 batch = {k: v.to(device) for k, v in batch.items()}
                 targets = batch['labels']
@@ -237,13 +245,16 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
             
             # CORRECTED: Use standard loss.backward()
             loss.backward()
-            
+         
             if hasattr(model, 'layers'):
                 for layer in model.layers:
                     if hasattr(layer.weights, 'grad') and layer.weights.grad is not None:
                         layer.weights.grad *= layer.pruning_mask.to(device)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            
+         
+            if model_type in ['bert', 'llama']:
+             
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+           
             # CORRECTED: Use standard optimizer.step()
             optimizer.step()
             
@@ -255,6 +266,15 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
         loss_meter.update(loss.item(), batch_size)
         acc_meter.update(acc.item(), batch_size)
         ranger.set_description(f"{split} epoch {epoch} loss {loss_meter.avg:.3f} acc {acc_meter.avg:.3f}")
+    if training:
+        weight_at_end = model.encoder.rnn.weight_ih_l0[0, 0].item()
+        change = abs(weight_at_end - weight_at_start)
+        print(f"\n{'='*60}")
+        print(f"EPOCH {epoch} END - RNN weight[0,0]: {weight_at_end:.10f}")
+        print(f"Change this epoch: {change:.6f}")
+        print(f"{'='*60}")
+    
+    return {"loss": loss_meter.avg, "acc": acc_meter.avg}
     return {"loss": loss_meter.avg, "acc": acc_meter.avg}
 def finetune_pruned_model(model, model_type, pruning_method, optimizer, criterion, dataloaders, finetune_epochs, prune_metrics_dir, baseline_acc=-1.0, device='cuda'):
     """
@@ -299,8 +319,9 @@ def build_model(model_type, vocab, vocab_size=None, pretrained=True, embedding_d
     """
     if is_cofi:
         if model_type=='bowman':
-            tokenizer = TextEncoder(len(vocab['stoi']))
-            model = cofi_models.modeling_bowman.CoFiBowmanEntailmentClassifier(tokenizer, 'cuda')
+            from cofi_models import modeling_bowman
+            tokenizer = modeling_bowman.TextEncoder(len(vocab['stoi']))
+            model = modeling_bowman.CoFiBowmanEntailmentClassifier(tokenizer, 'cuda')
 
         elif model_type=='bert':
             from cofi_models import modeling_bert
@@ -345,7 +366,7 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
         else:
             print(f"Loading from checkpoint (no zs): {ckpt}")
             ckpt_ = torch.load(ckpt, map_location=torch.device(device))
-            model.load_state_dict(ckpt_["state_dict"])
+            model.load_state_dict(ckpt_["state_dict"], strict=False)
     else:
         # This logic for saving initial weights is fine
         print("Loading pretrained weights")

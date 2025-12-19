@@ -123,9 +123,11 @@ def main():
     config=None
     
     if model_args.model_name_or_path.startswith("bert"):
-        Model = CoFiBertForSequenceClassification 
+        Teach_Model = CoFiBertForSequenceClassification 
+        Student_Model = CoFiBertForSequenceClassification 
     elif model_args.model_name_or_path.startswith('knowledg'):
-        Model = CoFiLlamaForSequenceClassification
+        Teach_Model = CoFiLlamaForSequenceClassification
+        Student_Model = CoFiLlamaForSequenceClassification
     # ======= Load the model params ========
     
     if additional_args.model_name in ['bert', 'llama']:
@@ -157,7 +159,7 @@ def main():
             config.output_hidden_states = True
             
         if additional_args.do_distill:
-            teacher_model = Model.from_pretrained(
+            teacher_model = Teach_Model.from_pretrained(
                 pretrained_model_name_or_path=f"fine_tuned_teacher_snli_{additional_args.model_name}/model.safetensors", #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
                 train_data=train,
                 max_data=max_data,
@@ -169,27 +171,34 @@ def main():
             config.do_layer_distill = additional_args.do_layer_distill #! True
             
     else:
-        tokenizer = TextEncoder(len(vocab['stoi']))
-        Model = CoFiBowmanEntailmentClassifier(tokenizer, training_args.device)
-        teacher_model = Model.from_pretrained(
-                pretrained_model_name_or_path=f"fine_tuned_teacher_snli_{additional_args.model_name}/model.safetensors", #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
+        tokenizer_teacher = TextEncoder(len(vocab['stoi']))
+        tokenizer= TextEncoder(len(vocab['stoi']))
+        Teach_Model = CoFiBowmanEntailmentClassifier(tokenizer_teacher, training_args.device)
+        Student_Model = CoFiBowmanEntailmentClassifier(tokenizer, training_args.device)
+        teacher_model = Teach_Model.from_pretrained(
+                pretrained_model_name_or_path="/workspace/CCE_NLI/BOWMAN/models/CoFi/Run0.25/0_Pruning_Iter/model_best.pth", #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
                 train_data=train,
             
                 ckpt=data_args.path_to_pretrained if os.path.exists(data_args.path_to_pretrained) else None,
                 max_data=max_data,
                 teacher=True,
-                encoder=tokenizer,
+                encoder=tokenizer_teacher,
 
             )
     if teacher_model:
+        print("===="*80)
+        for n,p in teacher_model.named_parameters():
+            if n=='encoder.rnn.weight_ih_l0':
+                print("teach ", n,p)
+        print("===="*80)
         teacher_model.eval()
         
  
    
     
     #load an untrained student model which we need to initially finetune before pruning
-    model = Model.from_pretrained(
-        pretrained_model_name_or_path= os.path.join(training_args.output_dir, "model.safetensors"), # if llm part of student model is alr trained itll be here otherwise a default model will be loaded and finetuned
+    student_model = Student_Model.from_pretrained(
+        pretrained_model_name_or_path= None,#os.path.join(training_args.output_dir, "model.safetensors"), # if llm part of student model is alr trained itll be here otherwise a default model will be loaded and finetuned
         from_tf=bool(".ckpt" in model_args.model_name_or_path),
         teacher=False,
         config=config,
@@ -204,29 +213,29 @@ def main():
         
         
     ) #! inside the function, we get the original struct  #! CofiBertForSequenceClassification
-    
+   
     LABEL_STOI = {"entailment": 0, "neutral": 1, "contradiction": 2}
     LABEL_ITOS = {v: k for k, v in LABEL_STOI.items()}
     if config:
-        model.config.label2id = {f"LABEL_{i}":i for i in range(num_labels)}
+        student_model.config.label2id = {f"LABEL_{i}":i for i in range(num_labels)}
          # Some models have set the order of the labels to use, so let's make sure we do use it.
-        model.config.id2label = LABEL_ITOS
-        model.config.label2id = LABEL_STOI
+        student_model.config.id2label = LABEL_ITOS
+        student_model.config.label2id = LABEL_STOI
     label_to_id = LABEL_STOI
     # initialize the layer transformation matrix to be an identity matrix
     if additional_args.do_layer_distill:
-        initialize_layer_transformation(model)
+        pass #initialize_layer_transformation(model)
 
-    logger.info(model)
-    logger.info(f"Model size: {calculate_parameters(model)}")
+    #logger.info(model)
+    logger.info(f"Model size: {calculate_parameters(student_model)}")
 
     zs = None
     
     if additional_args.pretrained_pruned_model is not None:
-        zs = load_zs(additional_args.pretrained_pruned_model)
-        model = load_model(additional_args.pretrained_pruned_model, Model, zs)
+        #zs = load_zs(additional_args.pretrained_pruned_model)
+        #model = load_model(additional_args.pretrained_pruned_model, Model, zs)
         print(
-            f"Model Size after pruning: {calculate_parameters(model)}")
+            f"Model Size after pruning: {calculate_parameters(student_model)}")
 
     l0_module = None
     if additional_args.pruning_type is not None:
@@ -297,9 +306,11 @@ def main():
         f"************* {len(val)} Evaluation Examples Loaded *************")
 
     #model.load_state_dict(load_file("/workspace/CoFiPruning/out/MNLI/CoFi/MNLI_sparsity0.95/model.safetensors"))
+   
+
     trainer = CoFiTrainer(
         model_name = additional_args.model_name,
-        model=model,
+        model=student_model,
         dataset=train,
         config=config,
         args=training_args,
@@ -320,7 +331,7 @@ def main():
         trainer.train()
         
         if additional_args.target_sparsity > 0:
-            trainer.save_model()
+            #trainer.save_model()
             tokenizer.save_pretrained(training_args.output_dir)
        
         print(trainer.evaluate())
