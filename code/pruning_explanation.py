@@ -60,10 +60,10 @@ def main(args):
     
     
     zs=None
-    if args.pruning_method == 'cofi':
+    '''if args.pruning_method == 'cofi':
         logger.info(f"Loading zs for {args.pruning_method}")
         zs_path= os.path.join(args.model_type.upper(), "models", args.pruning_method, args.filename, '0_Pruning_Iter/zs.pt')
-        zs = torch.load(zs_path)
+        zs = torch.load(zs_path)'''
     model,ckpt = train_utils.load_model(model_type=args.model_type, pruning_method=args.pruning_method, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=ckpt, device=device, zs=zs)
     
     # ==== BUILD VOCAB ====
@@ -101,7 +101,7 @@ def parse_args():
     
     parser.add_argument("--untrained_model", action="store_true", default=False)  # If `--untrained_model` is used, set to True 
     
-    parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "cofi"])
+    parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "CoFi"])
     parser.add_argument("--save_every", default=1, type=int)
     parser.add_argument("--max_thresh", default=99, type=float)
     
