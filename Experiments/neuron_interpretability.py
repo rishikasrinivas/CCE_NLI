@@ -171,7 +171,7 @@ def run_eval(model, val_loader, model_type, pruning_method, neuron_range_mapping
                 with torch.no_grad():
                     logits = model(s1_batch, s2_batch)
                     final_layer_logits = model.get_final_reprs(s1_batch, s2_batch) #8,1024
-                    np.save('my_array.npy', final_layer_logits.cpu().numpy())
+                    
                     exit(1)
               
             else: # Bowman path
@@ -182,7 +182,8 @@ def run_eval(model, val_loader, model_type, pruning_method, neuron_range_mapping
 
                 with torch.no_grad():
                     final_layer_logits = model.get_final_reprs(s1, s1len, s2, s2len)
-                    
+                    torch.save(final_layer_logits,'/workspace/CCE_NLI/BOWMAN/activations/lottery_ticket/Run0.25_3/0_Pruning_Iter/my_array.pth')
+                    exit(1)
                     logits = model(s1, s1len, s2, s2len)
             
         
@@ -249,7 +250,7 @@ def parse_args():
     parser.add_argument("--ckpt", default="BERT/models/lottery_ticket/Run0.25_3/0_Pruning_Iter/model_best.pth")
     parser.add_argument("--model_type", default="bert", choices=["bowman", "bert", "llama"])
     parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "cofi"])
-    parser.add_argument("--base_exp_dir", default="/workspace/CCE_NLI/BERT/exp/lottery_ticket/Run0.25_3/Expls/0.0%Pruned/", choices=["lottery_ticket", "wanda", "cofi"],)
+    parser.add_argument("--base_exp_dir", default="/workspace/CCE_NLI/BERT/exp/lottery_ticket/Run0.25_3/Expls/0.0%Pruned/")
     return parser.parse_args()
 
 
@@ -292,7 +293,7 @@ if __name__ == "__main__":
             
         
     
-    
+
 
 
 

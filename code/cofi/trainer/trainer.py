@@ -712,7 +712,7 @@ class CoFiTrainer(Trainer):
                 best_so_far = self.eval_counter.update(self.epoch, self.global_step, eval_score)
                 print(f"Best so far: {best_so_far}, eval: {eval_score}")
                 if best_so_far:
-                    print("SAVING MODEL"
+                    print("SAVING MODEL")
 
                     
                     
@@ -1010,7 +1010,7 @@ class CoFiTrainer(Trainer):
        
         criterion = nn.CrossEntropyLoss()
         
-        self.teacher_model = train_utils.finetune_pruned_model(model=teacher,model_type=self.model_name, optimizer=self.teacher_optimizer, pruning_method='cofi', criterion=criterion, dataloaders = dataloaders, finetune_epochs=6, prune_metrics_dir=teacher_model_path,device = self.device)
+        self.teacher_model = train_utils.finetune_pruned_model(model=teacher,model_type=self.model_name, optimizer=self.teacher_optimizer, pruning_method='cofi', criterion=criterion, dataloaders = dataloaders, finetune_epochs=5, prune_metrics_dir=teacher_model_path,device = self.device)
         weights = teacher.state_dict()
        
         
