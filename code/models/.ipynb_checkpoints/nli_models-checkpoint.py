@@ -260,7 +260,6 @@ class LLAMAEntailmentClassifier(BaseModel):
         self.encoder = LlamaBiModel.from_pretrained(encoder_name)
         self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
         self.tokenizer.model_max_length = 512
-        self.model_name='llama'
         
         if "pad_token" not in self.tokenizer.special_tokens_map:
             num_new_tokens = self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
@@ -325,11 +324,11 @@ class LLAMAEntailmentClassifier(BaseModel):
         return super().to(device)
 
 class BertEntailmentClassifier(BaseModel):
-    def __init__(self, vocab, encoder_name="bert-base-uncased", pretrained=True, freeze_bert=False, device='cuda'):
+    def __init__(self, encoder_name="bert-base-uncased", pretrained=True, freeze_bert=False, device='cuda'):
         super().__init__()
         self.encoder_name = encoder_name
         self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
-        self.model_name='bert'
+        
         if pretrained:
             self.encoder = AutoModel.from_pretrained(encoder_name)
         else:
@@ -350,7 +349,6 @@ class BertEntailmentClassifier(BaseModel):
             nn.Dropout(0.1),
             nn.Linear(1024, 3),
         )
-        self.vocab=vocab
         self.output_dim = 3
         self.initialize(device)
 
@@ -395,7 +393,6 @@ class BertEntailmentClassifier(BaseModel):
         return super().to(device)
     
 
-
 class BowmanEntailmentClassifier(BaseModel):
     """
     The RNN-based entailment model of Bowman et al 2017
@@ -403,7 +400,7 @@ class BowmanEntailmentClassifier(BaseModel):
 
     def __init__(self, encoder, device):
         super().__init__()
-        self.model_name='bowman'
+
         self.encoder = encoder
         self.encoder_dim = encoder.output_dim
         self.mlp_input_dim = self.encoder_dim * 4

@@ -23,6 +23,7 @@ class AdditionalArguments():
             "help": "Testing additional arguments."
         },
     )
+    
     model_name: str = field(default='llama', metadata={"help": "Model being pruned."})
     ex_name: str = field(default="test", metadata={"help": "Name of experiment. Base directory of output dir."})
     pruning_type: str = field(default=None, metadata={"help": "Type of pruning"})
@@ -48,6 +49,9 @@ class AdditionalArguments():
     distill_loss_alpha: float = field(default=0.9, metadata={"help": "Distillation loss weight"})
     distill_ce_loss_alpha: float = field(default=0.1, metadata={"help": "Distillation cross entrypy loss weight"})
     distill_temp: float = field(default=2./3., metadata={"help": "Distillation temperature"})
+        
+    #student training:
+    using_untrained_student: bool = field(default=True, metadata={"help": "Whether you are using an already somewhat trained student (bool = False) or you need to spend 2 epochs getting the untrained model to be student ready (bool=True)"})
 
     def __post_init__(self):
         if self.pretrained_pruned_model == "None":

@@ -35,7 +35,7 @@ import torch.nn as nn
 import torch.optim as optim
 import train_utils
 #import wandb
- 
+
 from transformers.utils import logging
 import util
 logger = logging.get_logger(__name__)
@@ -204,14 +204,7 @@ class CoFiTrainer(Trainer):
         self.teacher_model = teacher_model
         if self.teacher_model is not None:
             self.teacher_model = self.teacher_model.to(self.args.device)
-        print("BEFORE ENTERING CODE===="*80)
-        for n,p in self.model.named_parameters():
-            if n=='encoder.rnn.weight_ih_l0':
-                print("student ", n,p)
-        for n,p in self.teacher_model.named_parameters():
-            if n=='encoder.rnn.weight_ih_l0':
-                print("student ", n,p)
-        print("===="*80)
+        
             
         log_level = args.get_process_log_level()
         logging.set_verbosity(log_level)
@@ -226,6 +219,9 @@ class CoFiTrainer(Trainer):
         print(self.model_name)
         
         self.train_dataloader = self.subset_train_data
+        
+        train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, pruning_method='CoFi', max_data=150000, debug=True)
+        self.train_initial_learning = dl['train']
         
         self.device=device
 
@@ -249,7 +245,7 @@ class CoFiTrainer(Trainer):
                     },
                 ]
                 if self.model_name != 'bowman':
-                    self.student_optimizer = AdamW(self.model.parameters(), lr=2e-5, eps=1e-8)  # AdamW optimizer is recommended for BERTAdamW(
+                    self.student_optimizer = AdamW(self.model.parameters(), lr=2e-6, eps=1e-8)  # AdamW optimizer is recommended for BERTAdamW(
                 else:
                     self.student_optimizer = optim.Adam(self.model.parameters())
                 log_params(student_main_model_params, "student main params")
@@ -307,20 +303,20 @@ class CoFiTrainer(Trainer):
                 
 
     
-    def train(self):
+    def train(self, using_untrained_student=True):
         
         
  
         num_update_steps_per_epoch = len(
-            self.train_dataloader) // self.args.gradient_accumulation_steps
+            self.train_initial_learning) // self.args.gradient_accumulation_steps
         num_update_steps_per_epoch = max(num_update_steps_per_epoch, 1) #! 12272
         
-
+        #self.prepruning_finetune_steps=
         if self.l0_module is not None:
             lagrangian_warmup_steps = self.additional_args.lagrangian_warmup_epochs * num_update_steps_per_epoch #!24544 = 2*12272
-            # self.prepruning_finetune_steps = self.additional_args.prepruning_finetune_epochs * num_update_steps_per_epoch
+            self.prepruning_finetune_steps = self.additional_args.prepruning_finetune_epochs * num_update_steps_per_epoch
             self.l0_module.set_lagrangian_warmup_steps(lagrangian_warmup_steps)
-            logger.info(f"Prepruning finetune steps: {self.prepruning_finetune_steps}")
+            print(f"Prepruning finetune steps: {self.prepruning_finetune_steps}")
             logger.info(f"Lagrangian warmup steps: {lagrangian_warmup_steps}")
 
         if self.args.max_steps > 0:
@@ -343,7 +339,8 @@ class CoFiTrainer(Trainer):
 
         logger.info("***** Running training *****")
 
-        logger.info("  Num examples = %d", self.num_examples(self.train_dataloader))
+        logger.info("  Num examples general training/pruning = %d", self.num_examples(self.train_dataloader))
+        logger.info("  Num examples initial training (student) = %d", self.num_examples(self.train_initial_learning))
         logger.info("  Num Epochs = %d", num_train_epochs)
         logger.info("  Instantaneous batch size per device = %d",
                     self.args.per_device_train_batch_size)
@@ -383,15 +380,6 @@ class CoFiTrainer(Trainer):
 
         #Train the teacher model first
         if not self.finetuned_teacher:
-            print("===="*80)
-            for n,p in self.model.named_parameters():
-                if n=='encoder.rnn.weight_ih_l0':
-                    print("student ", n,p)
-            for n,p in self.teacher_model.named_parameters():
-                if n=='encoder.rnn.weight_ih_l0':
-                    print("student ", n,p)
-            print("===="*80)
-            
             self.teacher_model = self.finetune_teacher(self.teacher_model)
             self.finetuned_teacher = True
 
@@ -403,10 +391,17 @@ class CoFiTrainer(Trainer):
             print(f"Starting epoch {epoch}")
             epoch_start = time.time()
 
-            if isinstance(self.train_dataloader, DataLoader) and isinstance(self.train_dataloader.sampler, DistributedSampler):
-                self.train_dataloader.sampler.set_epoch(epoch)
- 
-            epoch_iterator = self.train_dataloader
+            
+            if epoch <= 2 and using_untrained_student:
+                epoch_iterator = self.train_initial_learning
+                if isinstance(self.train_initial_learning, DataLoader) and isinstance(self.train_initial_learning.sampler, DistributedSampler):
+                    self.train_initial_learning.sampler.set_epoch(epoch)
+                print("Using 150,000 sample dl to intially train student")
+            else:
+                epoch_iterator = self.train_dataloader
+                if isinstance(self.train_dataloader, DataLoader) and isinstance(self.train_dataloader.sampler, DistributedSampler):
+                    self.train_dataloader.sampler.set_epoch(epoch)
+                print("Switching to subset'd dataloaders")
 
             # Reset the past mems state at the beginning of each epoch if necessary.
             if self.args.past_index >= 0:
@@ -519,7 +514,7 @@ class CoFiTrainer(Trainer):
 
                 epoch_pbar.update(1)
 
-                if self.args.max_steps > 0 and self.global_step >= self.args.max_steps or  self.pruned_sparsity >= self.additional_args.target_sparsity:
+                if self.args.max_steps > 0 and self.global_step >= self.args.max_steps: #or  self.pruned_sparsity >= self.additional_args.target_sparsity:
                     break
 
             epoch_end = time.time()
@@ -529,8 +524,11 @@ class CoFiTrainer(Trainer):
 
             epoch_pbar.close()
             train_pbar.update(1)
+            if using_untrained_student and epoch == 2:
+                print("Trained student to starting point. Saving now")
+                self.save_model(model, student=True)
 
-            if self.args.max_steps > 0 and self.global_step >= self.args.max_steps or self.pruned_sparsity >= self.additional_args.target_sparsity:
+            if self.args.max_steps > 0 and self.global_step >= self.args.max_steps: # or self.pruned_sparsity >= self.additional_args.target_sparsity:
                 break
 
         train_pbar.close()
@@ -720,7 +718,7 @@ class CoFiTrainer(Trainer):
                     self.save_model(self.model, self.args.output_dir)
         return output.metrics
 
-    def save_model(self, model, output_dir: Optional[str] = None):
+    def save_model(self, model, student=False, output_dir: Optional[str] = None):
         print("SAVING MODEL")
         output_dir = output_dir if output_dir is not None else self.args.output_dir
         if not os.path.exists(output_dir):
@@ -733,25 +731,31 @@ class CoFiTrainer(Trainer):
 
         #self.model.save_pretrained(output_dir)
         if self.l0_module is not None:
-                        zs = self.l0_module.forward(training=False)
-                        torch.save(zs, os.path.join(output_dir, f"zs.pt"))
-                        torch.save(self.l0_module, os.path.join(
-                            output_dir, f"l0_module.pt"))
+            zs = self.l0_module.forward(training=False)
+            torch.save(zs, os.path.join(output_dir, f"zs.pt"))
+            torch.save(self.l0_module, os.path.join(
+                output_dir, f"l0_module.pt"))
         if self.config:
             self.config.save_pretrained(os.path.join(output_dir))
 
-
+        if student:
+            is_best=False
+            filename='student_model.pth'
+        else:
+            is_best=True
+            filename='model_best.pth'
         # Assuming 'model' is your PyTorch or Hugging Face model
         util.save_checkpoint(
             train_utils.serialize(model, self.model_name, self.dataset),
-            is_best=True,
+            is_best=is_best,
             exp_dir=output_dir,
+            filename=filename
         )
        
 
     def calculate_layer_distillation_loss(self, teacher_outputs, student_outputs, zs):
-        def normalize(rep):
-            return F.layer_norm(rep, rep.shape[-1:])
+        #def normalize(rep):
+        #    return F.layer_norm(rep, rep.shape[-1:])
         #print(f"In calculate_layer_distillation_loss in trainer.py\nteacher_outputs: {teacher_outputs}\nstudent_outputs: {student_outputs}")
         layer_loss=0
         mse_loss = torch.nn.MSELoss(reduction="mean")
@@ -794,14 +798,16 @@ class CoFiTrainer(Trainer):
             if self.additional_args.layer_distill_version == 2 or self.model_name=='bowman':
                 for layer_num, (t_layer_o, s_layer_o) in enumerate(zip(teacher_pre_layer_output, student_pre_layer_output)):
                     s_layer_o = self.model.layer_transformation(s_layer_o)
-                    l = mse_loss(normalize(t_layer_o), normalize(s_layer_o))
+                    #l = mse_loss(normalize(t_layer_o), normalize(s_layer_o))
+                    l = mse_loss(t_layer_o, s_layer_o)
                     if l==0:
                         print("Sam outputs")
                     #if mlp_z is None or mlp_z[layer_num] > 0:
                     layer_loss += l
                 for layer_num, (t_layer_o, s_layer_o) in enumerate(zip(teacher_hyp_layer_output, student_hyp_layer_output)):
                     s_layer_o = self.model.layer_transformation(s_layer_o)
-                    l = mse_loss(normalize(t_layer_o), normalize(s_layer_o))
+                    #l = mse_loss(normalize(t_layer_o), normalize(s_layer_o))
+                    l = mse_loss(t_layer_o, s_layer_o)
                     #if mlp_z is None or mlp_z[layer_num] > 0:
                     layer_loss += l
           
@@ -852,10 +858,11 @@ class CoFiTrainer(Trainer):
                 for t_pre_layer_o, t_hyp_layer_o in zip(specified_teacher_layer_reps_pre,specified_teacher_layer_reps_hyp) :
                     
                     for s_pre_layer_o, s_hyp_layer_o in zip(transformed_s_layer_o_pre, transformed_s_layer_o_hyp): #! student: 12x[32,113,768]
-                        l.append(
+                        '''l.append(
                             mse_loss(normalize(t_pre_layer_o), normalize(s_pre_layer_o)) + 
                             mse_loss(normalize(t_hyp_layer_o), normalize(s_hyp_layer_o))
-                        )#mse(t_layer_pre, s_layer_pre), mse(t_layer_hyp, s_layer_hyp) #cant u add them since its just yhe loss
+                        )#mse(t_layer_pre, s_layer_pre), mse(t_layer_hyp, s_layer_hyp) #cant u add them since its just yhe loss'''
+                        l.append(mse_loss(t_pre_layer_o, s_pre_layer_o)+ mse_loss(t_hyp_layer_o, s_hyp_layer_o))
                 
                 #now dp lloss for mlp
                 
@@ -869,7 +876,8 @@ class CoFiTrainer(Trainer):
                     existing_layers = head_layer_z != 0
                     existing_layers = existing_layers.to(layerwiseloss.device)
 
-                layer_loss = mse_loss(normalize(student_pre_final_layer_reps), normalize(teacher_pre_final_layer_reps)) + mse_loss(normalize(student_final_layer_reps), normalize(teacher_final_layer_reps))
+                #layer_loss = mse_loss(normalize(student_pre_final_layer_reps), normalize(teacher_pre_final_layer_reps)) + mse_loss(normalize(student_final_layer_reps), normalize(teacher_final_layer_reps))
+                layer_loss = mse_loss(student_pre_final_layer_reps, teacher_pre_final_layer_reps) + mse_loss(student_final_layer_reps, teacher_final_layer_reps)
                 #! no ordering restriction specified
                 if self.additional_args.layer_distill_version == 3:
                     alignment = torch.argmin(layerwiseloss, dim=1)
@@ -905,10 +913,10 @@ class CoFiTrainer(Trainer):
             return layer_loss
         else:
             return None
+        
     def calculate_distillation_loss(self, teacher_outputs, student_outputs, zs):
         layer_loss = self.calculate_layer_distillation_loss(teacher_outputs, student_outputs, zs)
         distill_loss = layer_loss
-        distill_loss = distill_loss.cpu()
 
         ce_distill_loss = F.kl_div(
             input=F.log_softmax(
@@ -921,14 +929,14 @@ class CoFiTrainer(Trainer):
         if distill_loss is not None:
             loss += self.additional_args.distill_loss_alpha * distill_loss
         #print("Layer loss: ", layer_loss, "Total loss" ,loss, "KL Div",  ce_distill_loss)
-
+      
         return distill_loss, ce_distill_loss, loss
 
 
     def store_results(self,teacher):
 
 
-        initial_acc = train_utils.run_eval(teacher,self.full_eval_dataloader,self.model_name, pruning_method='cofi')
+        initial_acc = train_utils.run_eval(teacher,self.full_eval_dataloader,self.model_name, pruning_method='CoFi')
         import json
         file_path='./initial_accs.json'
 
@@ -984,20 +992,20 @@ class CoFiTrainer(Trainer):
             self.teacher_model.load_state_dict(state_dict)'''
             
         # Load rfrm pth (deal)
-        if save_teacher_dir in os.listdir(self.teacher_model_dir) and 'model_best.pth' in  os.listdir(teacher_model_path):
+        if 'model_best.pth' in os.listdir('/workspace/CCE_NLI/BERT/models/CoFi/Run0.25_1/0_Pruning_Iter/'): # save_teacher_dir in os.listdir(self.teacher_model_dir) and 'model_best.pth' in  os.listdir(teacher_model_path):
             print(f"Reloading Finetuning SNLI teacher model ")
             print(f"Loading from {teacher_model_path}")
             print(os.listdir(self.teacher_model_dir))
             
-            state_dict = torch.load(os.path.join(teacher_model_path,'model_best.pth'))['state_dict']
+            state_dict = torch.load('/workspace/CCE_NLI/BERT/models/CoFi/Run0.25_1/0_Pruning_Iter/model_best.pth')['state_dict'] #os.path.join(teacher_model_path,'model_best.pth'))
             self.teacher_model.load_state_dict(state_dict, strict=False)
             for n,p in self.teacher_model.named_parameters():
                 p.requires_grad = False
+              
             self.store_results(self.teacher_model)
             
-             
-            for (n,ns), (t,nt) in zip(self.model.named_parameters(), self.teacher_model.named_parameters()):
-                print(n,ns,nt)
+           
+
             return self.teacher_model
         
         os.makedirs(teacher_model_path , exist_ok=True)
@@ -1010,7 +1018,7 @@ class CoFiTrainer(Trainer):
        
         criterion = nn.CrossEntropyLoss()
         
-        self.teacher_model = train_utils.finetune_pruned_model(model=teacher,model_type=self.model_name, optimizer=self.teacher_optimizer, pruning_method='cofi', criterion=criterion, dataloaders = dataloaders, finetune_epochs=5, prune_metrics_dir=teacher_model_path,device = self.device)
+        self.teacher_model = train_utils.finetune_pruned_model(model=teacher,model_type=self.model_name, optimizer=self.teacher_optimizer, pruning_method='CoFi', criterion=criterion, dataloaders = dataloaders, finetune_epochs=5, prune_metrics_dir=teacher_model_path,device = self.device)
         weights = teacher.state_dict()
        
         
@@ -1021,10 +1029,7 @@ class CoFiTrainer(Trainer):
         )
         
         print(f"Saving to {teacher_model_path}")
-        for (n,ns), (t,nt) in zip(self.model.named_parameters(), self.teacher_model.named_parameters()):
-
-            if torch.equal(ns,nt):
-                print(f"Layers {n}, {t} are the same")
+       
         self.save_model(self.teacher_model, teacher_model_path)
         return self.teacher_model
     
@@ -1035,57 +1040,66 @@ class CoFiTrainer(Trainer):
         model.train()
         if self.l0_module is not None:
             self.l0_module.train()
-        #inputs; {labels: tensor, input_ids: tensor, token_type_ids: tensor, attention_mask: tensor
+
         inputs = self._prepare_inputs(inputs)
-        distill_loss = None
-        distill_ce_loss = None
+
         if self.teacher_model is not None:
             with torch.no_grad():
-                # only retain inputs of certain keys
-                #next 3 lines need to be adjusted for bowman
-
                 if self.model_name == 'bowman':
-                    teacher_inputs_keys = ["s1", "s1len", "s2", "s2len", "labels"] 
-    
-                
+                    teacher_inputs_keys = ["s1", "s1len", "s2", "s2len", "labels"]
                 else:
-                    teacher_inputs_keys = ["hyp_input_ids", "hyp_attention_mask", "pre_input_ids", "pre_attention_mask", "token_type_ids", "position_ids", "labels",
-                                       "output_attentions", "output_hidden_states", "return_dict"]
-                    
-                teacher_inputs = {key: inputs[key]
-                                  for key in teacher_inputs_keys if key in inputs}
+                    teacher_inputs_keys = ["hyp_input_ids", "hyp_attention_mask", "pre_input_ids", 
+                                         "pre_attention_mask", "token_type_ids", "position_ids", "labels",
+                                         "output_attentions", "output_hidden_states", "return_dict"]
+
+                teacher_inputs = {key: inputs[key] for key in teacher_inputs_keys if key in inputs}
                 self.shortens_inputs(teacher_inputs)
-                
                 teacher_outputs = self.teacher_model(**teacher_inputs)
-          
+
             self.shortens_inputs(inputs)
-            
-            student_outputs = self.model(**inputs) #! get the two outputs
-     
-            
-            zs = {key: inputs[key] for key in inputs if "_z" in key} #! extract the zs: keys are 'pre_input_ids', 'pre_attention_mask', 'hyp_input_ids', 'hyp_attention_mask', 'labels', 'head_z', 'intermediate_z', 'hidden_z', 'mlp_z', 'head_layer_z'
+           
+            student_outputs = self.model(**inputs)
+
+            # CRITICAL DEBUG
+            if self.global_step % 50 == 0:
+                labels = inputs['labels']
+                teacher_logits = teacher_outputs[1][2]  # Adjust index if needed
+                student_logits = student_outputs[1][2]
+
+               
+            zs = {key: inputs[key] for key in inputs if "_z" in key}
             distill_loss, distill_ce_loss, loss = self.calculate_distillation_loss(
                 teacher_outputs, student_outputs, zs)
+
+            # More debug
+            if self.global_step % 50 == 0:
+                print(f"Distill layer loss: {distill_loss.item() if distill_loss is not None else 'None':.4f}")
+                print(f"Distill CE loss: {distill_ce_loss.item():.4f}")
+                print(f"Total distill loss: {loss.item():.4f}")
         else:
             loss = self.compute_loss(model, inputs)
 
         lagrangian_loss = None
         if self.start_prune:
-            lagrangian_loss, _, _ = \
-                self.l0_module.lagrangian_regularization(
-                    self.global_step - self.prepruning_finetune_steps)
+            lagrangian_loss, _, _ = self.l0_module.lagrangian_regularization(
+                self.global_step - self.prepruning_finetune_steps)
             loss += lagrangian_loss
 
         if self.args.gradient_accumulation_steps > 1:
             loss = loss / self.args.gradient_accumulation_steps
 
         loss.backward()
-        
-        # wandb.log({"loss": loss.detach(),
-        #         "lagrangian_loss": lagrangian_loss.detach() if lagrangian_loss is not None else None,
-        #         "distill_layer_loss": distill_loss.detach() if distill_loss is not None else None,
-        #         "distill_ce_loss": distill_ce_loss.detach() if distill_ce_loss is not None else None})
-        
+
+        # Check gradient norms
+        if self.global_step % 50 == 0:
+            total_norm = 0
+            for name, param in self.model.named_parameters():
+                if param.grad is not None:
+                    param_norm = param.grad.data.norm(2)
+                    total_norm += param_norm.item() ** 2
+            total_norm = total_norm ** 0.5
+            print(f"Total gradient norm: {total_norm:.4f}\n")
+
         return {"loss": loss.detach(),
                 "lagrangian_loss": lagrangian_loss.detach() if lagrangian_loss is not None else None,
                 "distill_layer_loss": distill_loss.detach() if distill_loss is not None else None,

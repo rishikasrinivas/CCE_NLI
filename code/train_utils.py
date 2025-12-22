@@ -21,7 +21,6 @@ from transformers import BertTokenizer, BertModel, AdamW, get_linear_schedule_wi
 from torch.cuda.amp import autocast,GradScaler
 from transformers import AutoTokenizer
 from torch.nn.utils.rnn import pad_sequence
-
 import json
 def collate_as_dict(batch):
     """
@@ -40,63 +39,40 @@ def collate_as_dict(batch):
     
 
     return {'s1': s1_pad, 's1len': s1len, 's2':s2_pad, 's2len': s2len, 'labels':label}
-
 def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
     """
     Creates and caches dataloaders.
     - Level 1 Cache: Caches the SNLI dataset objects after reading from text.
     - Level 2 Cache: For transformer models, caches the fully converted and tokenized batches.
     """
-
-    root_dir = "../DataLoaders"
+    root_dir = "../DataLoaders/"
     os.makedirs(root_dir, exist_ok=True)
 
     # --- PART 1: Load or Create the Base SNLI Datasets ---
     # This is the first level of caching. It avoids re-reading the raw .txt files.
-    base_train_path = f'{root_dir}/train_dataset_{max_data}.pth'
-    base_val_path = f'{root_dir}/val_dataset_{max_data}.pth'
-    
-    #EDIT: Updated conditions to download specified amounts of data based on cache
-    try:
-        print("✅ Loading base SNLI dataset from cache...")
-        if debug:
-            train_dataset = torch.load(f'{root_dir}/train_dataset_debug{max_data}.pth')
-            val_dataset = torch.load(f'{root_dir}/val_dataset_debug{max_data}.pth')
-        else:
-            train_dataset = torch.load(f'{root_dir}/train_dataset.pth')
-            val_dataset = torch.load(f'{root_dir}/val_dataset.pth')
-    except:
+    base_train_path = f'{root_dir}/train_dataset.pth'
+    base_val_path = f'{root_dir}/val_dataset.pth'
+
+    if debug or not (os.path.exists(base_train_path) and os.path.exists(base_val_path)):
         print("⚠️ Base SNLI dataset cache not found. Creating from text files...")
-        if debug:
-            print(f"collecting {max_data}")
-            train_dataset = SNLI("data/snli_1.0", "train", max_data=max_data)
-            val_dataset = SNLI("data/snli_1.0","dev",max_data=max_data,vocab=(train_dataset.stoi, train_dataset.itos),unknowns=False)
-            
-            torch.save(train_dataset, f'{root_dir}/train_dataset_debug{max_data}.pth')
-            torch.save(val_dataset, f'{root_dir}/val_dataset_debug{max_data}.pth')
-           
-        else:
-            train_dataset = SNLI("data/snli_1.0", "train", max_data=None)
-            val_dataset = SNLI("data/snli_1.0","dev",max_data=10000,vocab=(train_dataset.stoi, train_dataset.itos),unknowns=False)
-            torch.save(train_dataset, f'{root_dir}/train_dataset.pth')
-            torch.save(val_dataset, f'{root_dir}/val_dataset.pth')
+        train_dataset = SNLI("data/snli_1.0", "train", max_data=max_data)
+        torch.save(train_dataset, base_train_path)
+        
+        val_dataset = SNLI("data/snli_1.0", "dev", max_data=max_data, vocab=(train_dataset.stoi, train_dataset.itos), unknowns=False)
+        torch.save(val_dataset, base_val_path)
+    else:
+        print("✅ Loading base SNLI dataset from cache...")
+        train_dataset = torch.load(base_train_path)
+        val_dataset = torch.load(base_val_path)
     
     # --- PART 2: Branch logic based on model type ---
     if model_type in ['bert', 'llama']:
         # Define paths for the second level of caching (the converted batches)
-        if pruning_method=='cofi':
-            filepath='cofi'
-        else:
-            filepath='unstructured'
-        if debug:
-            train_cache_path = f'{root_dir}/converted_batches_train_{model_type}_{filepath}_debug{max_data}.pth' #add _pruningalg
-            val_cache_path = f'{root_dir}/converted_batches_val_{model_type}_{filepath}_debug{max_data}.pth' #add _pruningalg
-        else:
-            train_cache_path = f'{root_dir}/converted_batches_train_{model_type}_{filepath}.pth' #add _pruningalg
-            val_cache_path = f'{root_dir}/converted_batches_val_{model_type}_{filepath}.pth' #add _pruningalg
+        train_cache_path = f'{root_dir}/converted_batches_train_{model_type}_unstructured.pth'
+        val_cache_path = f'{root_dir}/converted_batches_val_{model_type}_unstructured.pth'
 
         if os.path.exists(train_cache_path) and os.path.exists(val_cache_path):
-            print(f"✅ Loading pre-converted {model_type} batches from cache...{train_cache_path}")
+            print(f"✅ Loading pre-converted {model_type} batches from cache...")
             converted_train_batches = torch.load(train_cache_path)
             converted_val_batches = torch.load(val_cache_path)
         else:
@@ -118,18 +94,7 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
                 s2_sentences = [" ".join([itos.get(idx, "") for idx in row if idx not in (0, 1)]) for row in s2_indices]
                 s1_tokenized = tokenizer(s1_sentences, return_tensors="pt", padding=True, truncation=True)
                 s2_tokenized = tokenizer(s2_sentences, return_tensors="pt", padding=True, truncation=True)
-                if pruning_method != 'cofi':
-                    converted_train_batches.append((s1_tokenized, s2_tokenized, targets)) #if pruning alg is not cofi do this else make the dict
-                else:
-                    result= {
-                        "pre_input_ids": s1_tokenized["input_ids"].cpu(),
-                        "pre_attention_mask": s1_tokenized["attention_mask"].cpu(),
-                        "hyp_input_ids": s2_tokenized["input_ids"].cpu(),
-                        "hyp_attention_mask": s2_tokenized["attention_mask"].cpu(),
-                        "labels":torch.tensor([l for l in targets])
-                    }
-                
-                    converted_train_batches.append(result)
+                converted_train_batches.append((s1_tokenized, s2_tokenized, targets))
 
             temp_val_loader = DataLoader(val_dataset, batch_size=settings.BATCH_SIZE, num_workers=4, collate_fn=pad_collate)
             converted_val_batches = []
@@ -140,36 +105,20 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
                 s2_sentences = [" ".join([itos.get(idx, "") for idx in row if idx not in (0, 1)]) for row in s2_indices]
                 s1_tokenized = tokenizer(s1_sentences, return_tensors="pt", padding=True, truncation=True)
                 s2_tokenized = tokenizer(s2_sentences, return_tensors="pt", padding=True, truncation=True)
-                if pruning_method != 'cofi':
-                    converted_val_batches.append((s1_tokenized, s2_tokenized, targets)) #if pruning alg is not cofi do this else make the dict
-                else:
-                    result = {
-                        "pre_input_ids": s1_tokenized["input_ids"].cpu(),
-                        "pre_attention_mask": s1_tokenized["attention_mask"].cpu(),
-                        "hyp_input_ids": s2_tokenized["input_ids"].cpu(),
-                        "hyp_attention_mask": s2_tokenized["attention_mask"].cpu(),
-                        "labels": torch.tensor([l for l in targets])
-                    }
-                    converted_val_batches.append(result)
-
+                converted_val_batches.append((s1_tokenized, s2_tokenized, targets))
 
             print(f"💾 Saving converted batches to cache for future runs...")
             torch.save(converted_train_batches, train_cache_path)
             torch.save(converted_val_batches, val_cache_path)
         
         # Create final DataLoaders from the list of converted batches
-        train_loader = DataLoader(converted_train_batches, shuffle=True, batch_size=1, collate_fn=lambda x: x[0],drop_last=True)
-        val_loader = DataLoader(converted_val_batches, shuffle=False, batch_size=1, collate_fn=lambda x: x[0],drop_last=True)
+        train_loader = DataLoader(converted_train_batches, shuffle=True, batch_size=1, collate_fn=lambda x: x[0])
+        val_loader = DataLoader(converted_val_batches, shuffle=False, batch_size=1, collate_fn=lambda x: x[0])
 
     else: # This path is for the 'bowman' model
         print("✅ Using original dataloaders for bowman model.")
-        #collate fn changes if not cofi vs if cofi
-        collate_fn =  collate_as_dict if pruning_method=='cofi' else pad_collate 
-        #subset_indices = range(200)
-        #sub_train_dataset = Subset(train_dataset, subset_indices)
-        #sub_val_dataset = Subset(val_dataset, subset_indices)
-        train_loader = DataLoader(train_dataset, batch_size=settings.BATCH_SIZE, shuffle=True, num_workers=4, collate_fn=collate_fn, drop_last=True)
-        val_loader = DataLoader(val_dataset, batch_size=settings.BATCH_SIZE, shuffle=False, num_workers=4, collate_fn=collate_fn,drop_last=True)
+        train_loader = DataLoader(train_dataset, batch_size=settings.BATCH_SIZE, shuffle=True, num_workers=4, collate_fn=pad_collate)
+        val_loader = DataLoader(val_dataset, batch_size=settings.BATCH_SIZE, shuffle=False, num_workers=4, collate_fn=pad_collate)
     
     dataloaders = {'train': train_loader, 'val': val_loader}
     
@@ -200,15 +149,13 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=num_training_steps)
     loss_meter = util.AverageMeter()
     acc_meter = util.AverageMeter()
-    if split == 'train':
-        weight_at_start = model.encoder.rnn.weight_ih_l0[0, 0].item()
-        print(f"\n{'='*60}")
-        print(f"EPOCH {epoch} START - RNN weight[0,0]: {weight_at_start:.10f}")
-        print(f"{'='*60}")
+
+
+    
 
     for batch in ranger:
        
-        if pruning_method != 'cofi':
+        if pruning_method != 'CoFi':
             if model_type in ['bert', 'llama']: 
                 s1_batch, s2_batch, targets = batch
                 if torch.cuda.is_available():
@@ -251,9 +198,7 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
                     if hasattr(layer.weights, 'grad') and layer.weights.grad is not None:
                         layer.weights.grad *= layer.pruning_mask.to(device)
          
-            if model_type in ['bert', 'llama']:
-             
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
            
             # CORRECTED: Use standard optimizer.step()
             optimizer.step()
@@ -266,16 +211,8 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
         loss_meter.update(loss.item(), batch_size)
         acc_meter.update(acc.item(), batch_size)
         ranger.set_description(f"{split} epoch {epoch} loss {loss_meter.avg:.3f} acc {acc_meter.avg:.3f}")
-    if training:
-        weight_at_end = model.encoder.rnn.weight_ih_l0[0, 0].item()
-        change = abs(weight_at_end - weight_at_start)
-        print(f"\n{'='*60}")
-        print(f"EPOCH {epoch} END - RNN weight[0,0]: {weight_at_end:.10f}")
-        print(f"Change this epoch: {change:.6f}")
-        print(f"{'='*60}")
-    
     return {"loss": loss_meter.avg, "acc": acc_meter.avg}
-    return {"loss": loss_meter.avg, "acc": acc_meter.avg}
+
 def finetune_pruned_model(model, model_type, pruning_method, optimizer, criterion, dataloaders, finetune_epochs, prune_metrics_dir, baseline_acc=-1.0, device='cuda'):
     """
     Finetunes a model for a fixed number of epochs and saves the best-performing one.
@@ -313,10 +250,12 @@ def finetune_pruned_model(model, model_type, pruning_method, optimizer, criterio
     return model
 
 
+
 def build_model(model_type, vocab, vocab_size=None, pretrained=True, embedding_dim=300, hidden_dim=512, device='cuda', is_cofi=False):
     """
     Builds the specified model. `vocab_size` is only used for the bowman model.
     """
+    tokenizer=None
     if is_cofi:
         if model_type=='bowman':
             from cofi_models import modeling_bowman
@@ -337,19 +276,19 @@ def build_model(model_type, vocab, vocab_size=None, pretrained=True, embedding_d
             model = nli_models.LLAMAEntailmentClassifier( freeze_encoder=True, device=device)
         elif model_type == 'bowman':
             # This path remains the same
-            enc = nli_models.TextEncoder(vocab_size=vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim)
-            model = nli_models.BowmanEntailmentClassifier(enc, device)
+            tokenizer = nli_models.TextEncoder(vocab_size=vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim)
+            model = nli_models.BowmanEntailmentClassifier(tokenizer, device)
         else:
             raise ValueError(f"Unknown model_type: {model_type}")
-    return model
+    return model, tokenizer
 
 def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, pruning_method='', device='cuda', i=0, zs=None):
     """
     Loads or initializes a model.
     """
     # CORRECTED: Call the updated build_model function
-    cofi = pruning_method == 'cofi'
-    model = build_model(
+    cofi = pruning_method == 'CoFi'
+    model, tokenizer = build_model(
         vocab= {'itos':train.itos, 'stoi': train.stoi},
         model_type=model_type,
         vocab_size=len(train.stoi), # For bowman
@@ -362,7 +301,7 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
         if zs:
             print(f"Loading zs")
             print(ckpt)
-            model = cofi_utils.load_model_with_zs(ckpt, model, zs=zs)
+            model = cofi_utils.load_model_with_zs(ckpt, model, zs=zs, train_data=train, ckpt=ckpt, encoder=tokenizer)
         else:
             print(f"Loading from checkpoint (no zs): {ckpt}")
             ckpt_ = torch.load(ckpt, map_location=torch.device(device))
@@ -417,7 +356,7 @@ def run_eval(model, val_loader, model_type, pruning_method):
 
     # CORRECTED: Added conditional logic for batch handling
     for batch in val_loader:
-        if pruning_method == 'cofi':
+        if pruning_method == 'CoFi':
             if torch.cuda.is_available():
 
                 batch = {k: v.to('cuda') for k, v in batch.items()}

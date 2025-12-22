@@ -8,7 +8,8 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 from tqdm import tqdm
-from transformers import AdamW
+from torch.optim import AdamW
+
 import logging
 # --- Local Imports ---
 # Ensure your python path is set up correctly for these
@@ -23,6 +24,12 @@ from Pruner import Pruner_
 
 logger = logging.getLogger(__name__)
 def main(args):
+    import torch
+    from torch.backends.cuda import sdp_kernel
+
+    torch.backends.cuda.enable_flash_sdp(True)
+    torch.backends.cuda.enable_mem_efficient_sdp(True)
+    torch.backends.cuda.enable_math_sdp(False)
     
     logging.basicConfig(filename='lottery_ticket.log', level=logging.INFO)
     max_data = 200 if args.debug else None
@@ -143,12 +150,11 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
 
         # Finetune the model (it will save the best version)
         #EDIT: Adding baseline_acc as an argument
-        if prune_iter >= 0:
-            logger.info(f"Finetuning at iteration : {prune_iter}")
-            model = train_utils.finetune_pruned_model(
-                model, args.model_type, 'lottery_ticket', optimizer, criterion, dataloaders, 
-                args.finetune_epochs, prune_metrics_dir, baseline_acc, device
-            )
+        print(f"Finetuning at iteration : {prune_iter}")
+        model = train_utils.finetune_pruned_model(
+            model, args.model_type, 'lottery_ticket', optimizer, criterion, dataloaders, 
+            args.finetune_epochs, prune_metrics_dir, baseline_acc, device
+        )
 
         # Evaluate the best model from the finetuning phase
         # CORRECTED: Added model_type to the run_eval call
@@ -163,7 +169,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         if final_weights_pruned >= args.max_thresh:
             print(f"Pruning threshold of {args.max_thresh * 100}% reached. Stopping.")
             break
-
+        
         # Prune the model further for the next iteration
         model = pruner.prune() 
         base_ckpt = apply_mask(model, base_ckpt)
