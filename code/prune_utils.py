@@ -39,8 +39,10 @@ def get_percent_pruned(model):
     final_weights_pruned= np.round(100*torch.where(torch.tensor(final_weights) == 0,1,0).sum().item()/(model.mlp[0].weight.shape[0]*model.mlp[0].weight.shape[1]), 3)
     return final_weights_pruned
 
+
 def get_sparsity(model, zs):
-    return 1 -  (model.mlp[0].weight.shape[0]/(1024))
+    print(model.mlp[0].weight.shape[0])
+    return 1 -  (model.mlp[0].weight.shape[0]/1024)
     
     return None
 def run_expls(
@@ -73,7 +75,7 @@ def run_expls(
     os.makedirs(path_to_formula_masks, exist_ok=True)
     
     # Gets the ckpt and numeric pruning iter
-    for prune_iter in range(2, len(os.listdir(path_to_weights)) +1):
+    for prune_iter in range(0, len(os.listdir(path_to_weights)) +1):
         prune_metrics_dir  = f"{prune_iter}_Pruning_Iter"
         
         if prune_metrics_dir not in os.listdir(path_to_weights): 
@@ -92,19 +94,22 @@ def run_expls(
         #TODO: need to reload model load_model with zs from cofi utils and load zs (as demoed in calc_pruning)
         #model.load_state_dict(torch.load(filepath, map_location=torch.device(device))['state_dict'], strict=False) #loading the already finetuned weights
         zs=None
-        if args.pruning_method == 'CoFi':
+        if args.pruning_method == 'CoFi' and prune_iter>0:
             
             zs_path= os.path.join(path_to_weights, f'{prune_iter}_Pruning_Iter/zs.pt')
             zs = torch.load(zs_path)
-            print(f"Loading zs for {args.pruning_method} from {zs_path}: {zs}")
         
-        model,ckpt = train_utils.load_model(model_type=args.model_type, pruning_method=args.pruning_method, train=train, ckpt=os.path.join(path_to_weights, f'{prune_iter}_Pruning_Iter/model_best.pth'), device=device, zs=zs)
-    
+        model,ckpt = train_utils.load_model(model_type=args.model_type, pruning_method=args.pruning_method, train=train, ckpt=os.path.join(path_to_weights, f'{prune_iter}_Pruning_Iter'), device=device, zs=zs)
+        if prune_iter==0:
+            original_model_size=calculate_parameters(model)
+            continue
             
         
         # === Recording Accs and Pruned Percents
         if args.pruning_method == 'CoFi':
-            final_weights_pruned = get_sparsity(model, zs)    
+            pruned_model_size = calculate_parameters(model)
+            final_weights_pruned = 1 - (pruned_model_size / original_model_size)  
+            
         else:
             final_weights_pruned = get_percent_pruned(model)
            
@@ -125,6 +130,7 @@ def run_expls(
                 model_type=args.model_type,
                 dataset=dataset,
                 debug=debug,
+                is_cofi= args.pruning_method=='CoFi',
             )
             logger.info("Recorded explanations")
             

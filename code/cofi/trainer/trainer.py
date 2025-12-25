@@ -245,7 +245,7 @@ class CoFiTrainer(Trainer):
                     },
                 ]
                 if self.model_name != 'bowman':
-                    self.student_optimizer = AdamW(self.model.parameters(), lr=2e-6, eps=1e-8)  # AdamW optimizer is recommended for BERTAdamW(
+                    self.student_optimizer = AdamW(self.model.parameters(), lr=2e-5, eps=1e-8)  # AdamW optimizer is recommended for BERTAdamW(
                 else:
                     self.student_optimizer = optim.Adam(self.model.parameters())
                 log_params(student_main_model_params, "student main params")
@@ -392,7 +392,7 @@ class CoFiTrainer(Trainer):
             epoch_start = time.time()
 
             
-            if epoch <= 2 and using_untrained_student:
+            if epoch < 1 and using_untrained_student:
                 epoch_iterator = self.train_initial_learning
                 if isinstance(self.train_initial_learning, DataLoader) and isinstance(self.train_initial_learning.sampler, DistributedSampler):
                     self.train_initial_learning.sampler.set_epoch(epoch)
@@ -514,7 +514,9 @@ class CoFiTrainer(Trainer):
 
                 epoch_pbar.update(1)
 
-                if self.args.max_steps > 0 and self.global_step >= self.args.max_steps: #or  self.pruned_sparsity >= self.additional_args.target_sparsity:
+                if self.pruned_sparsity >= self.additional_args.target_sparsity:
+                    print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity}")
+                    
                     break
 
             epoch_end = time.time()
@@ -524,11 +526,13 @@ class CoFiTrainer(Trainer):
 
             epoch_pbar.close()
             train_pbar.update(1)
-            if using_untrained_student and epoch == 2:
+            if using_untrained_student and epoch == 1:
                 print("Trained student to starting point. Saving now")
                 self.save_model(model, student=True)
+                using_untrained_student = False
 
-            if self.args.max_steps > 0 and self.global_step >= self.args.max_steps: # or self.pruned_sparsity >= self.additional_args.target_sparsity:
+            if self.pruned_sparsity >= self.additional_args.target_sparsity:
+                print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity}")
                 break
 
         train_pbar.close()
@@ -538,7 +542,8 @@ class CoFiTrainer(Trainer):
             delattr(self, "_past")
 
         # wandb.log({'global_step':self.global_step,'training_loss':tr_loss.item() / self.global_step})
-       
+        if self.pruned_sparsity >= self.additional_args.target_sparsity:
+            self.evaluate()
         return TrainOutput(self.global_step, tr_loss.item() / self.global_step, None)
     from accelerate.utils import tqdm
     import torch.nn as nn
@@ -713,9 +718,8 @@ class CoFiTrainer(Trainer):
                     print("SAVING MODEL")
 
                     
-                    
                     logger.warning(f"Saving the best model so far: [Epoch {int(self.epoch)} | Step: {self.global_step} | Model size: {output.metrics['remaining_params'] if 'remaining_params' in output.metrics else 'Full' } | Score: {round(eval_score, 5)}]")
-                    self.save_model(self.model, self.args.output_dir)
+                    self.save_model(model = self.model, output_dir=self.args.output_dir)
         return output.metrics
 
     def save_model(self, model, student=False, output_dir: Optional[str] = None):

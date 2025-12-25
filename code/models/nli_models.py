@@ -260,6 +260,7 @@ class LLAMAEntailmentClassifier(BaseModel):
         self.encoder = LlamaBiModel.from_pretrained(encoder_name)
         self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
         self.tokenizer.model_max_length = 512
+        self.model_name='llama'
         
         if "pad_token" not in self.tokenizer.special_tokens_map:
             num_new_tokens = self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
@@ -328,7 +329,7 @@ class BertEntailmentClassifier(BaseModel):
         super().__init__()
         self.encoder_name = encoder_name
         self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
-        
+        self.model_name='bert'
         if pretrained:
             self.encoder = AutoModel.from_pretrained(encoder_name)
         else:
@@ -402,6 +403,7 @@ class BowmanEntailmentClassifier(BaseModel):
         super().__init__()
 
         self.encoder = encoder
+        self.model_name='bowman'
         self.encoder_dim = encoder.output_dim
         self.mlp_input_dim = self.encoder_dim * 4
         self.dropout = nn.Dropout(0.1)

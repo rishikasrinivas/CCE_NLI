@@ -190,10 +190,10 @@ def main():
         
  
    
-    
+    print(f'Loading student model from : {os.path.join("/".join(training_args.output_dir.split("/")[:-1]), "student_model.pth")}')
     #load an untrained student model which we need to initially finetune before pruning
     student_model = Student_Model.from_pretrained(
-        pretrained_model_name_or_path= os.path.join(training_args.output_dir, "student_model.pth"), # if llm part of student model is alr trained itll be here otherwise a default model will be loaded and finetuned
+        pretrained_model_name_or_path= os.path.join("/".join(training_args.output_dir.split("/")[:-1]), "student_model.pth"), # if llm part of student model is alr trained itll be here otherwise a default model will be loaded and finetuned
         from_tf=bool(".ckpt" in model_args.model_name_or_path),
         teacher=False,
         config=config,
