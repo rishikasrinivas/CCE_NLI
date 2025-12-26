@@ -56,7 +56,7 @@ def main(args):
     if args.pruning_method in ['lottery_ticket', 'wanda']:
         ckpt = os.path.join(args.model_type.upper(), "models", 'lottery_ticket', args.filename, '0_Pruning_Iter/model_best.pth')
     else:
-        ckpt = os.path.join(args.model_type.upper(), "models", args.pruning_method, args.filename, '0_Pruning_Iter/model_best.pth')
+        ckpt = os.path.join(args.model_type.upper(), "models", args.pruning_method, args.filename, '0_Pruning_Iter')
     
     
     zs=None

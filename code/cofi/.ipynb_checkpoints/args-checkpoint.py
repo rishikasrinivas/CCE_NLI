@@ -31,7 +31,7 @@ class AdditionalArguments():
     reg_learning_rate: float = field(default=0.1, metadata={"help": "Learning rate for regularization."})
     scheduler_type: str = field(default="linear", metadata={"help": "type of scheduler"})
     freeze_embeddings: bool = field(default=False, metadata={"help": "Whether we should freeze the embeddings."})
-
+    
     pretrained_pruned_model: str = field(default=None, metadata={"help": "Path of pretrained model."})
 
     droprate_init: float = field(default=0.5, metadata={"help": "Init parameter for loga"})
@@ -89,6 +89,89 @@ class DataTrainingArguments:
         default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
     )
     
+    t_name: Optional[str] = field(
+        default=None, metadata={"help": "The name of the training and validation files."}
+    )
+        
+    data_debug: int = field(
+        default=0, metadata={"help": "None for not in debug mode, else a number to indicate how many training samples to load"}
+    )
+
+    dataset_config_name: Optional[str] = field(
+        default=None, metadata={"help": "The configuration name of the dataset to use (via the datasets library)."}
+    )
+    max_seq_length: int = field(
+        default=128,
+        metadata={
+            "help": "The maximum total input sequence length after tokenization. Sequences longer "
+            "than this will be truncated, sequences shorter will be padded."
+        },
+    )
+    overwrite_cache: bool = field(
+        default=False, metadata={"help": "Overwrite the cached preprocessed datasets or not."}
+    )
+    pad_to_max_length: bool = field(
+        default=True,
+        metadata={
+            "help": "Whether to pad all samples to `max_seq_length`. "
+            "If False, will pad the samples dynamically when batching to the maximum length in the batch."
+        },
+    )
+    max_train_samples: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "For debugging purposes or quicker training, truncate the number of training examples to this "
+            "value if set."
+        },
+    )
+    max_eval_samples: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "For debugging purposes or quicker training, truncate the number of evaluation examples to this "
+            "value if set."
+        },
+    )
+    max_predict_samples: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "For debugging purposes or quicker training, truncate the number of prediction examples to this "
+            "value if set."
+        },
+    )
+    train_file: Optional[str] = field(
+        default=None, metadata={"help": "A csv or a json file containing the training data."}
+    )
+    validation_file: Optional[str] = field(
+        default=None, metadata={"help": "A csv or a json file containing the validation data."}
+    )
+    test_file: Optional[str] = field(default=None, metadata={"help": "A csv or a json file containing the test data."})
+
+    def __post_init__(self):
+        if self.task_name is not None:
+            self.task_name = self.task_name.lower()
+            if self.task_name not in task_to_keys.keys():
+                raise ValueError("Unknown task, you should pick one in " + ",".join(task_to_keys.keys()))
+        elif self.dataset_name is not None:
+            pass
+        elif self.train_file is None or self.validation_file is None:
+            raise ValueError("Need either a GLUE task, a training/validation file or a dataset name.")
+        else:
+            train_extension = self.train_file.split(".")[-1]
+            assert train_extension in ["csv", "json", "tsv"], "`train_file` should be a csv or a json file."
+            validation_extension = self.validation_file.split(".")[-1]
+            self.t_name = self.t_name.lower()
+            assert (
+                validation_extension == train_extension
+            ), "`validation_file` should have the same extension (csv or json) as `train_file`."
+            
+            
+            
+            
+            
+            
+            
+            
+           
     t_name: Optional[str] = field(
         default=None, metadata={"help": "The name of the training and validation files."}
     )

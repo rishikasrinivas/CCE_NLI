@@ -89,12 +89,13 @@ if [[ $pruning_type == None ]]; then
   batch_size=64
 fi
 
+
 mkdir -p "$output_dir"
 python3 ${code_dir}/run.py \
         --model_name ${10}\
         --using_untrained_student ${using_untrained_student} \
         --path_to_pretrained ${path_to_pretrained}\
-        --teacher_model_dir ${teacher_model_dir}\
+        --teacher_model_dir ${teacher_model_dir} \
        --data_debug ${debug}\
 	   --output_dir ${output_dir} \
 	   --logging_steps ${logging_steps} \

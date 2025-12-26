@@ -18,11 +18,15 @@ def initialize_layer_transformation(model):
     model.layer_transformation.bias.data.fill_(0)
 
 def load_model_with_zs(model_path, model, zs=None, encoder=None, **kwargs):
+    if '.pth' in model_path:
+        root="/".join(model_path.split("/")[:-1])
+    else:
+        root=model_path
     if 'BOWMAN' in model_path:
         config=None
     else:
-        #config=AutoConfig.from_pretrained(os.path.join("/".join(model_path.split("/")[:-1]), "config.json"))
-        config=AutoConfig.from_pretrained(os.path.join(model_path, "config.json"))
+        config=AutoConfig.from_pretrained(root, "config.json")
+        #config=AutoConfig.from_pretrained('/workspace/CCE_NLI/BERT/models/CoFi/Run0.25/1_Pruning_Iter/config.json')
     model = model.from_pretrained(
         pretrained_model_name_or_path= os.path.join(model_path, 'model_best.pth'), # if llm part of student model is alr trained itll be here otherwise a default model will be loaded and finetuned
         from_tf=False,
@@ -160,7 +164,7 @@ def prune_model_with_z(zs, model):
             index = torch.where(head_z_layer == 0)[0].tolist()
             prune_heads[layer] = index
 
-            print(f"Layer {layer}, heads {' '.join([str(i) for i in index])} pruned.")
+            #print(f"Layer {layer}, heads {' '.join([str(i) for i in index])} pruned.")
         model.prune_heads(prune_heads)
 
         
@@ -198,7 +202,7 @@ def prune_model_with_z(zs, model):
         layer = prune_linear_layer(layer, index, dim=dim)
         return layer
     
-    print(model, type(model), hasattr(model, "bert"))
+    #print(model, type(model), hasattr(model, "bert"))
     if hasattr(model, "bert"):
 
         if "hidden_z" in zs:
@@ -327,8 +331,8 @@ def prune_model_with_z(zs, model):
         prune_intermediate_layers(model, kept_intermediate_dims)
     
     
-    for layer in range(0, model.config.num_hidden_layers):
-        if hasattr(model, 'bert'):
+    #for layer in range(0, model.config.num_hidden_layers):
+        '''if hasattr(model, 'bert'):
             print("Layer:", layer)
             if bert.encoder.layer[layer].attention.self.query is not None:
                 print("query:", bert.encoder.layer[layer].attention.self.query.weight.shape)
@@ -368,7 +372,7 @@ def prune_model_with_z(zs, model):
             else:
                 print("gate:",None)
                 print("up", None)
-                print("down", None)
+                print("down", None)'''
     print("3072:",model.mlp[0].weight.shape)
     print("1024:", model.mlp[3].weight.shape)
             
@@ -391,7 +395,6 @@ def prune_hidden_mlp(zs, model, concat_index=None):
     return model
 
 def prune_intermediate_layers(model, keep_dims):
-    print("MOL:", model)
     bert = model.bert if hasattr(model, "bert") else None
     llama = model.model if hasattr(model, "model") else None
     
@@ -438,7 +441,7 @@ def load_zs(model_path):
 def load_pruned_model(model, weights):
     if model.model_name == 'bowman':
         model.load_state_dict(weights, strict=False)
-        print(model.mlp[0])
+        
         return model
     config = model.config
     dim_per_head = config.hidden_size // config.num_attention_heads
@@ -471,7 +474,7 @@ def load_pruned_model(model, weights):
     zs["mlp_z"] = mlp_z
  
     #prune_model_with_z(zs, model)
-    print(model)
+
     model.load_state_dict(weights, strict=False)
     
 
