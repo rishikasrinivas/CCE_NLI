@@ -104,9 +104,10 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
             print(f"⚠️ Converted batches cache not found. Performing one-time conversion for {model_type}...")
             
             model_name = "bert-base-uncased" if model_type == 'bert' else "knowledgator/Llama-encoder-1.0B"
+            print(f"Using tokenizer {model_name}")
             tokenizer = AutoTokenizer.from_pretrained(model_name)
             if tokenizer.pad_token is None:
-                tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+                tokenizer.add_special_tokens({'pad_token': tokenizer.eos_token})
             itos = train_dataset.itos
             
             # Use a temporary loader to create batches from the base dataset
@@ -133,7 +134,7 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
                         converted_train_batches.append(result)
                     
                 
-
+            print(f"Creating batches of size: {settings.BATCH_SIZE}")
             temp_val_loader = DataLoader(val_dataset, batch_size=settings.BATCH_SIZE, num_workers=4, collate_fn=pad_collate)
             converted_val_batches = []
             for batch in tqdm(temp_val_loader, desc="Converting val batches"):
@@ -322,6 +323,9 @@ def build_model(model_type, vocab, vocab_size=None, pretrained=True, embedding_d
         elif model_type=='bert':
             from cofi_models import modeling_bert
             model = modeling_bert.CoFiBertForSequenceClassification
+        else:
+            from cofi_models import modeling_llama
+            model = modeling_llama.CoFiLlamaForSequenceClassification
             
     
     else: 
@@ -370,7 +374,7 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
         save_dir = os.path.join(model_type.upper(), "models", save_dir_type)
         os.makedirs(save_dir, exist_ok=True)
         if not ckpt:
-            filename = f"{model_type}_{i}_{save_dir_type}_inits.pth"
+            filename = f"{model_type}_MAIN_{save_dir_type}_inits.pth"
         else:
             filename=ckpt.split('/')[-1]
         util.save_checkpoint(
@@ -389,6 +393,7 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
 
 def serialize(model, model_type, dataset):
     # CORRECTED: The condition now correctly checks if model_type is in the list
+
     if model_type in ['llama', 'bert']:
         with open("../DataLoaders/vocab.json", "r") as f:
             vocab = json.load(f)

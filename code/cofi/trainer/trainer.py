@@ -996,12 +996,12 @@ class CoFiTrainer(Trainer):
             self.teacher_model.load_state_dict(state_dict)'''
             
         # Load rfrm pth (deal)
-        if 'model_best.pth' in os.listdir('/workspace/CCE_NLI/BERT/models/CoFi/Run0.25_1/0_Pruning_Iter/'): # save_teacher_dir in os.listdir(self.teacher_model_dir) and 'model_best.pth' in  os.listdir(teacher_model_path):
+        if 'model_best.pth' in  os.listdir(teacher_model_path):
             print(f"Reloading Finetuning SNLI teacher model ")
             print(f"Loading from {teacher_model_path}")
             print(os.listdir(self.teacher_model_dir))
             
-            state_dict = torch.load('/workspace/CCE_NLI/BERT/models/CoFi/Run0.25_1/0_Pruning_Iter/model_best.pth')['state_dict'] #os.path.join(teacher_model_path,'model_best.pth'))
+            state_dict = torch.load(os.path.join(teacher_model_path,'model_best.pth'))['state_dict'] #os.path.join(teacher_model_path,'model_best.pth'))
             self.teacher_model.load_state_dict(state_dict, strict=False)
             for n,p in self.teacher_model.named_parameters():
                 p.requires_grad = False

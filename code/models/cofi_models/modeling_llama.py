@@ -125,11 +125,13 @@ class CoFiLlamaRMSNorm(LlamaRMSNorm):
 class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
-        self.model_name='llama'
+        
+        
         
         self.config=config
         self.model = CoFiLlamaModel(config)
-   
+        
+        self.model_name='llama'
         self.tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
         
         self.encoder_dim = config.hidden_size
@@ -173,49 +175,66 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
 
         self.model._prune_heads(heads_to_prune)
 
-        
-    
-            
-    
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path: Optional[Union[str, os.PathLike]],*model_args, **kwargs):
-        if pretrained_model_name_or_path and '.pth' in pretrained_model_name_or_path and os.path.exists(pretrained_model_name_or_path):
-            print("Loading pretrained llama entailment")
-            weights = torch.load(pretrained_model_name_or_path)['state_dict']
-        else:
-            print("Loading new llama entailment")
-            model,_ = train_utils.load_model('llama', kwargs['train_data'], ckpt=kwargs['ckpt'], device='cuda')
-            weights = model.state_dict()
-       
-       
-        # Convert old format to new format if needed from a PyTorch state_dict
-        old_keys = []
-        new_keys = []
-        for key in weights.keys():
-            new_key = None
-            if "gamma" in key:
-                new_key = key.replace("gamma", "weight")
-            if "beta" in key:
-                new_key = key.replace("beta", "bias")
-            if new_key:
-                old_keys.append(key)
-                new_keys.append(new_key)
-        for old_key, new_key in zip(old_keys, new_keys):
-            weights[new_key] = weights.pop(old_key)
-      
+    def from_pretrained(
+        cls,
+        pretrained_model_name_or_path: Optional[Union[str, os.PathLike]],
+        **kwargs
+    ):
+        print(pretrained_model_name_or_path)
 
+        # -----------------------
+        # Load config
+        # -----------------------
         if "config" not in kwargs:
-            config = AutoConfig.from_pretrained(pretrained_model_name_or_path)
+            config = AutoConfig.from_pretrained("knowledgator/Llama-encoder-1.0B")
             config.do_layer_distill = False
         else:
             config = kwargs["config"]
-        
+
+        # Create model (random MLP + CoFi)
         model = cls(config)
-        load_pruned_model(model, weights)
+
+        # -----------------------
+        # Load .pth checkpoint
+        # -----------------------
+        if pretrained_model_name_or_path and ".pth" in str(pretrained_model_name_or_path) and os.path.exists(pretrained_model_name_or_path):
+            print("Loading pretrained llama entailment (.pth)")
+            weights = torch.load(pretrained_model_name_or_path)["state_dict"]
+
+            # Convert old gamma/beta to weight/bias
+            old_keys, new_keys = [], []
+            for key in list(weights.keys()):
+                if "gamma" in key:
+                    new_key = key.replace("gamma", "weight")
+                elif "beta" in key:
+                    new_key = key.replace("beta", "bias")
+                else:
+                    continue
+                old_keys.append(key)
+                new_keys.append(new_key)
+            for old_key, new_key in zip(old_keys, new_keys):
+                weights[new_key] = weights.pop(old_key)
+
+            load_pruned_model(model, weights)
+            return model
+
+        # -----------------------
+        # Load HF pretrained encoder only
+        # -----------------------
+        print("Loading HF knowledgator/Llama-encoder-1.0B pretrained encoder")
+        hf_encoder = LlamaBiModel.from_pretrained("knowledgator/Llama-encoder-1.0B")
+
+        # Filter HF weights to match model (skip classifier / MLP)
+        hf_state = hf_encoder.state_dict()
+        model_state = model.state_dict()
+        filtered_state = {k: v for k, v in hf_state.items() if k in model_state and v.shape == model_state[k].shape}
+
+        model.load_state_dict(filtered_state, strict=False)
+        torch.save(model.state_dict(), kwargs['ckpt'])
+
         return model
-
-
-
+    
     def indices_to_bert_tokens(self, indices):
         batch_size, seq_len = indices.shape
         words = []
@@ -355,8 +374,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         if labels is not None:
             loss_fct = CrossEntropyLoss()
             loss = loss_fct(
-                pooled_logits.view(-1, self.num_labels).cpu(), labels.view(-1).cpu())
-            
+                pooled_logits.view(-1, self.num_labels), labels.view(-1))
 
         return SequenceClassifierOutputWithPast(
             loss=loss,

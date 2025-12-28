@@ -121,7 +121,7 @@ def main():
     t_name=data_args.task_name
     teacher_model = None
     config=None
-    
+    print("model pretrained path ", model_args.model_name_or_path)
     if model_args.model_name_or_path.startswith("bert"):
         Teach_Model = CoFiBertForSequenceClassification 
         Student_Model = CoFiBertForSequenceClassification 
@@ -162,10 +162,7 @@ def main():
         if additional_args.do_distill:
             teacher_model = Teach_Model.from_pretrained(
                 pretrained_model_name_or_path=None, #dditional_args.teacher_path, #f"0_Pruning_Iter/model_best.pth", #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
-                train_data=train,
-                max_data=max_data,
-                ckpt=data_args.path_to_pretrained if os.path.exists(data_args.path_to_pretrained) else None,
-                teacher=True,
+                ckpt= data_args.path_to_pretrained,
                 config=config
 
             )
@@ -178,11 +175,6 @@ def main():
         Student_Model = CoFiBowmanEntailmentClassifier(tokenizer, training_args.device)
         teacher_model = Teach_Model.from_pretrained(
                 pretrained_model_name_or_path=None, #"/workspace/CCE_NLI/BOWMAN/models/CoFi/Run0.25/0_Pruning_Iter/model_best.pth", #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
-                train_data=train,
-            
-                ckpt=data_args.path_to_pretrained if os.path.exists(data_args.path_to_pretrained) else None,
-                max_data=max_data,
-                teacher=True,
                 encoder=tokenizer_teacher,
 
             )
@@ -195,18 +187,9 @@ def main():
     #load an untrained student model which we need to initially finetune before pruning
     student_model = Student_Model.from_pretrained(
         pretrained_model_name_or_path= os.path.join("/".join(training_args.output_dir.split("/")[:-1]), "student_model.pth"), # if llm part of student model is alr trained itll be here otherwise a default model will be loaded and finetuned
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        teacher=False,
         config=config,
-        train_data=train,
-        max_data=max_data,
-        ckpt=data_args.path_to_pretrained if os.path.exists(data_args.path_to_pretrained) else None, #will be pretrained weights,
         encoder=tokenizer,
-        output_dir = training_args.output_dir,
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-        
+        ckpt= data_args.path_to_pretrained
         
     ) #! inside the function, we get the original struct  #! CofiBertForSequenceClassification
    

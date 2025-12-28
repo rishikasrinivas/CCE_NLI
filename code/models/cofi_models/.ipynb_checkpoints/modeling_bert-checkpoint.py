@@ -55,7 +55,7 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
         for param in self.bert.parameters():
             param.requires_grad = True
 
-        print(self.bert)
+
         self.tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
         
         self.encoder_dim = config.hidden_size
@@ -84,46 +84,64 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
         self.num_labels=3
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path: Optional[Union[str, os.PathLike]],  *model_args, **kwargs):
+    def from_pretrained(
+        cls,
+        pretrained_model_name_or_path: Optional[Union[str, os.PathLike]],
+        **kwargs
+    ):
         print(pretrained_model_name_or_path)
-        
-        if pretrained_model_name_or_path and '.pth' in pretrained_model_name_or_path and os.path.exists(pretrained_model_name_or_path):
-            print("Loading pretrained bert entailment")
-            weights = torch.load(pretrained_model_name_or_path)['state_dict']
-        else:
-            print("Loading new bert entailment")
-            model,_ = train_utils.load_model('bert', kwargs['train_data'], ckpt=kwargs['ckpt'], device='cuda')
-            weights = model.state_dict()
-       
-                
-        # Convert old format to new format if needed from a PyTorch state_dict
-        old_keys = []
-        new_keys = []
-        for key in weights.keys():
-            new_key = None
-            if "gamma" in key:
-                new_key = key.replace("gamma", "weight")
-            if "beta" in key:
-                new_key = key.replace("beta", "bias")
-            if new_key:
-                old_keys.append(key)
-                new_keys.append(new_key)
-        for old_key, new_key in zip(old_keys, new_keys):
-            weights[new_key] = weights.pop(old_key)
-      
 
+        # -----------------------
+        # Load config
+        # -----------------------
         if "config" not in kwargs:
-            config = AutoConfig.from_pretrained('bert-base-uncased')
+            config = AutoConfig.from_pretrained("bert-base-uncased")
             config.do_layer_distill = False
         else:
             config = kwargs["config"]
-        
+
+        # Create model (random MLP + CoFi)
         model = cls(config)
-        
-        
-        load_pruned_model(model, weights)
-       
+
+        # -----------------------
+        # Load .pth checkpoint
+        # -----------------------
+        if pretrained_model_name_or_path and ".pth" in str(pretrained_model_name_or_path) and os.path.exists(pretrained_model_name_or_path):
+            print("Loading pretrained bert entailment (.pth)")
+            weights = torch.load(pretrained_model_name_or_path)["state_dict"]
+
+            # Convert old gamma/beta to weight/bias
+            old_keys, new_keys = [], []
+            for key in list(weights.keys()):
+                if "gamma" in key:
+                    new_key = key.replace("gamma", "weight")
+                elif "beta" in key:
+                    new_key = key.replace("beta", "bias")
+                else:
+                    continue
+                old_keys.append(key)
+                new_keys.append(new_key)
+            for old_key, new_key in zip(old_keys, new_keys):
+                weights[new_key] = weights.pop(old_key)
+
+            load_pruned_model(model, weights)
+            return model
+
+        # -----------------------
+        # Load HF pretrained encoder only
+        # -----------------------
+        print("Loading HF bert-base-uncased pretrained encoder")
+        hf_encoder = BertModel.from_pretrained("bert-base-uncased")
+
+        # Filter HF weights to match model (skip classifier / MLP)
+        hf_state = hf_encoder.state_dict()
+        model_state = model.state_dict()
+        filtered_state = {k: v for k, v in hf_state.items() if k in model_state and v.shape == model_state[k].shape}
+
+        model.load_state_dict(filtered_state, strict=False)
+
         return model
+
 
     def indices_to_bert_tokens(self, indices):
         batch_size, seq_len = indices.shape

@@ -40,33 +40,34 @@ class CoFiBowmanEntailmentClassifier(torch.nn.Module):
     
     
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path: Optional[Union[str, os.PathLike]], *model_args, **kwargs):
-        if pretrained_model_name_or_path and '.pth' in pretrained_model_name_or_path and os.path.exists(pretrained_model_name_or_path):
-            print("Loading pretrained bowman entailment")
+    def from_pretrained(cls, pretrained_model_name_or_path: Optional[Union[str, os.PathLike]], **kwargs):
+        # -------------------------------
+        # Always initialize random weights
+        # -------------------------------
+        print("Initializing Bowman model with random weights")
+        model = cls(kwargs['encoder'], device='cuda')
+
+        # Optional: if you have pruning weights, you can still load them
+        if pretrained_model_name_or_path and '.pth' in str(pretrained_model_name_or_path) and os.path.exists(pretrained_model_name_or_path):
+            print("Loading pruning masks (weights) from .pth")
             weights = torch.load(pretrained_model_name_or_path)['state_dict']
-        else:
-            print(f"Loading new bowman model")
-            model,_ = train_utils.load_model('bowman', kwargs['train_data'], ckpt=kwargs['ckpt'], device='cuda')
-            weights = model.state_dict()
-                
-       
-        # Convert old format to new format if needed from a PyTorch state_dict
-        old_keys = []
-        new_keys = []
-        for key in weights.keys():
-            new_key = None
-            if "gamma" in key:
-                new_key = key.replace("gamma", "weight")
-            if "beta" in key:
-                new_key = key.replace("beta", "bias")
-            if new_key:
+
+            # Convert old gamma/beta to weight/bias
+            old_keys, new_keys = [], []
+            for key in list(weights.keys()):
+                if "gamma" in key:
+                    new_key = key.replace("gamma", "weight")
+                elif "beta" in key:
+                    new_key = key.replace("beta", "bias")
+                else:
+                    continue
                 old_keys.append(key)
                 new_keys.append(new_key)
-        for old_key, new_key in zip(old_keys, new_keys):
-            weights[new_key] = weights.pop(old_key)
+            for old_key, new_key in zip(old_keys, new_keys):
+                weights[new_key] = weights.pop(old_key)
 
-        model = cls(kwargs['encoder'], 'cuda')
-        load_pruned_model(model, weights)
+            load_pruned_model(model, weights)
+
         return model
     
     def forward(self, s1, s1len, s2, s2len, labels,final_mlp_hidden_z=None):
