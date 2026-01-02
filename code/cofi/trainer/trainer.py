@@ -223,6 +223,7 @@ class CoFiTrainer(Trainer):
         train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, pruning_method='CoFi', max_data=150000, debug=True)
         self.train_initial_learning = dl['train']
         
+        
         self.device=device
 
     def create_optimizer_and_scheduler(self, num_training_steps: int, build_l0_optimizer:bool=True, student=True):
@@ -303,10 +304,10 @@ class CoFiTrainer(Trainer):
                 
 
     
-    def train(self, using_untrained_student=True):
+    def train(self, using_trained_student=True):
         
         
- 
+        self.train_initial_learning = self.train_initial_learning if not using_trained_student else self.train_dataloader
         num_update_steps_per_epoch = len(
             self.train_initial_learning) // self.args.gradient_accumulation_steps
         num_update_steps_per_epoch = max(num_update_steps_per_epoch, 1) #! 12272
@@ -392,7 +393,7 @@ class CoFiTrainer(Trainer):
             epoch_start = time.time()
 
             
-            if epoch < 1 and using_untrained_student:
+            if epoch < 1 and not using_trained_student:
                 epoch_iterator = self.train_initial_learning
                 if isinstance(self.train_initial_learning, DataLoader) and isinstance(self.train_initial_learning.sampler, DistributedSampler):
                     self.train_initial_learning.sampler.set_epoch(epoch)
@@ -415,7 +416,7 @@ class CoFiTrainer(Trainer):
                 #print(f"Can only start pruning at {self.global_step} == {self.prepruning_finetune_steps}")
                 #print(f"right now, glboal step = {self.global_step} and self.prepruning_finetune_steps = {self.prepruning_finetune_steps}" )
                 
-                if self.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps: #! before pruning, run 12272 steps
+                if epoch > 0 and not self.start_prune: #elf.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps: #! before pruning, run 12272 steps
                    
                     logger.warning("started pruning")
                     self.start_prune = True
@@ -526,10 +527,10 @@ class CoFiTrainer(Trainer):
 
             epoch_pbar.close()
             train_pbar.update(1)
-            if using_untrained_student and epoch == 1:
+            if not using_trained_student and epoch == 1:
                 print("Trained student to starting point. Saving now")
                 self.save_model(model, student=True)
-                using_untrained_student = False
+                using_trained_student = True
 
             if self.pruned_sparsity >= self.additional_args.target_sparsity:
                 print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity}")
@@ -540,6 +541,7 @@ class CoFiTrainer(Trainer):
         if self.args.past_index and hasattr(self, "_past"):
             # Clean the state at the end of training
             delattr(self, "_past")
+            
 
         # wandb.log({'global_step':self.global_step,'training_loss':tr_loss.item() / self.global_step})
         if self.pruned_sparsity >= self.additional_args.target_sparsity:
@@ -1001,7 +1003,7 @@ class CoFiTrainer(Trainer):
             print(f"Loading from {teacher_model_path}")
             print(os.listdir(self.teacher_model_dir))
             
-            state_dict = torch.load(os.path.join(teacher_model_path,'model_best.pth'))['state_dict'] #os.path.join(teacher_model_path,'model_best.pth'))
+            state_dict = torch.load(os.path.join(teacher_model_path, 'model_best.pth'))['state_dict'] #os.path.join(teacher_model_path,'model_best.pth'))
             self.teacher_model.load_state_dict(state_dict, strict=False)
             for n,p in self.teacher_model.named_parameters():
                 p.requires_grad = False
@@ -1034,7 +1036,7 @@ class CoFiTrainer(Trainer):
         
         print(f"Saving to {teacher_model_path}")
        
-        self.save_model(self.teacher_model, teacher_model_path)
+        self.save_model(self.teacher_model, output_dir=teacher_model_path)
         return self.teacher_model
     
     

@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from torch.nn import CrossEntropyLoss, MSELoss
-from utils.cofi_utils import *
+from cofi.utils.cofi_utils import *
 logger = logging.getLogger(__name__)
 import train_utils
 from transformers.modeling_outputs import (BaseModelOutput,
@@ -22,7 +22,7 @@ class CoFiBowmanEntailmentClassifier(torch.nn.Module):
     def __init__(self, encoder, device):
         super().__init__()
         self.model_name = 'bowman'
-        self.encoder = encoder
+        self.encoder = encoder.to(device)
         self.encoder_dim = encoder.output_dim
         self.mlp_input_dim = self.encoder_dim * 4
         self.dropout = nn.Dropout(0.1)
@@ -46,7 +46,7 @@ class CoFiBowmanEntailmentClassifier(torch.nn.Module):
         # -------------------------------
         print("Initializing Bowman model with random weights")
         model = cls(kwargs['encoder'], device='cuda')
-
+        trained = False
         # Optional: if you have pruning weights, you can still load them
         if pretrained_model_name_or_path and '.pth' in str(pretrained_model_name_or_path) and os.path.exists(pretrained_model_name_or_path):
             print("Loading pruning masks (weights) from .pth")
@@ -67,15 +67,16 @@ class CoFiBowmanEntailmentClassifier(torch.nn.Module):
                 weights[new_key] = weights.pop(old_key)
 
             load_pruned_model(model, weights)
+            trained = True
+        return model, trained
 
-        return model
     
     def forward(self, s1, s1len, s2, s2len, labels,final_mlp_hidden_z=None):
-      
-        hidden_s1enc = self.encoder(s1, s1len)
-        s1enc = hidden_s1enc[-1]
-        hidden_s2enc = self.encoder(s2, s2len)
-        s2enc = hidden_s2enc[-1]
+        
+        s1enc = self.encoder(s1, s1len)
+
+        s2enc = self.encoder(s2, s2len)
+
         
         diffs = s1enc - s2enc
         prods = s1enc * s2enc
@@ -98,8 +99,6 @@ class CoFiBowmanEntailmentClassifier(torch.nn.Module):
         mlp_input = self.mlp[2](mlp_input)#dropout
         final_layer_1024_outs = mlp_input
         if final_mlp_hidden_z is not None:
-            print("MLP INPUT SHAPE ",mlp_input.shape )
-            print("final_mlp_hidden_zSHAPE ",final_mlp_hidden_z.shape )
             mlp_input = mlp_input * final_mlp_hidden_z
             
         logits= self.mlp[3](mlp_input)
@@ -112,13 +111,13 @@ class CoFiBowmanEntailmentClassifier(torch.nn.Module):
         return SequenceClassifierOutput(
             loss=loss,
             logits=( pre_final_layer_2048_outs, final_layer_1024_outs, logits),
-            hidden_states=(hidden_s1enc, hidden_s2enc ),
+            hidden_states=(s1enc, s2enc ),
             attentions=None,
         )
 
-    def get_final_reprs(self, s1, s1len, s2, s2len,labels):
-        s1enc = self.encoder(s1, s1len)[-1]
-        s2enc = self.encoder(s2, s2len)[-1]
+    def get_final_reprs(self, s1, s1len, s2, s2len, labels):
+        s1enc = self.encoder(s1, s1len)
+        s2enc = self.encoder(s2, s2len)
 
         diffs = s1enc - s2enc
         prods = s1enc * s2enc
@@ -168,20 +167,25 @@ class TextEncoder(nn.Module):
         self.hidden_dim = hidden_dim
 
         self.bidirectional = bidirectional
-        self.emb = nn.Embedding(self.vocab_size, self.embedding_dim, padding_idx=1).cuda()
+        self.emb = nn.Embedding(self.vocab_size, self.embedding_dim, padding_idx=1)
         self.rnn = nn.LSTM(
             self.embedding_dim, self.hidden_dim, bidirectional=bidirectional
-        ).to('cuda')
+        )
         self.output_dim = self.hidden_dim
         self.model_max_length=hidden_dim
 
+
     def forward(self, s, slen):
+
         semb = self.emb(s)
         spk = pack_padded_sequence(semb, slen.cpu(), enforce_sorted=False)
+   
         _, (hidden, cell) = self.rnn(spk)
-        #retunr get all cell states w a param for the cell state # 
+       
         
-        return hidden
+        #retunr get all cell states w a param for the cell state # 
+        return hidden[-1]
+        
         
 
     def get_states(self, s, slen):

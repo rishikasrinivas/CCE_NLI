@@ -25,9 +25,9 @@ def load_model_with_zs(model_path, model, zs=None, encoder=None, **kwargs):
     if 'BOWMAN' in model_path:
         config=None
     else:
-        config=AutoConfig.from_pretrained(root, "config.json")
+        config=AutoConfig.from_pretrained(os.path.join(root, "config.json"))
         #config=AutoConfig.from_pretrained('/workspace/CCE_NLI/BERT/models/CoFi/Run0.25/1_Pruning_Iter/config.json')
-    model = model.from_pretrained(
+    model, _ = model.from_pretrained(
         pretrained_model_name_or_path= os.path.join(model_path, 'model_best.pth'), # if llm part of student model is alr trained itll be here otherwise a default model will be loaded and finetuned
         from_tf=False,
         teacher=True,
@@ -52,12 +52,16 @@ def load_model_with_zs(model_path, model, zs=None, encoder=None, **kwargs):
     if model.model_name == 'bowman':
         update_LSTM_params(model, zs)
         prune_hidden_mlp(zs,model)
+    elif model.model_name=='llama':
+        update_llama_params(model, zs) #changes weights
+        prune_model_with_z(zs, model) #changes strucutre
     else:
-        update_LLM_params(model, zs) #changes weights
+        update_bert_params(model, zs) #changes weights
         prune_model_with_z(zs, model) #changes strucutre
         
     print(f"Model Size after pruning: {calculate_parameters(model)}")
     return model
+
 
 def load_model(model_path, model, zs=None, encoder=None, **kwargs):
     model = load_model_with_zs(model_path, model, zs, encoder, **kwargs)
@@ -80,8 +84,96 @@ def update_LSTM_params(model, zs):
             final_mlp_hidden_z = zs['final_mlp_hidden_z'].cpu().clone()
             bowman.mlp[3].weight.data=bowman.mlp[3].weight.data.mul(final_mlp_hidden_z)
             
-# z values could be in [0, 1), we update the parameters accordingly with z values
-def update_LLM_params(model, zs):
+def update_llama_params(model, zs):
+    llama = model.model  # LLaMA uses "model" instead of "bert"
+
+    config = model.config
+    hidden_dims = config.hidden_size
+    num_heads = config.num_attention_heads
+    dims_per_head = hidden_dims // num_heads
+    num_layers = config.num_hidden_layers
+
+    if zs is not None:
+        if "intermediate_z" in zs:
+            for layer in range(num_layers):
+                intermediate_z = zs["intermediate_z"][layer].cpu().squeeze().clone()
+                
+                # LLaMA's down_proj is equivalent to BERT's output.dense (MLP output projection)
+                llama.layers[layer].mlp.down_proj.weight.data = \
+                    llama.layers[layer].mlp.down_proj.weight.data.mul(intermediate_z)
+                
+                if "mlp_z" in zs:
+                    mlp_z = zs["mlp_z"][layer].cpu()
+                    
+                    llama.layers[layer].mlp.down_proj.weight.data = \
+                        llama.layers[layer].mlp.down_proj.weight.data.transpose(0, 1).mul(mlp_z).transpose(0, 1)
+                    # No bias in LLaMA MLPs by default
+
+        if "head_z" in zs:
+            for layer in range(num_layers):
+                print(layer)
+                head_z = zs["head_z"][layer].cpu().squeeze().clone()
+                head_z = torch.repeat_interleave(head_z, dims_per_head)
+                
+                # v_proj instead of value
+               
+                llama.layers[layer].self_attn.v_proj.weight.data = \
+                    llama.layers[layer].self_attn.v_proj.weight.data.mul(head_z)
+                # No bias
+                
+                if "head_layer_z" in zs:
+                    head_layer_z = zs["head_layer_z"][layer].cpu()
+                    # o_proj instead of attention.output.dense
+                    llama.layers[layer].self_attn.o_proj.weight.data = \
+                        llama.layers[layer].self_attn.o_proj.weight.transpose(0, 1).data.mul(head_layer_z).transpose(0, 1)
+                    # No bias
+
+        
+        if "hidden_z" in zs:
+            hidden_z = zs["hidden_z"].cpu().squeeze().clone()
+            
+            # LLaMA only has word embeddings (no position/token_type embeddings like BERT)
+            print('embed ', llama.embed_tokens.weight.data.shape, hidden_z.shape)
+            llama.embed_tokens.weight.data = \
+                llama.embed_tokens.weight.data.mul(hidden_z)
+            
+            for layer in range(22):
+                # Attention projections
+                print('k ', layer, llama.layers[layer].self_attn.k_proj.weight.data.shape, hidden_z.shape)
+                print('q ', llama.layers[layer].self_attn.k_proj.weight.data.shape, hidden_z.shape)
+                print('v ', llama.layers[layer].self_attn.v_proj.weight.data.shape, hidden_z.shape)
+                print('o ', layer, llama.layers[layer].self_attn.o_proj.weight.data.transpose(0, 1).shape, hidden_z.shape)
+                llama.layers[layer].self_attn.k_proj.weight.data = \
+                    llama.layers[layer].self_attn.k_proj.weight.data.mul(hidden_z)
+                llama.layers[layer].self_attn.q_proj.weight.data = \
+                    llama.layers[layer].self_attn.q_proj.weight.data.mul(hidden_z)
+                llama.layers[layer].self_attn.v_proj.weight.data = \
+                    llama.layers[layer].self_attn.v_proj.weight.data.mul(hidden_z)
+                llama.layers[layer].self_attn.o_proj.weight.data = \
+                    llama.layers[layer].self_attn.o_proj.weight.data.transpose(0, 1).mul(hidden_z).transpose(0, 1)
+                # No bias
+                
+                # MLP projections - gate_proj and up_proj are inputs, down_proj is output
+                llama.layers[layer].mlp.gate_proj.weight.data = \
+                    llama.layers[layer].mlp.gate_proj.weight.data.mul(hidden_z)
+                llama.layers[layer].mlp.up_proj.weight.data = \
+                    llama.layers[layer].mlp.up_proj.weight.data.mul(hidden_z)
+                llama.layers[layer].mlp.down_proj.weight.data = \
+                    llama.layers[layer].mlp.down_proj.weight.data.transpose(0, 1).mul(hidden_z).transpose(0, 1)
+            
+            # No pooler in LLaMA
+            # No qa_outputs (unless you added it)
+            
+            # Your classification head MLP
+            model.mlp[0].weight.data = \
+                model.mlp[0].weight.data.mul(torch.cat([hidden_z for _ in range(4)]))
+        print("MLP")
+        if 'final_mlp_hidden_z' in zs:
+            final_mlp_hidden_z = zs['final_mlp_hidden_z'].cpu().clone()
+            model.mlp[3].weight.data = \
+                model.mlp[3].weight.data.mul(final_mlp_hidden_z)
+            
+def update_bert_params(model, zs):
     bert = model.bert if hasattr(model, "bert") else model.model
 
     config = model.config
@@ -140,34 +232,32 @@ def update_LLM_params(model, zs):
             final_mlp_hidden_z = zs['final_mlp_hidden_z'].cpu().clone()
             model.mlp[3].weight.data=model.mlp[3].weight.data.mul(final_mlp_hidden_z)
             
-
 def prune_model_with_z(zs, model):
-    
+
     if zs is None:
         return None, None
     concat_index=None
-    bert = model.bert if hasattr(model, "bert") else None #this corresponds to cofiBert ir cofiLLama (calling both bert here for jow but 2nd bert is actually llama)
+    bert = model.bert if hasattr(model, "bert") else None
     llama = model.model if hasattr(model, "model") else None
     
-    assert (hasattr(model, "model")  and llama is not None) or  (hasattr(model, "bert") and bert is not None)
+    assert (hasattr(model, "model") and llama is not None) or (hasattr(model, "bert") and bert is not None)
+    
     if "head_z" in zs:
         head_z = zs.get("head_z", None)
-        
-    
         head_layer_z = zs.get("head_layer_z", None)
 
         prune_heads = {}
+        print(len(head_z))
         for layer in range(len(head_z)):
             head_z_layer = head_z[layer].cpu().squeeze().clone()
             if head_layer_z is not None:
                 head_z_layer *= head_layer_z[layer]
             index = torch.where(head_z_layer == 0)[0].tolist()
             prune_heads[layer] = index
-
-            #print(f"Layer {layer}, heads {' '.join([str(i) for i in index])} pruned.")
+        print("Pruning heads ", prune_heads)
         model.prune_heads(prune_heads)
 
-        
+    print("intermediate")
     kept_intermediate_dims = None
     if "intermediate_z" in zs:
         kept_intermediate_dims = {}
@@ -188,12 +278,12 @@ def prune_model_with_z(zs, model):
         layernorm.normalized_shape = (len(index),)
     
     def prune_layer_norm_llama(layer_idx, index):
-        #input
+        # Input layernorm
         llama.layers[layer_idx].input_layernorm.weight = torch.nn.parameter.Parameter(
             llama.layers[layer_idx].input_layernorm.weight.index_select(0, index))
         llama.layers[layer_idx].input_layernorm.normalized_shape = (len(index),)
         
-        #post attention
+        # Post attention layernorm
         llama.layers[layer_idx].post_attention_layernorm.weight = torch.nn.parameter.Parameter(
             llama.layers[layer_idx].post_attention_layernorm.weight.index_select(0, index))
         llama.layers[layer_idx].post_attention_layernorm.normalized_shape = (len(index),)
@@ -201,10 +291,8 @@ def prune_model_with_z(zs, model):
     def prune_layer(layer, index, dim):
         layer = prune_linear_layer(layer, index, dim=dim)
         return layer
-    
-    #print(model, type(model), hasattr(model, "bert"))
+    print("hidden")
     if hasattr(model, "bert"):
-
         if "hidden_z" in zs:
             hidden_zs = zs["hidden_z"]
             index = torch.LongTensor(hidden_zs.squeeze().nonzero().squeeze().tolist())
@@ -225,86 +313,102 @@ def prune_model_with_z(zs, model):
             for layer in range(0, 12):
                 if bert.encoder.layer[layer].attention.self.query is not None:
                     bert.encoder.layer[layer].attention.self.query = \
-                        prune_layer(bert.encoder.layer[layer].attention.self.query , index, dim=1)
+                        prune_layer(bert.encoder.layer[layer].attention.self.query, index, dim=1)
                     bert.encoder.layer[layer].attention.self.key = \
-                        prune_layer(bert.encoder.layer[layer].attention.self.key , index, dim=1)
+                        prune_layer(bert.encoder.layer[layer].attention.self.key, index, dim=1)
                 if bert.encoder.layer[layer].attention.self.value is not None:
                     bert.encoder.layer[layer].attention.self.value = \
-                        prune_layer(bert.encoder.layer[layer].attention.self.value , index, dim=1)
+                        prune_layer(bert.encoder.layer[layer].attention.self.value, index, dim=1)
                     bert.encoder.layer[layer].attention.output.dense = \
-                        prune_layer(bert.encoder.layer[layer].attention.output.dense , index, dim=0)
+                        prune_layer(bert.encoder.layer[layer].attention.output.dense, index, dim=0)
                     prune_layer_norm(bert.encoder.layer[layer].attention.output.LayerNorm, index)
                 if bert.encoder.layer[layer].intermediate.dense is not None:
                     bert.encoder.layer[layer].intermediate.dense = \
-                        prune_layer( bert.encoder.layer[layer].intermediate.dense, index, dim=1)
+                        prune_layer(bert.encoder.layer[layer].intermediate.dense, index, dim=1)
                     bert.encoder.layer[layer].output.dense = \
-                        prune_layer( bert.encoder.layer[layer].output.dense, index, dim=0)
+                        prune_layer(bert.encoder.layer[layer].output.dense, index, dim=0)
                     prune_layer_norm(bert.encoder.layer[layer].output.LayerNorm, index)
+                    
         if 'final_mlp_hidden_z' in zs:
-          
-            concat_index = torch.cat([index + (i * hidden_zs.shape[0]) for i in range(4)])  # 766 * 4 = 3064
+            concat_index = torch.cat([index + (i * hidden_zs.shape[0]) for i in range(4)])
             model.bn.weight = torch.nn.Parameter(model.bn.weight[concat_index].clone())
             model.bn.bias = torch.nn.Parameter(model.bn.bias[concat_index].clone())
-            model.bn.num_features_tracked = concat_index.shape[0]
+            model.bn.num_features = concat_index.shape[0]
             model.bn.running_mean = model.bn.running_mean[concat_index].clone()
             model.bn.running_var = model.bn.running_var[concat_index].clone()
 
-        
     elif hasattr(model, "model"):
         if "hidden_z" in zs:
             hidden_zs = zs["hidden_z"]
-            print(hidden_zs.shape)
+            print(hidden_zs.shape, model)
             index = torch.LongTensor(hidden_zs.squeeze().nonzero().squeeze().tolist())
             index = index.to(model.device)
             
-            llama.embed_tokens.weight = torch.nn.parameter.Parameter(llama.embed_tokens.weight.index_select(1,index).clone().detach())
-            for layer in range(0,21):
+            # Prune embeddings
+            llama.embed_tokens.weight = torch.nn.parameter.Parameter(
+                llama.embed_tokens.weight.index_select(1, index).clone().detach())
+            llama.embed_tokens.embedding_dim = index.shape[0]
+            
+            # Prune final norm
+            llama.norm.weight = torch.nn.parameter.Parameter(
+                llama.norm.weight.index_select(0, index))
+            llama.norm.normalized_shape = (len(index),)
+            
+            for layer in range(0, 22):  # You have 22 layers (0-21)
                 prune_layer_norm_llama(layer, index)
                 
+                # Attention projections - all take hidden_dim as input (dim=1)
                 if llama.layers[layer].self_attn.q_proj is not None:
+                    print("NON MLP q", llama.layers[layer].self_attn.q_proj.weight.data.shape, index)
                     llama.layers[layer].self_attn.q_proj = \
-                        prune_layer(llama.layers[layer].self_attn.q_proj , index, dim=1)
+                        prune_layer(llama.layers[layer].self_attn.q_proj, index, dim=0)
+            
+                    print("NON MLP k", llama.layers[layer].self_attn.k_proj.weight.data.shape, index)
                     
                     llama.layers[layer].self_attn.k_proj = \
-                        prune_layer(llama.layers[layer].self_attn.k_proj , index, dim=1)
-                    
+                        prune_layer(llama.layers[layer].self_attn.k_proj, index, dim=1)
+                print("NON MLP v")
+                
                 if llama.layers[layer].self_attn.v_proj is not None:
                     llama.layers[layer].self_attn.v_proj = \
-                        prune_layer(llama.layers[layer].self_attn.v_proj , index, dim=1)
+                        prune_layer(llama.layers[layer].self_attn.v_proj, index, dim=1)
                     
+                    # o_proj outputs hidden_dim, so prune dim=0 (like BERT's attention.output.dense)
                     llama.layers[layer].self_attn.o_proj = \
-                        prune_layer(llama.layers[layer].self_attn.o_proj , index, dim=1)
-                    
-                    
-                    
-                #encoder.layers.0.mlp.gate_proj.weight', 'encoder.layers.0.mlp.up_proj.weight', 'encoder.layers.0.mlp.down_proj.weight'
+                        prune_layer(llama.layers[layer].self_attn.o_proj, index, dim=0)
+                
+                # MLP projections
+                print("MLP Projections")
                 if llama.layers[layer].mlp.gate_proj is not None:
+                    # gate_proj and up_proj take hidden_dim as input (dim=1)
+                    print(" MLP gate")
+                    
                     llama.layers[layer].mlp.gate_proj = \
-                        prune_layer(llama.layers[layer].mlp.gate_proj, index, dim=1)
+                        prune_layer(llama.layers[layer].mlp.gate_proj, index, dim=0)
+                    print(" MLP proj")
                     
-                    llama.layers[layer].mlp.up_proj= \
-                        prune_layer(llama.layers[layer].mlp.up_proj, index, dim=1)
+                    llama.layers[layer].mlp.up_proj = \
+                        prune_layer(llama.layers[layer].mlp.up_proj, index, dim=0)
                     
-                    llama.layers[layer].mlp.down_proj= \
-                        prune_layer(llama.layers[layer].mlp.down_proj, index, dim=0)
+                    # down_proj outputs hidden_dim (dim=0, like BERT's output.dense)
+                    llama.layers[layer].mlp.down_proj = \
+                        prune_layer(llama.layers[layer].mlp.down_proj, index, dim=1)
+        print("final")             
         if 'final_mlp_hidden_z' in zs:
-            concat_index = torch.cat([index + (i * hidden_dims) for i in range(4)])  # 766 * 4 = 3064
+            concat_index = torch.cat([index + (i * hidden_zs.shape[0]) for i in range(4)])
             model.bn.weight = torch.nn.Parameter(model.bn.weight[concat_index].clone())
             model.bn.bias = torch.nn.Parameter(model.bn.bias[concat_index].clone())
-            model.bn.num_features_tracked = concat_index.shape[0]
+            model.bn.num_features = concat_index.shape[0]
             model.bn.running_mean = model.bn.running_mean[concat_index].clone()
             model.bn.running_var = model.bn.running_var[concat_index].clone()
-        
-                    
-                    
 
-    # accommodate for different models
+    # Accommodate for different models
     if hasattr(model, "classifier"):
         if hasattr(model.classifier, "dense"):
             model.classifier.dense = prune_linear_layer(model.classifier.dense, index, dim=1)
     if hasattr(model, "cls"):
         if hasattr(model.cls, "dense"):
-            model.cls.dense = prune_linear_layer(model.classifier.dense, index, dim=1)
+            model.cls.dense = prune_linear_layer(model.cls.dense, index, dim=1)
             
     if bert is not None:
         if hasattr(bert.pooler, "dense"):
@@ -318,19 +422,13 @@ def prune_model_with_z(zs, model):
         model.mha_layer_transformation = prune_linear_layer(model.mha_layer_transformation, index, dim=1)
         print("layer mha_layer_transformation", model.mha_layer_transformation.weight.shape)
     if hasattr(model, 'mlp'):
-        
         if 'final_mlp_hidden_z' in zs:
             model = prune_hidden_mlp(zs, model, concat_index)
-        
             print("success")
-                
 
     if kept_intermediate_dims is not None:
         print(model, type(model), hasattr(model, "bert"))
-        #print("Want to keep the intermediate dims: ", kept_intermediate_dims)
         prune_intermediate_layers(model, kept_intermediate_dims)
-    
-    
     #for layer in range(0, model.config.num_hidden_layers):
         '''if hasattr(model, 'bert'):
             print("Layer:", layer)

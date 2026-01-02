@@ -104,7 +104,7 @@ def save_checkpoint(
         filename = "{}.{}".format(filename, i)
         best_filename = "{}.{}".format(best_filename, i)
     torch.save(state, os.path.join(exp_dir, filename))
-    if is_best:
+    if is_best and best_filename != filename:
         shutil.copyfile(
             os.path.join(exp_dir, filename), os.path.join(exp_dir, best_filename)
         )

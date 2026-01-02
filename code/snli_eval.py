@@ -87,7 +87,7 @@ def main(args):
     
     train,_,dataloaders=train_utils.create_dataloaders(max_data=10000, model_type=args.model_type, pruning_method=args.pruning_method)
     # ==== BUILD MODEL ====
-    model = train_utils.build_model(vocab_size=len(train.stoi), model_type=args.model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512, is_cofi=args.pruning_method=='cofi')
+    model,_ = train_utils.build_model(vocab_size=len(train.stoi), model_type=args.model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512, is_cofi=args.pruning_method=='CoFi')
    
     val_loader = dataloaders['val']
     accs = {}
@@ -98,94 +98,103 @@ def main(args):
         return inputs
 
     for folder in os.listdir(args.root_dir):
-
-        if args.pruning_method == 'cofi':
-            if args.model_type in ['bert', 'llama']:
-                tokenizer = AutoTokenizer.from_pretrained(os.path.join(args.root_dir, folder), trust_remote_code=True)
-            else:
-                tokenizer = model.encoder
+        if '.ipynb' in folder: continue
+        if '.pt' in folder: continue
+        if '.csv' in folder: continue
+    
+        try:
+            if args.pruning_method == 'CoFi':
+                if args.model_type in ['bert', 'llama']:
+                    #tokenizer = AutoTokenizer.from_pretrained(os.path.join(args.root_dir, f"0_Pruning_Iter"), trust_remote_code=True)
+                    tokenizer=None
+                else:
+                    tokenizer = model.encoder
                 
-            
-            if folder == '0_Pruning_Iter':
-                zs=None
-            else:
-                zs=torch.load(os.path.join(args.root_dir, folder,"best/zs.pt"))
-                
-            pruned_model = load_model(os.path.join(args.root_dir, folder), model, zs,tokenizer, train_data=train, ckpt=os.path.join(args.root_dir, folder, 'best/model_best.pth'))
-            pruned_model.eval()
 
-            pruned_model.cuda()
-            all_preds = []
-            all_targets = []
+                if folder == '0_Pruning_Iter':
+                    zs=None
+                    continue
+                else:
+                    zs=torch.load(os.path.join(args.root_dir, folder,"zs.pt"))
 
-            # CORRECTED: Added conditional logic for batch handling
-            for batch in dataloaders['val']:
-                if torch.cuda.is_available():
-                    #batch = fill_inputs_with_zs(zs, batch)
-                    
-                    batch = {k: v.to('cuda') for k, v in batch.items()}
-                    targets = batch['labels']
+                pruned_model = load_model(os.path.join(args.root_dir, folder), model, zs,tokenizer, train_data=train, ckpt=os.path.join(args.root_dir, folder, 'model_best.pth'))
+                pruned_model.eval()
+
+                pruned_model.cuda()
+                all_preds = []
+                all_targets = []
+
+                # CORRECTED: Added conditional logic for batch handling
+                for batch in dataloaders['val']:
+
+                    if torch.cuda.is_available():
+                        #batch = fill_inputs_with_zs(zs, batch)
+
+                        batch = {k: v.to('cuda') for k, v in batch.items()}
+                        targets = batch['labels']
 
 
-                batch_size = targets.shape[0]
-
-                with torch.no_grad():
-                    logits = pruned_model(**batch)
-
-                preds = logits[1][2].argmax(1)
-                all_preds.append(preds.cpu().numpy())
-                all_targets.append(targets.cpu().numpy())
-
-            all_preds = np.concatenate(all_preds, 0)
-            all_targets = np.concatenate(all_targets, 0)
-            acc = (all_preds == all_targets).mean()
-            print(np.round(acc, 3))
-        else:
-            torch.cuda.empty_cache()
-            if '.ipy' in folder or not folder[0].isdigit(): continue
-            model.load_state_dict(torch.load(os.path.join(args.root_dir, folder, 'model_best.pth'))['state_dict'])
-            all_preds = []
-            all_targets = []
-            model.eval()
-
-            if settings.CUDA:
-                model = model.cuda()
-            if args.model_type=='bowman':
-                for (s1, s1len, s2, s2len, targets) in val_loader:
-                    if settings.CUDA:
-                        s1 = s1.cuda()
-                        s1len = s1len.cuda()
-                        s2 = s2.cuda()
-                        s2len = s2len.cuda()
+                    batch_size = targets.shape[0]
 
                     with torch.no_grad():
-                        logits = model(s1, s1len, s2, s2len)
+                        logits = pruned_model(**batch)
 
-                    preds = logits.argmax(1)
-
-                    all_preds.append(preds.cpu().numpy())
-                    all_targets.append(targets.cpu().numpy())
-            else:
-                for s1, s2, targets in val_loader:
-                    s1={k:v.cuda() for k,v in s1.items()}
-                    s2={k:v.cuda() for k,v in s2.items()}
-
-                    with torch.no_grad():
-                        logits = model(s1, s2)
-
-                    preds = logits.argmax(1)
-
+                    preds = logits[1][2].argmax(1)
                     all_preds.append(preds.cpu().numpy())
                     all_targets.append(targets.cpu().numpy())
 
+                all_preds = np.concatenate(all_preds, 0)
+                all_targets = np.concatenate(all_targets, 0)
+                acc = (all_preds == all_targets).mean()
+                print(np.round(acc, 3))
+            else:
+                torch.cuda.empty_cache()
+                if '.ipy' in folder or not folder[0].isdigit(): continue
+                model.load_state_dict(torch.load(os.path.join(args.root_dir, folder, 'model_best.pth'))['state_dict'])
+                all_preds = []
+                all_targets = []
+                model.eval()
 
-            all_preds = np.concatenate(all_preds, 0)
-            all_targets = np.concatenate(all_targets, 0)
+                if settings.CUDA:
+                    model = model.cuda()
+                if args.model_type=='bowman':
+                    for (s1, s1len, s2, s2len, targets) in val_loader:
+                        if settings.CUDA:
+                            s1 = s1.cuda()
+                            s1len = s1len.cuda()
+                            s2 = s2.cuda()
+                            s2len = s2len.cuda()
 
-            acc = (all_preds == all_targets).mean()
+                        with torch.no_grad():
+                            logits = model(s1, s1len, s2, s2len)
 
-            print(f" Val acc: {acc:.3f}")
-        accs[folder]=np.round(acc,3)
+                        preds = logits.argmax(1)
+
+                        all_preds.append(preds.cpu().numpy())
+                        all_targets.append(targets.cpu().numpy())
+                else:
+                    for s1, s2, targets in val_loader:
+                        s1={k:v.cuda() for k,v in s1.items()}
+                        s2={k:v.cuda() for k,v in s2.items()}
+
+                        with torch.no_grad():
+                            logits = model(s1, s2)
+
+                        preds = logits.argmax(1)
+
+                        all_preds.append(preds.cpu().numpy())
+                        all_targets.append(targets.cpu().numpy())
+
+
+                all_preds = np.concatenate(all_preds, 0)
+                all_targets = np.concatenate(all_targets, 0)
+
+                acc = (all_preds == all_targets).mean()
+
+                print(f" Val acc: {acc:.3f}")
+            accs[folder]=np.round(acc,3)
+        except Exception as e:
+            print(e)
     pd.DataFrame({'folder':accs.keys(), 'accs':accs.values()}).to_csv(f"{args.root_dir}/accuracy.csv")
 
 
@@ -211,7 +220,7 @@ def parse_args():
     parser.add_argument("--root_dir", default="/workspace/CCE_NLI/BOWMAN/models/lottery_ticket/Run0.25/")
     parser.add_argument("--ckpt", default="BOWMAN/models/lottery_ticket/Run0.25/0_Pruning_Iter/model_best.pth")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "bert", "llama"])
-    parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "cofi"])
+    parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "CoFi"])
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--eval_data_path", default="data/snli_1.0/")
     parser.add_argument("--cuda", action="store_true")

@@ -160,7 +160,7 @@ def main():
             config.output_hidden_states = True
             
         if additional_args.do_distill:
-            teacher_model = Teach_Model.from_pretrained(
+            teacher_model, _ = Teach_Model.from_pretrained(
                 pretrained_model_name_or_path=None, #dditional_args.teacher_path, #f"0_Pruning_Iter/model_best.pth", #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
                 ckpt= data_args.path_to_pretrained,
                 config=config
@@ -173,7 +173,7 @@ def main():
         tokenizer= TextEncoder(len(vocab['stoi']))
         Teach_Model = CoFiBowmanEntailmentClassifier(tokenizer_teacher, training_args.device)
         Student_Model = CoFiBowmanEntailmentClassifier(tokenizer, training_args.device)
-        teacher_model = Teach_Model.from_pretrained(
+        teacher_model, _ = Teach_Model.from_pretrained(
                 pretrained_model_name_or_path=None, #"/workspace/CCE_NLI/BOWMAN/models/CoFi/Run0.25/0_Pruning_Iter/model_best.pth", #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
                 encoder=tokenizer_teacher,
 
@@ -185,7 +185,7 @@ def main():
    
     print(f'Loading student model from : {os.path.join("/".join(training_args.output_dir.split("/")[:-1]), "student_model.pth")}')
     #load an untrained student model which we need to initially finetune before pruning
-    student_model = Student_Model.from_pretrained(
+    student_model, trained_student = Student_Model.from_pretrained(
         pretrained_model_name_or_path= os.path.join("/".join(training_args.output_dir.split("/")[:-1]), "student_model.pth"), # if llm part of student model is alr trained itll be here otherwise a default model will be loaded and finetuned
         config=config,
         encoder=tokenizer,
@@ -307,7 +307,7 @@ def main():
     )
 
     if training_args.do_train:
-        trainer.train(using_untrained_student=additional_args.using_untrained_student)
+        trainer.train(using_trained_student=trained_student)
         
         if additional_args.target_sparsity > 0:
             #trainer.save_model()

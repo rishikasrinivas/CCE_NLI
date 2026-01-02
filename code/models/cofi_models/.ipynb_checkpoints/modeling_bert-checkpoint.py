@@ -102,7 +102,7 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
 
         # Create model (random MLP + CoFi)
         model = cls(config)
-
+        trained = False
         # -----------------------
         # Load .pth checkpoint
         # -----------------------
@@ -125,7 +125,8 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
                 weights[new_key] = weights.pop(old_key)
 
             load_pruned_model(model, weights)
-            return model
+            trained = True
+            return model, trained
 
         # -----------------------
         # Load HF pretrained encoder only
@@ -139,8 +140,8 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
         filtered_state = {k: v for k, v in hf_state.items() if k in model_state and v.shape == model_state[k].shape}
 
         model.load_state_dict(filtered_state, strict=False)
-
-        return model
+        torch.save(model.state_dict(), kwargs['ckpt'])
+        return model, trained
 
 
     def indices_to_bert_tokens(self, indices):

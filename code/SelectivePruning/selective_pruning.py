@@ -14,7 +14,7 @@ def get_model(args, train):
     model = train_utils.build_model(vocab_size=len(train.stoi), model_type=args.model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512, is_cofi=args.pruning_method=='cofi')
    
 
-    
+   
     
     def fill_inputs_with_zs(zs, inputs):
         for key in zs:

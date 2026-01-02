@@ -25,7 +25,7 @@ from transformers.training_args import TrainingArguments
 from safetensors.torch import load_file
 from huggingface_hub import hf_hub_download
 import train_utils
-from utils.cofi_utils import *
+from cofi.utils.cofi_utils import *
 logger = logging.getLogger(__name__)
 
 def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
@@ -125,13 +125,11 @@ class CoFiLlamaRMSNorm(LlamaRMSNorm):
 class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
-        
-        
+        self.model_name='llama'
         
         self.config=config
         self.model = CoFiLlamaModel(config)
-        
-        self.model_name='llama'
+   
         self.tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
         
         self.encoder_dim = config.hidden_size
@@ -175,6 +173,10 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
 
         self.model._prune_heads(heads_to_prune)
 
+        
+    
+            
+    
     @classmethod
     def from_pretrained(
         cls,
@@ -194,6 +196,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
 
         # Create model (random MLP + CoFi)
         model = cls(config)
+        trained=False
 
         # -----------------------
         # Load .pth checkpoint
@@ -217,7 +220,8 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
                 weights[new_key] = weights.pop(old_key)
 
             load_pruned_model(model, weights)
-            return model
+            trained = True
+            return model, trained
 
         # -----------------------
         # Load HF pretrained encoder only
@@ -232,9 +236,11 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
 
         model.load_state_dict(filtered_state, strict=False)
         torch.save(model.state_dict(), kwargs['ckpt'])
+        return model, trained
 
-        return model
-    
+
+
+
     def indices_to_bert_tokens(self, indices):
         batch_size, seq_len = indices.shape
         words = []
@@ -374,7 +380,8 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         if labels is not None:
             loss_fct = CrossEntropyLoss()
             loss = loss_fct(
-                pooled_logits.view(-1, self.num_labels), labels.view(-1))
+                pooled_logits.view(-1, self.num_labels).cpu(), labels.view(-1).cpu())
+            
 
         return SequenceClassifierOutputWithPast(
             loss=loss,
@@ -734,9 +741,21 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         len_heads = len(heads)
         if len_heads == 0: 
             return
+        
+
+        print(f"Before pruning: num_attention_heads={self.num_attention_heads}, attention_head_size={self.attention_head_size}")
+        print(f"Pruning heads: {heads}")
+        print(f"q_proj weight shape: {self.q_proj.weight.shape}")
+        print(f"k_proj weight shape: {self.k_proj.weight.shape}")
+        print(f"v_proj weight shape: {self.v_proj.weight.shape}")
+        print(f"o_proj weight shape: {self.o_proj.weight.shape}")
+
         heads, index = find_pruneable_heads_and_indices(
             heads, self.num_attention_heads, self.attention_head_size, self.pruned_heads
         )
+        print(f"Index: {index[:10]}...{index[-10:]}") 
+        print(f"Pruning index: {index}")
+      
         # Prune linear layers
         if len(index) == 0:
             self.q_proj = None
@@ -744,11 +763,15 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
             self.v_proj = None
             self.o_proj = None
         else:
+            print("q")
             self.q_proj = prune_linear_layer(self.q_proj, index)
-            self.k_proj = prune_linear_layer(self.k_proj, index)
-            self.v_proj = prune_linear_layer(self.v_proj, index)
+            print('lk')
+            self.k_proj = prune_linear_layer(self.k_proj, index, dim=1)
+            print('v')
+            self.v_proj = prune_linear_layer(self.v_proj, index, dim=1)
+            print('o')
             self.o_proj = prune_linear_layer(
-                self.o_proj, index, dim=1)
+                self.o_proj, index)
 
         # Update hyper params and store pruned heads
         self.num_attention_heads = self.num_attention_heads - \
