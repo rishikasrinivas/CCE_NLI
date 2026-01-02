@@ -21,6 +21,7 @@ sys.path.append('code/')
 from args import AdditionalArguments, DataTrainingArguments
 from cofi.utils.cofi_utils import *
 from models.cofi_models.l0_module import L0Module
+from models.cofi_models.l0_module_llama import L0Module_LLAMA
 from models.cofi_models.modeling_bert import CoFiBertForSequenceClassification
 from models.cofi_models.modeling_llama import CoFiLlamaForSequenceClassification
 from models.cofi_models.modeling_bowman import CoFiBowmanEntailmentClassifier, TextEncoder
@@ -218,13 +219,23 @@ def main():
 
     l0_module = None
     if additional_args.pruning_type is not None:
-        l0_module = L0Module(config=config,
-                             model_name=additional_args.model_name,
-                             droprate_init=additional_args.droprate_init,
-                             temperature=additional_args.temperature,
-                             target_sparsity=additional_args.target_sparsity,
-                             pruning_type=additional_args.pruning_type,
-                             args=training_args)
+        if additional_args.model_name  == 'llama':
+            l0_module = L0Module_LLAMA(config=config,
+                                 model_name=additional_args.model_name,
+                                 droprate_init=additional_args.droprate_init,
+                                 temperature=additional_args.temperature,
+                                 target_sparsity=additional_args.target_sparsity,
+                                 pruning_type=additional_args.pruning_type,
+                                 args=training_args)
+        else:
+            l0_module = L0Module(config=config,
+                                 model_name=additional_args.model_name,
+                                 droprate_init=additional_args.droprate_init,
+                                 temperature=additional_args.temperature,
+                                 target_sparsity=additional_args.target_sparsity,
+                                 pruning_type=additional_args.pruning_type,
+                                 args=training_args)
+            
 
 
     # Padding strategy
