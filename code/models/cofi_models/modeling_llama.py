@@ -764,11 +764,11 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
             self.o_proj = None
         else:
             print("q")
-            self.q_proj = prune_linear_layer(self.q_proj, index)
+            self.q_proj = prune_linear_layer(self.q_proj, index, dim=0)
             print('lk')
             self.k_proj = prune_linear_layer(self.k_proj, index, dim=1)
             print('v')
-            self.v_proj = prune_linear_layer(self.v_proj, index, dim=1)
+            self.v_proj = prune_linear_layer(self.v_proj, index, dim=0)
             print('o')
             self.o_proj = prune_linear_layer(
                 self.o_proj, index)
@@ -826,13 +826,9 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
             **kwargs,
         )
        
-
-        
-        
         
         if head_z is not None:
-            
-            attn_output = attn_output.transpose(1,2) * head_z.view(1, -1, 1, 1)
+            attn_output = attn_output.transpose(1,2) * head_z.view(1, -1, 1, 1).repeat_interleave(8,dim=1)
             attn_output = attn_output.transpose(1,2)
             
         attn_output = attn_output.reshape(*input_shape, -1).contiguous()

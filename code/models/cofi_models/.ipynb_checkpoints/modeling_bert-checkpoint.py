@@ -705,6 +705,7 @@ class CoFiBertSelfAttention(BertSelfAttention):
         value_layer = self.transpose_for_scores(mixed_value_layer)
         context_layer = torch.matmul(attention_probs, value_layer)
         if head_z is not None:
+            print("Context layer (atttnput ) shape ", context_layer.shape, "head shape", head_z.shape)
             context_layer *= head_z
 
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()

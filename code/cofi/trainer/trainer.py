@@ -380,6 +380,7 @@ class CoFiTrainer(Trainer):
             np.ceil(num_train_epochs)), desc="Epoch", disable=disable_tqdm)
 
         #Train the teacher model first
+
         if not self.finetuned_teacher:
             self.teacher_model = self.finetune_teacher(self.teacher_model)
             self.finetuned_teacher = True
@@ -393,7 +394,7 @@ class CoFiTrainer(Trainer):
             epoch_start = time.time()
 
             
-            if epoch < 1 and not using_trained_student:
+            if not using_trained_student:
                 epoch_iterator = self.train_initial_learning
                 if isinstance(self.train_initial_learning, DataLoader) and isinstance(self.train_initial_learning.sampler, DistributedSampler):
                     self.train_initial_learning.sampler.set_epoch(epoch)
@@ -416,10 +417,11 @@ class CoFiTrainer(Trainer):
                 #print(f"Can only start pruning at {self.global_step} == {self.prepruning_finetune_steps}")
                 #print(f"right now, glboal step = {self.global_step} and self.prepruning_finetune_steps = {self.prepruning_finetune_steps}" )
                 
-                if epoch > 0 and not self.start_prune: #elf.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps: #! before pruning, run 12272 steps
+                if using_trained_student and not self.start_prune: #elf.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps: #! before pruning, run 12272 steps
                    
                     logger.warning("started pruning")
                     self.start_prune = True
+                    print("starting ptuning")
                     self.student_optimizer = None
                     self.lr_scheduler = None
                     lr_steps = self.t_total - self.global_step
@@ -527,7 +529,7 @@ class CoFiTrainer(Trainer):
 
             epoch_pbar.close()
             train_pbar.update(1)
-            if not using_trained_student and epoch == 1:
+            if not using_trained_student:
                 print("Trained student to starting point. Saving now")
                 self.save_model(model, student=True)
                 using_trained_student = True
