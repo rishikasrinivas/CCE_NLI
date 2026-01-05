@@ -37,7 +37,7 @@ PRUNE_AMT=0.2
 MAX_OPEN_FEATS = 5
 # Minimum number of activations to analyze a neuron
 SPARSITY_RATIOS = [0.25, 0.4375,0.578125, 0.68359375, 0.7626953125]
-BATCH_SIZE=16
+BATCH_SIZE=32
 
 MODEL_TYPE = "bowman"  # choices: bowman, minimal, imdbData, bert
 MODEL = f"models/snli/{MODEL_TYPE}_random_inits.pth"
