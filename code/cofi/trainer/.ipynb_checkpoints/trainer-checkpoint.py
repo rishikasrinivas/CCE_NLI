@@ -418,7 +418,7 @@ class CoFiTrainer(Trainer):
                 #print(f"right now, glboal step = {self.global_step} and self.prepruning_finetune_steps = {self.prepruning_finetune_steps}" )
                 
                 if using_trained_student and not self.start_prune: #elf.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps: #! before pruning, run 12272 steps
-                   
+                    self.global_step = self.prepruning_finetune_steps
                     logger.warning("started pruning")
                     self.start_prune = True
                     print("starting ptuning")

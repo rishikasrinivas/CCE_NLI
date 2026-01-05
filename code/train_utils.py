@@ -366,6 +366,7 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
         else:
             print(f"Loading from checkpoint (no zs): {ckpt}")
             ckpt_ = torch.load(ckpt, map_location=torch.device(device))
+            print(ckpt_, ckpt)
             model.load_state_dict(state_dict=ckpt_["state_dict"], strict=False)
     else:
         # This logic for saving initial weights is fine

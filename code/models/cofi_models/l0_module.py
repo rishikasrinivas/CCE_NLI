@@ -501,12 +501,7 @@ class L0Module(Module):
         final_mlp_inp_z (3072,)
         intermediate_z: (12, 3072), mlp_z: (12, 1), hidden_z: (768,)
         
-        
-                hidden_z (2048,)
-        intermediate_z (22, 5632)
-        mlp_z (22,)
-        head_layer_z (22,)
-        head_z (22, 32)
+    
         """
         intermediate_nums = np.outer((intermediate_z * mlp_z).reshape(-1), hidden_z).sum().item()
         print(f"remaining_hidden_dims: {remaining_hidden_dims}\nremaining_intermediate_nums: {remaining_intermediate_nums}")
