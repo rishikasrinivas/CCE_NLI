@@ -115,6 +115,7 @@ def build_masks(activations, activation_ranges, num_clusters, save_dir):
         masks = torch.stack(act_masks)
         saved_masks.append(masks)
         act_tens=torch.save(masks, f"{save_dir}/Cluster{cluster_num}masks.pt")
+    saved_masks = [s.cpu().numpy() for s in saved_masks]
     return np.array(saved_masks)
         
     

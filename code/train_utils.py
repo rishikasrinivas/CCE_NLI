@@ -51,25 +51,6 @@ import torch
 from torch.utils.data import Dataset
 import glob
 
-class LazyBatchDataset(Dataset):
-    def __init__(self, folder):
-        # all medium files
-        self.files = sorted(glob.glob(f"{folder}/*.pth"))
-
-        # precompute mapping from global idx -> file + local idx
-        self.idx_map = []
-        for f in self.files:
-            batches = torch.load(f)  # just to get length
-            self.idx_map.extend([(f, i) for i in range(len(batches))])
-
-    def __len__(self):
-        return len(self.idx_map)
-
-    def __getitem__(self, idx):
-        file_path, local_idx = self.idx_map[idx]
-        batches = torch.load(file_path)
-        return batches[local_idx]
-
 
 def create_dataloaders(max_data, model_type, pruning_method, debug=False):
     """
@@ -121,15 +102,15 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
             tokenizer.add_special_tokens({'pad_token': tokenizer.eos_token})
         itos = train_dataset.itos
         
-        if os.path.exists(os.path.join(root_dir, "train_batches_all.pth")) and os.path.exists(os.path.join(root_dir, "val_batches_all.pth")): 
+        if os.path.exists(os.path.join(root_dir, f"train_batches_{filepath}_{max_data}_all.pth")) and os.path.exists(os.path.join(root_dir, f"val_batches_{filepath}_{max_data}_all.pth")): 
             print(f"Loading combined tokenizations from {root_dir}")
-            combined_tokens_train = torch.load(os.path.join(root_dir, "train_batches_all.pth"))
+            combined_tokens_train = torch.load(os.path.join(root_dir, f"train_batches_{filepath}_{max_data}_all.pth"))
             train_loader = DataLoader(combined_tokens_train,
                                       batch_size=1,  # already a batch of size 32
                                       shuffle=True,
                                       collate_fn=lambda x: x[0])
         
-            combined_tokens_val = torch.load(os.path.join(root_dir, "val_batches_all.pth"))
+            combined_tokens_val = torch.load(os.path.join(root_dir, f"val_batches_{filepath}_{max_data}_all.pth"))
             val_loader = DataLoader(combined_tokens_val,
                                     batch_size=1,
                                     shuffle=False,
@@ -232,8 +213,8 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
                 train_all_batches.extend(batches)  # flatten into a single list
 
             # save as one big file
-            torch.save(train_all_batches, os.path.join(root_dir, "train_batches_all.pth"))
-            print(f"✅ Saved {len(train_all_batches)} batches into train_batches_all.pth")
+            torch.save(train_all_batches, os.path.join(root_dir, f"train_batches_{filepath}_{max_data}_all.pth"))
+            print(f"✅ Saved {len(train_all_batches)} batches into train_batches_{filepath}_{max_data}_all.pth")
             train_loader = DataLoader(train_all_batches,
                                       batch_size=1,  # already a batch of size 32
                                       shuffle=True,
@@ -248,8 +229,8 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
                 val_all_batches.extend(batches)  # flatten into a single list
 
             # save as one big file
-            torch.save(val_all_batches, os.path.join(root_dir, "val_batches_all.pth"))
-            print(f"✅ Saved {len(val_all_batches)} batches into val_batches_all.pth")
+            torch.save(val_all_batches, os.path.join(root_dir, f"val_batches_{filepath}_{max_data}_all.pth"))
+            print(f"✅ Saved {len(val_all_batches)} batches into val_batches_{filepath}_{max_data}_all.pth")
 
             val_loader = DataLoader(val_all_batches,
                                     batch_size=1,
