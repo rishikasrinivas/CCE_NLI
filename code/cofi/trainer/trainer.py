@@ -412,6 +412,8 @@ class CoFiTrainer(Trainer):
             epoch_pbar = tqdm(epoch_iterator, desc="Iteration",
                               disable=disable_tqdm)
             self.eval_counter.clear()
+            
+                
 
             for step, inputs in enumerate(epoch_iterator):
                 #print(f"Can only start pruning at {self.global_step} == {self.prepruning_finetune_steps}")
@@ -517,7 +519,7 @@ class CoFiTrainer(Trainer):
 
                 epoch_pbar.update(1)
 
-                if self.pruned_sparsity >= self.additional_args.target_sparsity:
+                if using_trained_student and self.pruned_sparsity >= self.additional_args.target_sparsity:
                     print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity}")
                     
                     break
@@ -1000,7 +1002,7 @@ class CoFiTrainer(Trainer):
             self.teacher_model.load_state_dict(state_dict)'''
             
         # Load rfrm pth (deal)
-        if 'model_best.pth' in  os.listdir(teacher_model_path):
+        if os.path.exists(teacher_model_path) and 'model_best.pth' in  os.listdir(teacher_model_path):
             print(f"Reloading Finetuning SNLI teacher model ")
             print(f"Loading from {teacher_model_path}")
             print(os.listdir(self.teacher_model_dir))

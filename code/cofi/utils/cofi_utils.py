@@ -113,12 +113,14 @@ def update_llama_params(model, zs):
             for layer in range(num_layers):
                 
                 head_z = zs["head_z"][layer].cpu().squeeze().clone()
+                #print("Layers shape fo head is ", zs["head_z"][layer].shape, "and interleaving", dims_per_head)
                 head_z = torch.repeat_interleave(head_z, dims_per_head)
-                print("headz k", layer, llama.layers[layer].self_attn.k_proj.weight.data.shape, head_z.shape)
-                # v_proj instead of value
+                #print("headz k", layer, llama.layers[layer].self_attn.k_proj.weight.data.shape, head_z.shape)
+
+                # v_proj instead of value  head_z.reshape(_1,1 ) so head_z is (1,256) then * llama.layers[layer].self_attn.v_proj.weight.data whihc is 256x2048 no llama.layers[layer].self_attn.v_proj.weight.data needs to be 256x2048 so 2048x256 elem wise 1x256
                
                 llama.layers[layer].self_attn.v_proj.weight.data = \
-                    llama.layers[layer].self_attn.v_proj.weight.data.mul(head_z)
+                    llama.layers[layer].self_attn.v_proj.weight.data.mul(head_z.reshape(-1,1))
                 # No bias
                 
                 if "head_layer_z" in zs:
@@ -139,10 +141,10 @@ def update_llama_params(model, zs):
             
             for layer in range(22):
                 # Attention projections
-                print('k ', layer, llama.layers[layer].self_attn.k_proj.weight.data.shape, hidden_z.shape)
-                print('q ', llama.layers[layer].self_attn.k_proj.weight.data.shape, hidden_z.shape)
-                print('v ', llama.layers[layer].self_attn.v_proj.weight.data.shape, hidden_z.shape)
-                print('o ', layer, llama.layers[layer].self_attn.o_proj.weight.data.transpose(0, 1).shape, hidden_z.shape)
+                #print('k ', layer, llama.layers[layer].self_attn.k_proj.weight.data.shape, hidden_z.shape)
+                #print('q ', llama.layers[layer].self_attn.k_proj.weight.data.shape, hidden_z.shape)
+                #print('v ', llama.layers[layer].self_attn.v_proj.weight.data.shape, hidden_z.shape)
+                #print('o ', layer, llama.layers[layer].self_attn.o_proj.weight.data.transpose(0, 1).shape, hidden_z.shape)
                 llama.layers[layer].self_attn.k_proj.weight.data = \
                     llama.layers[layer].self_attn.k_proj.weight.data.mul(hidden_z)
                 llama.layers[layer].self_attn.q_proj.weight.data = \
@@ -167,7 +169,7 @@ def update_llama_params(model, zs):
             # Your classification head MLP
             model.mlp[0].weight.data = \
                 model.mlp[0].weight.data.mul(torch.cat([hidden_z for _ in range(4)]))
-        print("MLP")
+        #print("MLP")
         if 'final_mlp_hidden_z' in zs:
             final_mlp_hidden_z = zs['final_mlp_hidden_z'].cpu().clone()
             model.mlp[3].weight.data = \
@@ -375,9 +377,9 @@ def prune_model_with_z(zs, model):
                 
                 # Attention projections - all take hidden_dim as input (dim=1)
                 if llama.layers[layer].self_attn.q_proj is not None:
-                    print("NON MLP q", llama.layers[layer].self_attn.q_proj.weight.data.shape, index)
-                    print("NON MLP k", llama.layers[layer].self_attn.k_proj.weight.data.shape, index)
-                    print("NON MLP v", llama.layers[layer].self_attn.v_proj.weight.data.shape, index)
+                    #print("NON MLP q", llama.layers[layer].self_attn.q_proj.weight.data.shape, index)
+                    #print("NON MLP k", llama.layers[layer].self_attn.k_proj.weight.data.shape, index)
+                    #print("NON MLP v", llama.layers[layer].self_attn.v_proj.weight.data.shape, index)
                     
                     llama.layers[layer].self_attn.q_proj = \
                         prune_layer(llama.layers[layer].self_attn.q_proj, index, dim=1)

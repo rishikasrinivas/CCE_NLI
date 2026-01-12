@@ -24,6 +24,7 @@ class L0Module(Module):
                  start_sparsity=0.0,
                  target_sparsity=0.0,
                  args='out',
+                 full_model_size=None,
                  pruning_type="structured_heads+structured_mlp+hidden+layer+final_mlp_hidden",
                  magical_number=0.8, # from Wang et al. 2020
                  ):
@@ -86,12 +87,11 @@ class L0Module(Module):
         
         #both bowman and llm
         self.hidden_layer_mlp_loga = None 
-        
-        self.prunable_model_size=self.full_model_size()
+    
         
         
         types = self.pruning_type.split("+") #in bomwan should be ['final_mlp_hidden']
-        print(f" self.prunable_model_size: { self.prunable_model_size}")
+        self.prunable_model_size=full_model_size
         self.learned_zs =None
         
         #for 2048 layer (3072 in llm) doesn't apply in bowman pruning. in llm this is initiallized with hidden layer hwich isnt used in bowman so initialize it as default to bowmans
@@ -131,17 +131,7 @@ class L0Module(Module):
         self.lagrangian_warmup = lagrangian_warmup
 
         
-    def full_model_size(self):
-        if self.model_name != 'bowman':
-            prunable_model_size = self.params_per_head * self.num_hidden_layers * self.num_attention_heads + (self.params_per_mlp_layer * self.num_hidden_layers) #this changes for bomwna
-        else:
-            prunable_model_size = 0 #change this to the lstm size
-        
-        self.llm_size = prunable_model_size
-        prunable_model_size  += self.params_finalmlp_layer 
-        print(f"Prunable model size: {prunable_model_size}")
-        return prunable_model_size
-    
+
     
     def initialize_one_module(self, module_name):
         #both bowman and llm
@@ -383,7 +373,7 @@ class L0Module(Module):
         if self.model_name != 'bowman':
             expected_size +=  self.get_num_parameters_and_constraint_for_hidden() #! calculate \bar s
    
-        expected_sparsity = 1 - (expected_size / (self.llm_size + self.params_finalmlp_layer))
+        expected_sparsity = 1 - (expected_size / self.prunable_model_size)
         
     
         if self.lagrangian_warmup > 0:

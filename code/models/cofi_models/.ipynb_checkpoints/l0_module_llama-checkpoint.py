@@ -24,6 +24,7 @@ class L0Module_LLAMA(Module):
                  start_sparsity=0.0,
                  target_sparsity=0.0,
                  args='out',
+                 full_model_size=None,
                  pruning_type="structured_heads+structured_mlp+hidden+layer+final_mlp_hidden",
                  magical_number=0.8, # from Wang et al. 2020
                  ):
@@ -93,7 +94,7 @@ class L0Module_LLAMA(Module):
         #both bowman and llm
         self.hidden_layer_mlp_loga = None 
         
-        self.prunable_model_size=self.full_model_size()
+        self.prunable_model_size=full_model_size
         
         
         types = self.pruning_type.split("+") #in bomwan should be ['final_mlp_hidden']
@@ -400,7 +401,7 @@ class L0Module_LLAMA(Module):
         #if bowman only get_for_mlp
         expected_size = self.get_num_parameters_for_mlp() + self.get_num_parameters_and_constraint_for_hidden() #! calculate \bar s
    
-        expected_sparsity = 1 - (expected_size / (self.llm_size + self.params_finalmlp_layer))
+        expected_sparsity = 1 - (expected_size / self.prunable_model_size)
         
     
         if self.lagrangian_warmup > 0:
@@ -490,12 +491,12 @@ class L0Module_LLAMA(Module):
 
         # Q/O projections (H -> H) per layer
         # Controlled by hidden neurons + active layer
-        q_o_params = np.sum(hidden_z) * np.sum(head_layer_z) * 2 * H   # 2 for Q + O
+        q_o_params = np.sum(hidden_z) * np.sum(head_layer_z) * 2 * H   # 2 for Q + O (q's input * q's ouput) + (o's input * o's output) * (whihc layers are active/not) 
 
         # K/V projections (H -> D * n_kv) per layer
         # Controlled by KV heads only
         kv_mask = head_z* head_layer_z[:, None]          # shape: (L, n_kv)
-        kv_params = np.sum(kv_mask) * H * D * 2  # 2 for K + V
+        kv_params = np.sum(kv_mask) * H * D * 2  # 2 for K + V D will always be  (bs, len, kv, D) bc shape of k,v will always be (bs, len, kv, D), then outdim of Q will lways be H 
 
         # ---------------------------
         # 2. MLP PARAMETERS

@@ -218,6 +218,7 @@ def main():
             f"Model Size after pruning: {calculate_parameters(student_model)}")
 
     l0_module = None
+    
     if additional_args.pruning_type is not None:
         if additional_args.model_name  == 'llama':
             l0_module = L0Module_LLAMA(config=config,
@@ -226,7 +227,8 @@ def main():
                                  temperature=additional_args.temperature,
                                  target_sparsity=additional_args.target_sparsity,
                                  pruning_type=additional_args.pruning_type,
-                                 args=training_args)
+                                 args=training_args,
+                                full_model_size=calculate_parameters(teacher_model))
         else:
             l0_module = L0Module(config=config,
                                  model_name=additional_args.model_name,
@@ -234,7 +236,8 @@ def main():
                                  temperature=additional_args.temperature,
                                  target_sparsity=additional_args.target_sparsity,
                                  pruning_type=additional_args.pruning_type,
-                                 args=training_args)
+                                 args=training_args,
+                                full_model_size=calculate_parameters(teacher_model))
             
 
 

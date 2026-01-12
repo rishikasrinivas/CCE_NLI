@@ -235,7 +235,10 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         filtered_state = {k: v for k, v in hf_state.items() if k in model_state and v.shape == model_state[k].shape}
 
         model.load_state_dict(filtered_state, strict=False)
-        torch.save(model.state_dict(), kwargs['ckpt'])
+        from pathlib import Path
+
+        Path(kwargs['ckpt']).parent.mkdir(parents=True, exist_ok=True)
+        torch.save({'state_dict':model.state_dict()}, kwargs['ckpt'])
         return model, trained
 
 
@@ -380,7 +383,10 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         if labels is not None:
             loss_fct = CrossEntropyLoss()
             loss = loss_fct(
-                pooled_logits.view(-1, self.num_labels).cpu(), labels.view(-1).cpu())
+                pooled_logits.view(-1, self.num_labels).float().cpu(),
+                labels.view(-1).long().cpu()
+            )
+
             
 
         return SequenceClassifierOutputWithPast(

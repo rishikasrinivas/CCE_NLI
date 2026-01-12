@@ -22,6 +22,7 @@ import models
 import util
 import train_utils
 import data.snli
+from cofi.utils.utils import calculate_parameters
 
 from cofi.utils.cofi_utils import load_model
 def predict(model, premise, hypothesis, nlp, stoi, args):
@@ -78,12 +79,17 @@ def from_file(fpath):
         hyp_raw = lines[i + 1]
         yield pre_raw, hyp_raw
 
+def get_percent_pruned(model):
+    final_weights = model.mlp[0].weight.detach().cpu().numpy()
+    return 1 - ((final_weights.shape[0]*2048) + (final_weights.shape[0] * 3)) /((1024*2048)+(1024*3))
+    final_weights_pruned= np.round(100*torch.where(torch.tensor(final_weights) == 0,1,0).sum().item()/(model.mlp[0].weight.shape[0]*model.mlp[0].weight.shape[1]), 3)
+    return final_weights_pruned
 
     
 def main(args):
     print("using weights from ", args.ckpt)
     nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger", "ner"])
-    ckpt = torch.load(args.ckpt)
+    ckpt = torch.load(args.ckpt, map_location = 'cuda' if settings.CUDA else 'cpu')
     
     train,_,dataloaders=train_utils.create_dataloaders(max_data=10000, model_type=args.model_type, pruning_method=args.pruning_method)
     # ==== BUILD MODEL ====
@@ -120,7 +126,15 @@ def main(args):
                 pruned_model = load_model(os.path.join(args.root_dir, folder), model, zs,tokenizer, train_data=train, ckpt=os.path.join(args.root_dir, folder, 'model_best.pth'))
                 pruned_model.eval()
 
-                pruned_model.cuda()
+                if settings.CUDA:
+                    pruned_model.cuda()
+                if args.model_type in ['bert', 'llama']:
+                    pruned_model_size = calculate_parameters(pruned_model)
+                    final_weights_pruned = 1 - (pruned_model_size / 1042921475) 
+                else:
+                    final_weights_pruned = get_percent_pruned(pruned_model)
+                print("sparsity=", final_weights_pruned)
+                continue
                 all_preds = []
                 all_targets = []
 
@@ -129,8 +143,8 @@ def main(args):
 
                     if torch.cuda.is_available():
                         #batch = fill_inputs_with_zs(zs, batch)
-
-                        batch = {k: v.to('cuda') for k, v in batch.items()}
+                        if settings.CUDA:
+                            batch = {k: v.to('cuda') for k, v in batch.items()}
                         targets = batch['labels']
 
 

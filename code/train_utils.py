@@ -41,22 +41,45 @@ def collate_as_dict(batch):
 
     return {'s1': s1_pad, 's1len': s1len, 's2':s2_pad, 's2len': s2len, 'labels':label}
 
-def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
-    """
-    Creates and caches dataloaders.
-    - Level 1 Cache: Caches the SNLI dataset objects after reading from text.
-    - Level 2 Cache: For transformer models, caches the fully converted and tokenized batches.
-    """
+import os
+import glob
+import torch
+from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
+from transformers import AutoTokenizer
+import torch
+from torch.utils.data import Dataset
+import glob
 
+class LazyBatchDataset(Dataset):
+    def __init__(self, folder):
+        # all medium files
+        self.files = sorted(glob.glob(f"{folder}/*.pth"))
+
+        # precompute mapping from global idx -> file + local idx
+        self.idx_map = []
+        for f in self.files:
+            batches = torch.load(f)  # just to get length
+            self.idx_map.extend([(f, i) for i in range(len(batches))])
+
+    def __len__(self):
+        return len(self.idx_map)
+
+    def __getitem__(self, idx):
+        file_path, local_idx = self.idx_map[idx]
+        batches = torch.load(file_path)
+        return batches[local_idx]
+
+
+def create_dataloaders(max_data, model_type, pruning_method, debug=False):
+    """
+    Creates and caches dataloaders safely for large datasets.
+    Uses "save-as-you-go" + lazy loading to prevent RAM crashes.
+    """
     root_dir = "../DataLoaders"
     os.makedirs(root_dir, exist_ok=True)
 
-    # --- PART 1: Load or Create the Base SNLI Datasets ---
-    # This is the first level of caching. It avoids re-reading the raw .txt files.
-    base_train_path = f'{root_dir}/train_dataset.pth'
-    base_val_path = f'{root_dir}/val_dataset.pth'
-    
-    #EDIT: Updated conditions to download specified amounts of data based on cache
+    # --- PART 1: Load or create base datasets ---
     try:
         print("✅ Loading base SNLI dataset from cache...")
         if debug:
@@ -68,121 +91,182 @@ def create_dataloaders(max_data, model_type, pruning_method,  debug=False):
     except:
         print("⚠️ Base SNLI dataset cache not found. Creating from text files...")
         if debug:
-            print(f"collecting {max_data}")
             train_dataset = SNLI("data/snli_1.0", "train", max_data=max_data)
-            val_dataset = SNLI("data/snli_1.0","dev",max_data=max_data,vocab=(train_dataset.stoi, train_dataset.itos),unknowns=False)
-            
+            val_dataset = SNLI("data/snli_1.0", "dev", max_data=max_data,
+                               vocab=(train_dataset.stoi, train_dataset.itos),
+                               unknowns=False)
             torch.save(train_dataset, f'{root_dir}/train_dataset_debug{max_data}.pth')
             torch.save(val_dataset, f'{root_dir}/val_dataset_debug{max_data}.pth')
-           
         else:
             train_dataset = SNLI("data/snli_1.0", "train", max_data=None)
-            val_dataset = SNLI("data/snli_1.0","dev",max_data=10000,vocab=(train_dataset.stoi, train_dataset.itos),unknowns=False)
+            val_dataset = SNLI("data/snli_1.0", "dev", max_data=10000,
+                               vocab=(train_dataset.stoi, train_dataset.itos),
+                               unknowns=False)
             torch.save(train_dataset, f'{root_dir}/train_dataset.pth')
             torch.save(val_dataset, f'{root_dir}/val_dataset.pth')
-    
-    # --- PART 2: Branch logic based on model type ---
+
+    # --- PART 2: Transformer-specific batch conversion ---
     if model_type in ['bert', 'llama']:
-        # Define paths for the second level of caching (the converted batches)
         print(f"Pruning method: {pruning_method}")
-        if pruning_method=='CoFi':
-            filepath='cofi'
+        filepath = 'cofi' if pruning_method == 'CoFi' else 'unstructured'
+
+        train_batch_dir = os.path.join(root_dir, f"train_batches_{model_type}_{filepath}")
+        val_batch_dir   = os.path.join(root_dir, f"val_batches_{model_type}_{filepath}")
+        os.makedirs(train_batch_dir, exist_ok=True)
+        os.makedirs(val_batch_dir, exist_ok=True)
+
+        tokenizer_name = "bert-base-uncased" if model_type == 'bert' else "knowledgator/Llama-encoder-1.0B"
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+        if tokenizer.pad_token is None:
+            tokenizer.add_special_tokens({'pad_token': tokenizer.eos_token})
+        itos = train_dataset.itos
+        
+        if os.path.exists(os.path.join(root_dir, "train_batches_all.pth")) and os.path.exists(os.path.join(root_dir, "val_batches_all.pth")): 
+            print(f"Loading combined tokenizations from {root_dir}")
+            combined_tokens_train = torch.load(os.path.join(root_dir, "train_batches_all.pth"))
+            train_loader = DataLoader(combined_tokens_train,
+                                      batch_size=1,  # already a batch of size 32
+                                      shuffle=True,
+                                      collate_fn=lambda x: x[0])
+        
+            combined_tokens_val = torch.load(os.path.join(root_dir, "val_batches_all.pth"))
+            val_loader = DataLoader(combined_tokens_val,
+                                    batch_size=1,
+                                    shuffle=False,
+                                collate_fn=lambda x: x[0])
         else:
-            filepath='unstructured'
-        if debug:
-            train_cache_path = f'{root_dir}/converted_batches_train_{model_type}_{filepath}_debug{max_data}.pth' #add _pruningalg
-            val_cache_path = f'{root_dir}/converted_batches_val_{model_type}_{filepath}_debug{max_data}.pth' #add _pruningalg
-        else:
-            train_cache_path = f'{root_dir}/converted_batches_train_{model_type}_{filepath}.pth' #add _pruningalg
-            val_cache_path = f'{root_dir}/converted_batches_val_{model_type}_{filepath}.pth' #add _pruningalg
 
-        if os.path.exists(train_cache_path) and os.path.exists(val_cache_path):
-            print(f"✅ Loading pre-converted {model_type} batches from cache...{train_cache_path}")
-            converted_train_batches = torch.load(train_cache_path)
-            converted_val_batches = torch.load(val_cache_path)
-        else:
-            print(f"⚠️ Converted batches cache not found. Performing one-time conversion for {model_type}...")
-            
-            model_name = "bert-base-uncased" if model_type == 'bert' else "knowledgator/Llama-encoder-1.0B"
-            print(f"Using tokenizer {model_name}")
-            tokenizer = AutoTokenizer.from_pretrained(model_name)
-            if tokenizer.pad_token is None:
-                tokenizer.add_special_tokens({'pad_token': tokenizer.eos_token})
-            itos = train_dataset.itos
-            
-            # Use a temporary loader to create batches from the base dataset
-            temp_train_loader = DataLoader(train_dataset, batch_size=settings.BATCH_SIZE, shuffle=False, num_workers=4, collate_fn=pad_collate)
-            converted_train_batches = []
-            for batch in tqdm(temp_train_loader, desc="Converting train batches"):
-                s1_pad, _, s2_pad, _, targets = batch
-                s1_indices, s2_indices = s1_pad.cpu().numpy().T, s2_pad.cpu().numpy().T
-                s1_sentences = [" ".join([itos.get(idx, "") for idx in row if idx not in (0, 1)]) for row in s1_indices]
-                s2_sentences = [" ".join([itos.get(idx, "") for idx in row if idx not in (0, 1)]) for row in s2_indices]
-                s1_tokenized = tokenizer(s1_sentences, return_tensors="pt", padding=True, truncation=True)
-                s2_tokenized = tokenizer(s2_sentences, return_tensors="pt", padding=True, truncation=True)
-                if pruning_method != 'CoFi':
-                    converted_train_batches.append((s1_tokenized, s2_tokenized, targets)) #if pruning alg is not cofi do this else make the dict
-                else:
-                    result= {
-                        "pre_input_ids": s1_tokenized["input_ids"].cpu(),
-                        "pre_attention_mask": s1_tokenized["attention_mask"].cpu(),
-                        "hyp_input_ids": s2_tokenized["input_ids"].cpu(),
-                        "hyp_attention_mask": s2_tokenized["attention_mask"].cpu(),
-                        "labels":torch.tensor([l for l in targets])
-                    }
-                    if result['labels'].shape[0] > 1:  # or settings.BATCH_SIZE
-                        converted_train_batches.append(result)
-                    
-                
-            print(f"Creating batches of size: {settings.BATCH_SIZE}")
-            temp_val_loader = DataLoader(val_dataset, batch_size=settings.BATCH_SIZE, num_workers=4, collate_fn=pad_collate)
-            converted_val_batches = []
-            for batch in tqdm(temp_val_loader, desc="Converting val batches"):
-                s1_pad, _, s2_pad, _, targets = batch
-                s1_indices, s2_indices = s1_pad.cpu().numpy().T, s2_pad.cpu().numpy().T
-                s1_sentences = [" ".join([itos.get(idx, "") for idx in row if idx not in (0, 1)]) for row in s1_indices]
-                s2_sentences = [" ".join([itos.get(idx, "") for idx in row if idx not in (0, 1)]) for row in s2_indices]
-                s1_tokenized = tokenizer(s1_sentences, return_tensors="pt", padding=True, truncation=True)
-                s2_tokenized = tokenizer(s2_sentences, return_tensors="pt", padding=True, truncation=True)
-                if pruning_method != 'CoFi':
+            # --- Convert & save train batches ---
+            if os.path.exists(train_batch_dir) and len(os.listdir(train_batch_dir)) > 0:
+                print(f"✅ Tokenized train batches already exist in {train_batch_dir}, skipping conversion.")
 
-                    converted_val_batches.append((s1_tokenized, s2_tokenized, targets)) #if pruning alg is not cofi do this else make the dict
-                else:
-                    result = {
-                        "pre_input_ids": s1_tokenized["input_ids"].cpu(),
-                        "pre_attention_mask": s1_tokenized["attention_mask"].cpu(),
-                        "hyp_input_ids": s2_tokenized["input_ids"].cpu(),
-                        "hyp_attention_mask": s2_tokenized["attention_mask"].cpu(),
-                        "labels": torch.tensor([l for l in targets])
-                    }
-                    if result['labels'].shape[0] > 1:  # or settings.BATCH_SIZE
-                        converted_val_batches.append(result)
+            else:
+                temp_train_loader = DataLoader(train_dataset,
+                                               batch_size=settings.BATCH_SIZE,
+                                               shuffle=False,
+                                               num_workers=4,
+                                               collate_fn=pad_collate)
 
+                print("⚡ Converting and saving train batches...")
+                batch_data=[]
+                for idx, batch in enumerate(tqdm(temp_train_loader)):
+                    s1_pad, _, s2_pad, _, targets = batch
+                    s1_indices, s2_indices = s1_pad.cpu().numpy().T, s2_pad.cpu().numpy().T
+                    s1_sentences = [" ".join([itos.get(i, "") for i in row if i not in (0, 1)]) for row in s1_indices]
+                    s2_sentences = [" ".join([itos.get(i, "") for i in row if i not in (0, 1)]) for row in s2_indices]
+                    s1_tokenized = tokenizer(s1_sentences, return_tensors="pt", padding=True, truncation=True)
+                    s2_tokenized = tokenizer(s2_sentences, return_tensors="pt", padding=True, truncation=True)
 
-            print(f"💾 Saving converted batches to cache for future runs...")
-            torch.save(converted_train_batches, train_cache_path)
-            torch.save(converted_val_batches, val_cache_path)
-        # Check each batch
+                    if pruning_method != 'CoFi':
+                        batch_data.append((s1_tokenized, s2_tokenized, targets))
+                    else:
+                        batch_data.append({
+                            "pre_input_ids": s1_tokenized["input_ids"].cpu(),
+                            "pre_attention_mask": s1_tokenized["attention_mask"].cpu(),
+                            "hyp_input_ids": s2_tokenized["input_ids"].cpu(),
+                            "hyp_attention_mask": s2_tokenized["attention_mask"].cpu(),
+                            "labels": torch.tensor([l for l in targets])
+                        })
+
+                    if (idx+1) % 6000 == 0: 
+                        print(f"Saving until {idx}, {len(batch_data)}")
+                        try: 
+                            torch.save(batch_data, os.path.join(train_batch_dir, f"batch_{idx:04d}.pth"))
+                            print(f"saved to", os.path.join(train_batch_dir, f"batch_{idx:04d}.pth"))
+                        except Exception as e:
+                            print(f"Error: {e}")
+                        del batch_data, s1_tokenized, s2_tokenized
+                        batch_data=[]
+
+                if batch_data:
+                    torch.save(batch_data, os.path.join(train_batch_dir, f"batch_{idx:04d}.pth"))
+                    del batch_data, s1_tokenized, s2_tokenized
+            if os.path.exists(val_batch_dir) and len(os.listdir(val_batch_dir)) > 0:
+                print(f"✅ Tokenized val batches already exist in {val_batch_dir}, skipping conversion.")
+            # --- Convert & save val batches ---
+            else:
+                temp_val_loader = DataLoader(val_dataset,
+                                             batch_size=settings.BATCH_SIZE,
+                                             shuffle=False,
+                                             num_workers=4,
+                                             collate_fn=pad_collate)
+                print("⚡ Converting and saving val batches...")
+                batch_data = []
+                for idx, batch in enumerate(tqdm(temp_val_loader)):
+                    s1_pad, _, s2_pad, _, targets = batch
+                    s1_indices, s2_indices = s1_pad.cpu().numpy().T, s2_pad.cpu().numpy().T
+                    s1_sentences = [" ".join([itos.get(i, "") for i in row if i not in (0, 1)]) for row in s1_indices]
+                    s2_sentences = [" ".join([itos.get(i, "") for i in row if i not in (0, 1)]) for row in s2_indices]
+                    s1_tokenized = tokenizer(s1_sentences, return_tensors="pt", padding=True, truncation=True)
+                    s2_tokenized = tokenizer(s2_sentences, return_tensors="pt", padding=True, truncation=True)
+
+                    if pruning_method != 'CoFi':
+                        batch_data.append((s1_tokenized, s2_tokenized, targets))
+                    else:
+                        batch_data.append( {
+                            "pre_input_ids": s1_tokenized["input_ids"].cpu(),
+                            "pre_attention_mask": s1_tokenized["attention_mask"].cpu(),
+                            "hyp_input_ids": s2_tokenized["input_ids"].cpu(),
+                            "hyp_attention_mask": s2_tokenized["attention_mask"].cpu(),
+                            "labels": torch.tensor([l for l in targets])
+                        })
+                    if (idx+1) % 6000 == 0:
+
+                        torch.save(batch_data, os.path.join(val_batch_dir, f"batch_{idx:04d}.pth"))
+                        del batch_data, s1_tokenized, s2_tokenized
+                        batch_data=[]
+
+                if batch_data:
+                    torch.save(batch_data, os.path.join(val_batch_dir, f"batch_{idx:04d}.pth"))
+            # --- PART 3: Lazy loading ---
        
-
-        # Create final DataLoaders from the list of converted batches
-        train_loader = DataLoader(converted_train_batches, shuffle=True, batch_size=1, collate_fn=lambda x: x[0])
-        val_loader = DataLoader(converted_val_batches, shuffle=False, batch_size=1, collate_fn=lambda x: x[0])
-
-    else: # This path is for the 'bowman' model
-        print("✅ Using original dataloaders for bowman model.")
-        #collate fn changes if not cofi vs if cofi
-        collate_fn =  collate_as_dict if pruning_method=='CoFi' else pad_collate 
-        #subset_indices = range(200)
-        #sub_train_dataset = Subset(train_dataset, subset_indices)
-        #sub_val_dataset = Subset(val_dataset, subset_indices)
-        train_loader = DataLoader(train_dataset, batch_size=settings.BATCH_SIZE, shuffle=True, num_workers=4, collate_fn=collate_fn, drop_last=True)
-        val_loader = DataLoader(val_dataset, batch_size=settings.BATCH_SIZE, shuffle=False, num_workers=4, collate_fn=collate_fn,drop_last=True)
     
+
+            train_all_batches = []
+
+            files = sorted(os.listdir(train_batch_dir))
+
+            for f in files:
+               
+                batches = torch.load(os.path.join(train_batch_dir,f))
+                train_all_batches.extend(batches)  # flatten into a single list
+
+            # save as one big file
+            torch.save(train_all_batches, os.path.join(root_dir, "train_batches_all.pth"))
+            print(f"✅ Saved {len(train_all_batches)} batches into train_batches_all.pth")
+            train_loader = DataLoader(train_all_batches,
+                                      batch_size=1,  # already a batch of size 32
+                                      shuffle=True,
+                                      collate_fn=lambda x: x[0])
+
+            val_all_batches = []
+
+            files = sorted(os.listdir(val_batch_dir))
+
+            for f in files:
+                batches = torch.load(os.path.join(val_batch_dir,f))
+                val_all_batches.extend(batches)  # flatten into a single list
+
+            # save as one big file
+            torch.save(val_all_batches, os.path.join(root_dir, "val_batches_all.pth"))
+            print(f"✅ Saved {len(val_all_batches)} batches into val_batches_all.pth")
+
+            val_loader = DataLoader(val_all_batches,
+                                    batch_size=1,
+                                    shuffle=False,
+                                collate_fn=lambda x: x[0])
+
+    else:
+        # --- Bowman / small models ---
+        collate_fn = collate_as_dict if pruning_method=='CoFi' else pad_collate
+        train_loader = DataLoader(train_dataset, batch_size=settings.BATCH_SIZE, shuffle=True,
+                                  num_workers=4, collate_fn=collate_fn, drop_last=True)
+        val_loader = DataLoader(val_dataset, batch_size=settings.BATCH_SIZE, shuffle=False,
+                                num_workers=4, collate_fn=collate_fn, drop_last=True)
+
     dataloaders = {'train': train_loader, 'val': val_loader}
-    
     return train_dataset, val_dataset, dataloaders
-#learning rate diffs
+
 
 
 def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, dataloaders, total_epochs, device='cuda'):
@@ -331,7 +415,7 @@ def build_model(model_type, vocab, vocab_size=None, pretrained=True, embedding_d
     else: 
         if model_type == 'bert':
             # CORRECTED: Removed the 'vocab' argument
-            model = nli_models.BertEntailmentClassifier(vocab, pretrained=pretrained, device=device)
+            model = nli_models.BertEntailmentClassifier(pretrained=pretrained, device=device)
         elif model_type == 'llama':
             # CORRECTED: Removed the 'vocab' argument
             model = nli_models.LLAMAEntailmentClassifier( freeze_encoder=True, device=device)
@@ -366,7 +450,7 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
         else:
             print(f"Loading from checkpoint (no zs): {ckpt}")
             ckpt_ = torch.load(ckpt, map_location=torch.device(device))
-            print(ckpt_, ckpt)
+      
             model.load_state_dict(state_dict=ckpt_["state_dict"], strict=False)
     else:
         # This logic for saving initial weights is fine
@@ -396,13 +480,9 @@ def serialize(model, model_type, dataset):
     # CORRECTED: The condition now correctly checks if model_type is in the list
 
     if model_type in ['llama', 'bert']:
-        with open("../DataLoaders/vocab.json", "r") as f:
-            vocab = json.load(f)
         return {
             "encoder_name": model.model_name, 
-            "state_dict": model.state_dict(),
-            "stoi": vocab['stoi'],
-            "itos": vocab['itos'],
+            "state_dict": model.state_dict()
             # CORRECTED: stoi and itos are no longer needed for transformer models
         }
     # For bowman, we still need the vocab
