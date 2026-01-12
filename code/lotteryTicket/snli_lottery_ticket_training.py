@@ -109,12 +109,12 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
     
     baseline_acc = -1.0
     if start:
-        logger.info(f"Loading baseline model from {start}")
-        model.load_state_dict(torch.load(os.path.join(start))['state_dict'])
-        baseline_acc = train_utils.run_eval(model, dataloaders['val'], args.model_type, 'lottery_ticket')
+        
         
         if os.path.exists(start):
             print(f"Alr lt'd {start}")
+            baseline_acc = train_utils.run_eval(model, dataloaders['val'], args.model_type, 'lottery_ticket')
+
             state_dict =  torch.load(os.path.join(start), map_location=torch.device('cpu'))['state_dict']
             for layer in state_dict.keys():
                 mask = get_mask(state_dict[layer])
@@ -126,14 +126,14 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
             
             model = pruner.prune() #PRUNE AND SAVE PRUNE MASK
             base_ckpt = apply_mask(model, base_ckpt)
-
-
+            
 
             # Reload random inits with pruned weights (that were prnued after fting) 0'd out
             model.load_state_dict(base_ckpt['state_dict'])  
             final_weights_pruned = prune_utils.percent_pruned_weights(model)
             logger.info(f"After appling mask % Pruned: {final_weights_pruned}")
             model.cpu()
+            
             
     logger.info(f"Starting pruning from start_idx: {start_idx}")
     for prune_iter in range(start_idx, args.prune_iters):

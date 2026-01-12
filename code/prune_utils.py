@@ -99,7 +99,7 @@ def run_expls(
             zs_path= os.path.join(path_to_weights, f'{prune_iter}_Pruning_Iter/zs.pt')
             zs = torch.load(zs_path)
         
-        model,ckpt = train_utils.load_model(model_type=args.model_type, pruning_method=args.pruning_method, train=train, ckpt=os.path.join(path_to_weights, f'{prune_iter}_Pruning_Iter'), device=device, zs=zs)
+        model,ckpt = train_utils.load_model(model_type=args.model_type, pruning_method=args.pruning_method, train=train, ckpt=os.path.join(path_to_weights, f'{prune_iter}_Pruning_Iter', 'model_best.pth'), device=device, zs=zs)
         if prune_iter==0:
             original_model_size=calculate_parameters(model)
 

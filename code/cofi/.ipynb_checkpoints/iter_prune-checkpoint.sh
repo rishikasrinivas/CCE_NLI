@@ -1,6 +1,7 @@
 #!/bin/bash
 
 sparsities="0.25" # 0.4375 0.57812 0.68359 0.7627"
+
 model_name=llama #llama #bert
 encoder_name=knowledgator/Llama-encoder-1.0B  #knowledgator/Llama-encoder-1.0B #bert-base-uncased   #knowledgator/Llama-encoder-1.0B #bert-base-uncased 
 
