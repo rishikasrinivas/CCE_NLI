@@ -62,6 +62,7 @@ def main():
     training_args.dataloader_num_workers=4
     #print("training args ", training_args)
     os.makedirs(training_args.output_dir, exist_ok=True)
+    os.makedirs(data_args.path_to_pretrained, exist_ok=True)
     print(f"model: {model_args}\n data:{data_args}, {training_args}, {additional_args}")
      # Setup logging
     logging.basicConfig(
@@ -163,7 +164,7 @@ def main():
         if additional_args.do_distill:
             teacher_model, _ = Teach_Model.from_pretrained(
                 pretrained_model_name_or_path=None, #dditional_args.teacher_path, #f"0_Pruning_Iter/model_best.pth", #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
-                ckpt= data_args.path_to_pretrained,
+                ckpt= os.path.join(data_args.path_to_pretrained, f'{additional_args.model_name}_MAIN_pretrained_inits.pth'),
                 config=config
 
             )

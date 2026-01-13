@@ -13,7 +13,7 @@ glue_high=(MNLI QQP QNLI SST2 SNLI)
 proj_dir="${10^^}"
 
 code_dir=./code/cofi/
-path_to_pretrained="${10^^}/models/pretrained/${10}_MAIN_pretrained_inits.pth"
+path_to_pretrained="${10^^}/models/pretrained/"
 echo "path to pretrained model ${path_to_pretrained}"
 
 
