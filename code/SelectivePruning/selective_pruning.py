@@ -1,6 +1,7 @@
 import sys
 sys.path.append("./code")
 import models
+import cofi.utils.cofi_utils as cofi_utils
 import torch
 import snli_eval
 import train_utils
@@ -8,29 +9,27 @@ import pandas as pd
 import csv
 from selective_pruning_utils import *
 
-def get_model(args, train):
+def get_model(args,ckpt, train,zs=None):
 
     # ==== BUILD MODEL ====
-    model = train_utils.build_model(vocab_size=len(train.stoi), model_type=args.model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512, is_cofi=args.pruning_method=='cofi')
-   
-
-   
-    
-    def fill_inputs_with_zs(zs, inputs):
-        for key in zs:
-            inputs[key] = zs[key]
-        return inputs
-    return model
+    model,tok = train_utils.build_model(vocab_size=len(train.stoi), model_type=args.model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512, is_cofi=args.pruning_method=='CoFi')
+    #model=train_utils.load_model(model_type=args.model_type, train=train, ckpt=ckpt, use_pretrained_weights=True, pruning_method=args.pruning_method, device='cpu', i=0, zs=zs)
+    return model,tok
 
 def prune_neurons(model, ckpt, neurons_to_prune):
-    ckpt = torch.load(ckpt, map_location='cpu')['state_dict']
+    try:
+        ckpt = torch.load(ckpt, map_location='cpu')['state_dict']
+    except:
+        print(f" ckpt not a file")
     for neuron in neurons_to_prune:
         ckpt['mlp.0.weight'][neuron] = torch.zeros_like(ckpt['mlp.0.weight'][neuron])
         
         #print(f"Pruned neuron {neuron}")
     
-    #assert (torch.sum(ckpt['mlp.0.weight'][neuron])==0 for neuron in neurons_to_prune)
+    
+    
     model.load_state_dict(ckpt)
+    assert (torch.sum(ckpt['mlp.0.weight'][neuron])==0 for neuron in neurons_to_prune)
     return model
 
 
@@ -51,7 +50,7 @@ def parse_args():
    
     parser.add_argument("--ckpt", default="BERT/models/lottery_ticket/Run0.25_3/5_Pruning_Iter/model_best.pth")
     parser.add_argument("--model_type", default="bert", choices=["bowman", "bert", "llama"])
-    parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "cofi"])
+    parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "CoFi"])
     return parser.parse_args()
 
 
@@ -60,11 +59,11 @@ if __name__ == "__main__":
     args = parse_args()
     train,_,dataloaders=train_utils.create_dataloaders(max_data=10000, model_type=args.model_type, pruning_method=args.pruning_method)
     val_loader = dataloaders['val']
-    model = get_model(args, train)
+    model,_ = get_model(args, args.ckpt, train)
    
     
     
-    root_dir='/workspace/CCE_NLI/BERT/exp/lottery_ticket/Run0.25_3/Expls'
+    root_dir='/workspace/CCE_NLI/BOWMAN/exp/CoFi/Run0.25_3/Expls'
     
     
     
@@ -82,18 +81,37 @@ if __name__ == "__main__":
         print(f"Pruning out f")'''
         
     #test3 remov non foundationals
-    foundationals = get_foundationals(root_dir)
-    for i,pi in enumerate(['25.0', '43.75', '57.812', '68.359', '76.27']):
+    foundationals={}
+    for i in range(1,4):
+        foundationals[i] = get_clusterwise_foundationals(root_dir, i)
+    c=3
+    for pi in sorted(os.listdir(root_dir)):
+        if '0.0%P' in pi or 'ipynb' in pi: continue
+        if '44' in pi or '4375': i=2
+        if '25' in pi: i=1
+        if '579' in pi or '578' in pi: i=3
+        if '68' in pi:i=4
+        if '76' in pi: i=5
         results={}
+        
    
-        folder = os.path.join(root_dir, f'{pi}%Pruned')
-        neuron_formulas = get_all_cps_for_pi(folder)
-        mask = build_binary_mask(neuron_formulas, foundationals)
-
-        concepts,_ = get_topk_concepts(mask,len(foundationals), foundationals)
+        folder = os.path.join(root_dir, pi)
+        neuron_formulas = get_all_cps_for_pi_cluster(folder, c)
+        
+        mask = build_binary_mask(neuron_formulas, foundationals[c])
+        
+        concepts,f = get_topk_concepts(mask,len(foundationals[c]), foundationals[c])
+        print(concepts,f)
         results = defaultdict(list)
         
-        pruned_model=  prune_neurons(model,f'/workspace/CCE_NLI/BERT/models/lottery_ticket/Run0.25_3/{i}_Pruning_Iter/model_best.pth', neurons_to_prune=[])
+        if args.pruning_method == 'CoFi':
+            zs_path= os.path.join(args.model_type.upper(), "models", args.pruning_method, 'Run0.25_3', f'{i}_Pruning_Iter/zs.pt')
+            zs = torch.load(zs_path)
+            print("loded zs fro ", zs_path)
+            model,tok = get_model(args, os.path.join(args.model_type.upper(), "models", args.pruning_method, 'Run0.25_3', f'{i}_Pruning_Iter'), train, zs=zs)
+            def_model =cofi_utils.load_model(os.path.join(args.model_type.upper(), "models", args.pruning_method, 'Run0.25_3', f'{i}_Pruning_Iter'), model, zs=zs, encoder=tok)
+            print("pruned model")
+        pruned_model=  prune_neurons(def_model,def_model.state_dict(), neurons_to_prune=[])
         pruned_model.eval()
         
         pruned_model_val_acc = train_utils.run_eval(pruned_model, val_loader, args.model_type, args.pruning_method)
@@ -103,8 +121,18 @@ if __name__ == "__main__":
             #neurons_to_prune = get_neurons_for_cps(concepts, neuron_formulas)
             neurons_to_prune, concepts_used, last_cp_idx = get_k_neurons(concepts, start_concept, neuron_formulas, k=300)
             #test1: prune out indiv cps
-           
-            specifically_pruned_model = prune_neurons(pruned_model, f'/workspace/CCE_NLI/BERT/models/lottery_ticket/Run0.25_3/{i}_Pruning_Iter/model_best.pth', neurons_to_prune=neurons_to_prune)
+            if args.pruning_method == 'CoFi':
+                zs_path= os.path.join(args.model_type.upper(), "models", args.pruning_method, 'Run0.25_3', f'{i}_Pruning_Iter/zs.pt')
+                zs = torch.load(zs_path)
+                ckpt = f'/workspace/CCE_NLI/BOWMAN/models/CoFi/Run0.25_3/{i}_Pruning_Iter'
+                model,tok=get_model(args,ckpt, train,zs=None)
+                pruned_model = cofi_utils.load_model(ckpt, model, zs=zs, encoder=tok)
+                pruned_model.eval()
+        
+                pruned_model_val_acc = train_utils.run_eval(pruned_model, val_loader, args.model_type, args.pruning_method)
+                print(f"Pruned Accuracy at {pi}% sparsity: (Pruning out no extra neurons) | Accuracy = {pruned_model_val_acc}")
+                print("pruned model")
+            specifically_pruned_model = prune_neurons(pruned_model, pruned_model.state_dict(), neurons_to_prune=neurons_to_prune)
             specifically_pruned_model.eval()
             specifically_pruned_model_val_acc = train_utils.run_eval(specifically_pruned_model, val_loader, args.model_type, args.pruning_method)
             print(f"Pruning out {concepts_used} and {len(neurons_to_prune)} neurons: finall acc: {specifically_pruned_model_val_acc}")

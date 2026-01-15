@@ -51,28 +51,7 @@ import torch
 from torch.utils.data import Dataset
 import glob
 
-<<<<<<< HEAD
-class LazyBatchDataset(Dataset):
-    def __init__(self, folder):
-        # all medium files
-        self.files = sorted(glob.glob(f"{folder}/*.pth"))
 
-        # precompute mapping from global idx -> file + local idx
-        self.idx_map = []
-        for f in self.files:
-            batches = torch.load(f)  # just to get length
-            self.idx_map.extend([(f, i) for i in range(len(batches))])
-
-    def __len__(self):
-        return len(self.idx_map)
-
-    def __getitem__(self, idx):
-        file_path, local_idx = self.idx_map[idx]
-        batches = torch.load(file_path)
-        return batches[local_idx]
-
-=======
->>>>>>> 88cc23e0b8e97509183eb7e40f44c153abc41174
 
 def create_dataloaders(max_data, model_type, pruning_method, debug=False):
     """

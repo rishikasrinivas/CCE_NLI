@@ -17,6 +17,25 @@ def get_indiv_concepts(formula) -> set:
         concepts.add(c[:end_idx])
  
     return concepts
+
+def get_clusterwise_foundationals(root_dir, i):
+    root_path = Path(root_dir)
+
+    # Find all matching CSV files
+    fldr_pattern = '*%Pruned'
+    fldr_files = list(root_path.rglob(fldr_pattern))
+    cross_iter_concept_dict=defaultdict(list)
+    for fldr_file in fldr_files:
+        concepts = []
+        csv_file = os.path.join(root_dir, fldr_file, f'Cluster{i}IOUS1024N.csv')
+        df = pd.read_csv(csv_file)
+        for unit, formula in zip(df.unit, df.best_name):
+            concepts.extend(get_indiv_concepts(formula))
+        cross_iter_concept_dict[fldr_file]=set(concepts)
+
+    preserved_concepts = set.intersection(*cross_iter_concept_dict.values())
+
+    return list(preserved_concepts)
 def get_k_neurons(concepts, starting_concept_idx, mapping, k):
     """
     Get k neurons by incrementally adding concepts starting from starting_concept_idx.
@@ -127,6 +146,25 @@ def get_foundationals(root_dir):
    
     return list(preserved_concepts)
 
+def get_clusterwise_foundationals(root_dir, i):
+    root_path = Path(root_dir)
+
+    # Find all matching CSV files
+    fldr_pattern = '*%Pruned'
+    fldr_files = list(root_path.rglob(fldr_pattern))
+    cross_iter_concept_dict=defaultdict(list)
+    for fldr_file in fldr_files:
+        concepts = []
+        csv_file = os.path.join(root_dir, fldr_file, f'Cluster{i}IOUS1024N.csv')
+        df = pd.read_csv(csv_file)
+        for unit, formula in zip(df.unit, df.best_name):
+            concepts.extend(get_indiv_concepts(formula))
+        cross_iter_concept_dict[fldr_file]=set(concepts)
+
+    preserved_concepts = set.intersection(*cross_iter_concept_dict.values())
+
+    return list(preserved_concepts)
+
 def get_non_foundationals(foundational, pi):
     unit_to_cp_dict = get_all_cps_for_pi(pi)
     allcps = set()
@@ -158,4 +196,19 @@ def get_all_cps_for_pi(folder):
         df = pd.read_csv(csv_file)
         for unit, formula in zip(df.unit, df.best_name):
             concept_dict[unit].update(set(get_indiv_concepts(formula)))
+    return concept_dict
+
+def get_all_cps_for_pi_cluster(folder, cluster):
+    root_path = Path(folder)
+
+    # Find all matching CSV files
+    csv_pattern = f'Cluster{cluster}IOUS1024N.csv'
+
+    
+    concept_dict=defaultdict(set)
+   
+    csv_file = os.path.join(folder, csv_pattern)
+    df = pd.read_csv(csv_file)
+    for unit, formula in zip(df.unit, df.best_name):
+        concept_dict[unit].update(set(get_indiv_concepts(formula)))
     return concept_dict
