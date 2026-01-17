@@ -51,6 +51,7 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
     def __init__(self, config):
         super().__init__(config)
         self.bert = CoFiBertModel(config)
+        
         self.model_name='bert'
         for param in self.bert.parameters():
             param.requires_grad = True
@@ -106,8 +107,9 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
         # -----------------------
         # Load .pth checkpoint
         # -----------------------
+    
         if pretrained_model_name_or_path and ".pth" in str(pretrained_model_name_or_path) and os.path.exists(pretrained_model_name_or_path):
-            print("Loading pretrained bert entailment (.pth)")
+            print(f"Loading pretrained bert entailment ({pretrained_model_name_or_path})")
             weights = torch.load(pretrained_model_name_or_path)["state_dict"]
 
             # Convert old gamma/beta to weight/bias
@@ -126,6 +128,12 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
 
             load_pruned_model(model, weights)
             trained = True
+              
+            return model, trained
+        elif os.path.exists(kwargs['ckpt']):
+            weights = torch.load(kwargs['ckpt'])['state_dict']
+            model.load_state_dict(weights, strict=False)
+            assert trained==False
             return model, trained
 
         # -----------------------
@@ -137,10 +145,10 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
         # Filter HF weights to match model (skip classifier / MLP)
         hf_state = hf_encoder.state_dict()
         model_state = model.state_dict()
-        filtered_state = {k: v for k, v in hf_state.items() if k in model_state and v.shape == model_state[k].shape}
+        filtered_state = {k: v for k, v in model_state.items() if k in model_state and v.shape == model_state[k].shape}
 
         model.load_state_dict(filtered_state, strict=False)
-        torch.save(model.state_dict(), kwargs['ckpt'])
+        torch.save({'state_dict': model.state_dict()}, kwargs['ckpt'])
         return model, trained
 
 
@@ -705,7 +713,7 @@ class CoFiBertSelfAttention(BertSelfAttention):
         value_layer = self.transpose_for_scores(mixed_value_layer)
         context_layer = torch.matmul(attention_probs, value_layer)
         if head_z is not None:
-            print("Context layer (atttnput ) shape ", context_layer.shape, "head shape", head_z.shape)
+            #print("Context layer (atttnput ) shape ", context_layer.shape, "head shape", head_z.shape)
             context_layer *= head_z
 
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()

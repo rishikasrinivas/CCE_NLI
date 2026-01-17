@@ -202,7 +202,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         # Load .pth checkpoint
         # -----------------------
         if pretrained_model_name_or_path and ".pth" in str(pretrained_model_name_or_path) and os.path.exists(pretrained_model_name_or_path):
-            print("Loading pretrained llama entailment (.pth)")
+            print(f"Loading pretrained llama entailment ({pretrained_model_name_or_path})")
             weights = torch.load(pretrained_model_name_or_path)["state_dict"]
 
             # Convert old gamma/beta to weight/bias
@@ -230,11 +230,11 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         hf_encoder = LlamaBiModel.from_pretrained("knowledgator/Llama-encoder-1.0B")
 
         # Filter HF weights to match model (skip classifier / MLP)
-        hf_state = hf_encoder.state_dict()
+  
         model_state = model.state_dict()
-        filtered_state = {k: v for k, v in hf_state.items() if k in model_state and v.shape == model_state[k].shape}
+        filtered_state = {k: v for k, v in model_state.items()}
 
-        model.load_state_dict(filtered_state, strict=False)
+        model.load_state_dict(filtered_state)
         from pathlib import Path
 
         Path(kwargs['ckpt']).parent.mkdir(parents=True, exist_ok=True)

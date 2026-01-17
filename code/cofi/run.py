@@ -163,7 +163,7 @@ def main():
             
         if additional_args.do_distill:
             teacher_model, _ = Teach_Model.from_pretrained(
-                pretrained_model_name_or_path=None, #dditional_args.teacher_path, #f"0_Pruning_Iter/model_best.pth", #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
+                pretrained_model_name_or_path=os.path.join(f"/workspace/CCE_NLI/LLAMA/models/CoFi/Run0.25_new/0_Pruning_Iter/model_best.pth"), #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
                 ckpt= os.path.join(data_args.path_to_pretrained, f'{additional_args.model_name}_MAIN_pretrained_inits.pth'),
                 config=config
 
