@@ -222,6 +222,11 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             load_pruned_model(model, weights)
             trained = True
             return model, trained
+        elif os.path.exists(kwargs['ckpt']):
+            weights = torch.load(kwargs['ckpt'])['state_dict']
+            model.load_state_dict(weights, strict=False)
+            assert trained==False
+            return model, trained
 
         # -----------------------
         # Load HF pretrained encoder only
