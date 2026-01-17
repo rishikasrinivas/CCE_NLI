@@ -257,20 +257,21 @@ class LLAMAEntailmentClassifier(BaseModel):
     def __init__(self, encoder_name="knowledgator/Llama-encoder-1.0B", freeze_encoder=False, device='cuda'):
         super().__init__()
         self.encoder_name = encoder_name
-        self.encoder = LlamaBiModel.from_pretrained(encoder_name)
+        self.model = LlamaBiModel.from_pretrained(encoder_name)
         self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
         self.tokenizer.model_max_length = 512
+        self.model_name='llama'
         
         if "pad_token" not in self.tokenizer.special_tokens_map:
             num_new_tokens = self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
             if num_new_tokens > 0:
-                self.encoder.resize_token_embeddings(len(self.tokenizer))
+                self.model.resize_token_embeddings(len(self.tokenizer))
         
         if freeze_encoder:
-            for param in self.encoder.parameters():
+            for param in self.model.parameters():
                 param.requires_grad = False
         
-        self.encoder_dim = self.encoder.config.hidden_size
+        self.encoder_dim = self.model.config.hidden_size
         self.mlp_input_dim = self.encoder_dim * 4
         self.dropout = nn.Dropout(0.1)
         self.bn = nn.BatchNorm1d(self.mlp_input_dim)
@@ -316,11 +317,11 @@ class LLAMAEntailmentClassifier(BaseModel):
         return preds
 
     def encode_sentence(self, tokens):
-        outputs = self.encoder(**tokens).last_hidden_state.mean(dim=1) 
+        outputs = self.model(**tokens).last_hidden_state.mean(dim=1) 
         return outputs
 
     def to(self, device):
-        self.encoder = self.encoder.to(device)
+        self.model = self.model.to(device)
         return super().to(device)
 
 class BertEntailmentClassifier(BaseModel):
@@ -328,18 +329,18 @@ class BertEntailmentClassifier(BaseModel):
         super().__init__()
         self.encoder_name = encoder_name
         self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
-        
+        self.model_name='bert'
         if pretrained:
-            self.encoder = AutoModel.from_pretrained(encoder_name)
+            self.bert = AutoModel.from_pretrained(encoder_name)
         else:
             config = AutoConfig.from_pretrained(encoder_name)
-            self.encoder = AutoModel.from_config(config)
+            self.bert = AutoModel.from_config(config)
         
         if freeze_bert:
-            for param in self.encoder.parameters():
+            for param in self.bert.parameters():
                 param.requires_grad = False
         
-        self.encoder_dim = self.encoder.config.hidden_size
+        self.encoder_dim = self.bert.config.hidden_size
         self.mlp_input_dim = self.encoder_dim * 4
         self.dropout = nn.Dropout(0.1)
         self.bn = nn.BatchNorm1d(self.mlp_input_dim)
@@ -385,11 +386,11 @@ class BertEntailmentClassifier(BaseModel):
         return preds
 
     def encode_sentence(self, tokens):
-        outputs = self.encoder(**tokens)
+        outputs = self.bert(**tokens)
         return outputs.last_hidden_state[:, 0, :] # Return [CLS] token embedding
 
     def to(self, device):
-        self.encoder = self.encoder.to(device)
+        self.bert = self.bert.to(device)
         return super().to(device)
     
 
@@ -401,7 +402,8 @@ class BowmanEntailmentClassifier(BaseModel):
     def __init__(self, encoder, device):
         super().__init__()
 
-        self.encoder = encoder
+        self.bert = encoder
+        self.model_name='bowman'
         self.encoder_dim = encoder.output_dim
         self.mlp_input_dim = self.encoder_dim * 4
         self.dropout = nn.Dropout(0.1)
@@ -422,8 +424,8 @@ class BowmanEntailmentClassifier(BaseModel):
         
         
     def forward(self, s1, s1len, s2, s2len):
-        s1enc = self.encoder(s1, s1len)
-        s2enc = self.encoder(s2, s2len)
+        s1enc = self.bert(s1, s1len)
+        s2enc = self.bert(s2, s2len)
 
         diffs = s1enc - s2enc
         prods = s1enc * s2enc
@@ -465,8 +467,8 @@ class BowmanEntailmentClassifier(BaseModel):
             linear_pruned.bias_orig.copy_(linear_unpruned.bias)
 
     def get_final_reprs(self, s1, s1len, s2, s2len):
-        s1enc = self.encoder(s1, s1len)
-        s2enc = self.encoder(s2, s2len)
+        s1enc = self.bert(s1, s1len)
+        s2enc = self.bert(s2, s2len)
 
         diffs = s1enc - s2enc
         prods = s1enc * s2enc
@@ -486,7 +488,7 @@ class BowmanEntailmentClassifier(BaseModel):
         return preds
     
     def get_encoder(self):
-        return self.encoder
+        return self.bert
     
     
      
