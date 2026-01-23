@@ -28,7 +28,7 @@ def load_model_with_zs(model_path, model, zs=None, encoder=None, **kwargs):
         config=AutoConfig.from_pretrained(os.path.join(root, "config.json"))
         #config=AutoConfig.from_pretrained('/workspace/CCE_NLI/BERT/models/CoFi/Run0.25/1_Pruning_Iter/config.json')
     model, _ = model.from_pretrained(
-        pretrained_model_name_or_path= os.path.join(model_path, 'model_best.pth'), # if llm part of student model is alr trained itll be here otherwise a default model will be loaded and finetuned
+        pretrained_model_name_or_path= os.path.join(root, 'model_best.pth'), # if llm part of student model is alr trained itll be here otherwise a default model will be loaded and finetuned
         from_tf=False,
         teacher=True,
         config=config,

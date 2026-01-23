@@ -433,7 +433,6 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
     if ckpt and os.path.exists(ckpt): #and not cofi
         if zs or cofi:
             print(f"Loading zs")
-            print(ckpt)
             model = cofi_utils.load_model_with_zs(ckpt, model, zs=zs, train_data=train, ckpt=ckpt, encoder=tokenizer)
         else:
             print(f"Loading from checkpoint (no zs): {ckpt}")

@@ -26,9 +26,9 @@ def load_model_with_zs(model_path, model, zs=None, encoder=None, **kwargs):
         config=None
     else:
         config=AutoConfig.from_pretrained(os.path.join(root, "config.json"))
-        #config=AutoConfig.from_pretrained('/workspace/CCE_NLI/BERT/models/CoFi/Run0.25/1_Pruning_Iter/config.json')
+       
     model, _ = model.from_pretrained(
-        pretrained_model_name_or_path= os.path.join(model_path, 'model_best.pth'), # if llm part of student model is alr trained itll be here otherwise a default model will be loaded and finetuned
+        pretrained_model_name_or_path= os.path.join(root, 'model_best.pth'), # if llm part of student model is alr trained itll be here otherwise a default model will be loaded and finetuned
         from_tf=False,
         teacher=True,
         config=config,
@@ -37,13 +37,6 @@ def load_model_with_zs(model_path, model, zs=None, encoder=None, **kwargs):
     )
     if zs is None:
         return model
-    '''if "model_best.pth" not in model_path:
-        p =  os.path.join(model_path, "model_best.pth")
-    else:
-        p = model_path
-    loaded_weights = torch.load(p)['state_dict']
-    
-    model.load_state_dict(loaded_weights)'''
     
     print(f"Load weights from {model_path}")
 
@@ -249,14 +242,12 @@ def prune_model_with_z(zs, model):
         head_layer_z = zs.get("head_layer_z", None)
 
         prune_heads = {}
-        print(len(head_z))
         for layer in range(len(head_z)):
             head_z_layer = head_z[layer].cpu().squeeze().clone()
             if head_layer_z is not None:
                 head_z_layer *= head_layer_z[layer]
             index = torch.where(head_z_layer == 0)[0].tolist()
             prune_heads[layer] = index
-        print("Pruning heads ", prune_heads)
         model.prune_heads(prune_heads)
 
 

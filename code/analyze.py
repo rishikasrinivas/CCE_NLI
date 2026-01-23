@@ -865,7 +865,6 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
         search_feats(acts, states, (tok_feats, tok_feats_vocab), classification_weights, dataset, cluster=None, save_dir=save_exp_dir, formula_masks=formula_masks)
    
     else:
-        print("Verfieid pruning % ", torch.where(torch.tensor(final_weights)==0,1,0).sum()/(1024*2048))
         formula_masks = clustered_NLI(tok_feats, 
                              tok_feats_vocab,
                              states,

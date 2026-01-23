@@ -77,7 +77,7 @@ def create_clusters(activations, num_clusters):
   
         clusters = scikit_cluster.KMeans(n_clusters= num_clusters_, random_state=0, n_init='auto').fit(neurons_acts)
         cluster_lst = clusters.labels_
-        if i %100 == 0: print(i)
+
         activation_range = compute_activ_ranges(neurons_acts, cluster_lst, num_clusters_)
         if num_clusters_<num_clusters:
             diff = num_clusters-num_clusters_
