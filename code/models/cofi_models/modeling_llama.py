@@ -761,28 +761,33 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         print(f"v_proj weight shape: {self.v_proj.weight.shape}")
         print(f"o_proj weight shape: {self.o_proj.weight.shape}")
 
+        print(f"Finding pruned heads in \n\tnself.num_attention_heads: {self.num_attention_heads}\n\tattention_head_size: {self.attention_head_size}\n\tself.pruned_heads:{self.pruned_heads}")
+        
         heads, index = find_pruneable_heads_and_indices(
-            heads, self.num_attention_heads, self.attention_head_size, self.pruned_heads
+            heads,
+            4,      # NOT num_attention_heads
+            self.attention_head_size,      # 64
+            self.pruned_heads
         )
         print(f"Index: {index[:10]}...{index[-10:]}") 
-        print(f"Pruning index: {index}")
+        print(f"Pruning index: {index}, and Prunable heads: {heads}")
       
         # Prune linear layers
         if len(index) == 0:
-            self.q_proj = None
+            #self.q_proj = None
             self.k_proj = None
             self.v_proj = None
-            self.o_proj = None
+            #self.o_proj = None
         else:
             print("q")
-            self.q_proj = prune_linear_layer(self.q_proj, index, dim=0)
+            #self.q_proj = prune_linear_layer(self.q_proj, index, dim=0)
             print('lk')
-            self.k_proj = prune_linear_layer(self.k_proj, index, dim=1)
+            self.k_proj = prune_linear_layer(self.k_proj, index, dim=0)
             print('v')
             self.v_proj = prune_linear_layer(self.v_proj, index, dim=0)
             print('o')
-            self.o_proj = prune_linear_layer(
-                self.o_proj, index)
+            #self.o_proj = prune_linear_layer(
+                #self.o_proj, index)
 
         # Update hyper params and store pruned heads
         self.num_attention_heads = self.num_attention_heads - \
