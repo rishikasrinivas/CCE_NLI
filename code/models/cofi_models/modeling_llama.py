@@ -562,6 +562,7 @@ class CoFiLlamaModel(CoFiLlamaBiModel):
         for i, decoder_layer in enumerate(self.layers):
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
+
             layer_outputs = decoder_layer(
                 hidden_states,
                 attention_mask=attention_mask, #dont want causal mask
@@ -680,6 +681,7 @@ class CoFiLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
             attention_mask,
             output_attentions=output_attentions,
             head_z=head_z, #doesnt need hidden_z cuz attn doesnt call a selfmlp
+            hidden_z=hidden_z,
         )
         
         
@@ -750,28 +752,18 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
 
     def prune_heads(self, heads):
         len_heads = len(heads)
+        
         if len_heads == 0: 
             return
         
-
-        print(f"Before pruning: num_attention_heads={self.num_attention_heads}, attention_head_size={self.attention_head_size}")
-        print(f"Pruning heads: {heads}")
-        print(f"q_proj weight shape: {self.q_proj.weight.shape}")
-        print(f"k_proj weight shape: {self.k_proj.weight.shape}")
-        print(f"v_proj weight shape: {self.v_proj.weight.shape}")
-        print(f"o_proj weight shape: {self.o_proj.weight.shape}")
-
-        print(f"Finding pruned heads in \n\tnself.num_attention_heads: {self.num_attention_heads}\n\tattention_head_size: {self.attention_head_size}\n\tself.pruned_heads:{self.pruned_heads}")
-        
+    
         heads, index = find_pruneable_heads_and_indices(
             heads,
             4,      # NOT num_attention_heads
             self.attention_head_size,      # 64
             self.pruned_heads
         )
-        print(f"Index: {index[:10]}...{index[-10:]}") 
-        print(f"Pruning index: {index}, and Prunable heads: {heads}")
-      
+
         # Prune linear layers
         if len(index) == 0:
             #self.q_proj = None
@@ -779,16 +771,9 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
             self.v_proj = None
             #self.o_proj = None
         else:
-            print("q")
-            #self.q_proj = prune_linear_layer(self.q_proj, index, dim=0)
-            print('lk')
             self.k_proj = prune_linear_layer(self.k_proj, index, dim=0)
-            print('v')
             self.v_proj = prune_linear_layer(self.v_proj, index, dim=0)
-            print('o')
-            #self.o_proj = prune_linear_layer(
-                #self.o_proj, index)
-
+        
         # Update hyper params and store pruned heads
         self.num_attention_heads = self.num_attention_heads - \
             len(heads)

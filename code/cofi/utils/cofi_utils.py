@@ -228,14 +228,11 @@ def update_bert_params(model, zs):
             model.mlp[3].weight.data=model.mlp[3].weight.data.mul(final_mlp_hidden_z)
             
 def prune_model_with_z(zs, model):
-    print(model)
     if zs is None:
         return None, None
     concat_index=None
-    bert = model.bert if hasattr(model, "bert") else None
-    llama = model.model if hasattr(model, "model") else None
     
-    assert (hasattr(model, "model") and llama is not None) or (hasattr(model, "bert") and bert is not None)
+    
     
     if "head_z" in zs:
         head_z = zs.get("head_z", None)
@@ -248,9 +245,13 @@ def prune_model_with_z(zs, model):
                 head_z_layer *= head_layer_z[layer]
             index = torch.where(head_z_layer == 0)[0].tolist()
             prune_heads[layer] = index
+        
         model.prune_heads(prune_heads)
 
-
+    bert = model.bert if hasattr(model, "bert") else None
+    llama = model.model if hasattr(model, "model") else None
+    assert (hasattr(model, "model") and llama is not None) or (hasattr(model, "bert") and bert is not None)
+    
     print("intermediate")
     kept_intermediate_dims = None
     if "intermediate_z" in zs:
@@ -285,12 +286,14 @@ def prune_model_with_z(zs, model):
     def prune_layer(layer, index, dim):
         layer = prune_linear_layer(layer, index, dim=dim)
         return layer
+    
     print("hidden")
     if hasattr(model, "bert"):
         if "hidden_z" in zs:
             hidden_zs = zs["hidden_z"]
             index = torch.LongTensor(hidden_zs.squeeze().nonzero().squeeze().tolist())
             index = index.to(model.device)
+            
 
             bert.embeddings.word_embeddings.weight = torch.nn.parameter.Parameter(
                 bert.embeddings.word_embeddings.weight.index_select(1, index).clone().detach())
@@ -332,19 +335,22 @@ def prune_model_with_z(zs, model):
             model.bn.running_var = model.bn.running_var[concat_index].clone()
 
     elif hasattr(model, "model"):
-        if 'kvhead_z' in zs:
-            kvhead_z=zs['kvhead_z']
-            kv_index = torch.LongTensor(kvhead_z.squeeze().nonzero().squeeze().tolist())
-            kv_index = kv_index.to(model.device)
+   
+        '''if 'head_z' in zs:
+            head_z=zs['head_z']
+            print(head_z.shape)
+            head_index = head_z.squeeze()
+            head_index = head_index.to(model.device)
+            print("head ", head_index)
             for layer in range(0, 22):  # You have 22 layers (0-21)
-          
+                print(llama.layers[layer])
                 # Attention projections - all take hidden_dim as input (dim=1)
                 if llama.layers[layer].self_attn.k_proj is not None:
                     llama.layers[layer].self_attn.k_proj = \
-                        prune_layer(llama.layers[layer].self_attn.k_proj, kv_index, dim=0)
+                        prune_layer(llama.layers[layer].self_attn.k_proj, head_index, dim=0)
                 if llama.layers[layer].self_attn.v_proj is not None:
                     llama.layers[layer].self_attn.v_proj = \
-                        prune_layer(llama.layers[layer].self_attn.v_proj, kv_index, dim=0)
+                        prune_layer(llama.layers[layer].self_attn.v_proj, head_index, dim=0)'''
             
             
         if "hidden_z" in zs:
@@ -352,6 +358,9 @@ def prune_model_with_z(zs, model):
             print("343 cofi utils ",  hidden_zs.shape)
             index = torch.LongTensor(hidden_zs.squeeze().nonzero().squeeze().tolist())
             index = index.to(model.device)
+            print("343 cofi utils ",  len(index)) #shuld be 2044
+            print("Model: ", model)
+            
             
             # Prune embeddings
             llama.embed_tokens.weight = torch.nn.parameter.Parameter(
@@ -368,31 +377,36 @@ def prune_model_with_z(zs, model):
                 
                 # Attention projections - all take hidden_dim as input (dim=1)
                 if llama.layers[layer].self_attn.q_proj is not None:
-                    #print("NON MLP q", llama.layers[layer].self_attn.q_proj.weight.data.shape, index)
+                    print("NON MLP q", llama.layers[layer].self_attn.q_proj.weight.data.shape, index)
                     #print("NON MLP k", llama.layers[layer].self_attn.k_proj.weight.data.shape, index)
                     #print("NON MLP v", llama.layers[layer].self_attn.v_proj.weight.data.shape, index)
                     
-                    llama.layers[layer].self_attn.q_proj = \
-                        prune_layer(llama.layers[layer].self_attn.q_proj, index, dim=1)
-            
-                    
+                    if llama.layers[layer].self_attn.q_proj is not None:
+                        llama.layers[layer].self_attn.q_proj = \
+                            prune_layer(llama.layers[layer].self_attn.q_proj, index, dim=1)
+                    if llama.layers[layer].self_attn.k_proj is not None:
+                        llama.layers[layer].self_attn.k_proj = \
+                            prune_layer(llama.layers[layer].self_attn.k_proj, index, dim=1)
+                    if llama.layers[layer].self_attn.v_proj is not None:
+                        llama.layers[layer].self_attn.v_proj = \
+                            prune_layer(llama.layers[layer].self_attn.v_proj, index, dim=1)
                     # o_proj outputs hidden_dim, so prune dim=0 (like BERT's attention.output.dense)
-                    llama.layers[layer].self_attn.o_proj = \
-                        prune_layer(llama.layers[layer].self_attn.o_proj, index, dim=0)
+                    if llama.layers[layer].self_attn.o_proj:
+                        llama.layers[layer].self_attn.o_proj = \
+                            prune_layer(llama.layers[layer].self_attn.o_proj, index, dim=0)
                 
                 # MLP projections
-                print("MLP Projections")
+                
                 if llama.layers[layer].mlp.gate_proj is not None:
                     # gate_proj and up_proj take hidden_dim as input (dim=1)
-                    print(" MLP gate")
-                    
                     llama.layers[layer].mlp.gate_proj = \
                         prune_layer(llama.layers[layer].mlp.gate_proj, index, dim=1)
-                    print(" MLP proj")
-                    
+                
+                if llama.layers[layer].mlp.up_proj is not None:
                     llama.layers[layer].mlp.up_proj = \
                         prune_layer(llama.layers[layer].mlp.up_proj, index, dim=1)
-                    
+                
+                if llama.layers[layer].mlp.down_proj is not None:   
                     # down_proj outputs hidden_dim (dim=0, like BERT's output.dense)
                     llama.layers[layer].mlp.down_proj = \
                         prune_layer(llama.layers[layer].mlp.down_proj, index, dim=0)

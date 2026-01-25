@@ -50,7 +50,7 @@ class L0Module_LLAMA(Module):
                             
                             
         self.all_types = ["hidden_z", "intermediate_z", "mlp_z", "head_layer_z", "head_z", 'final_mlp_hidden_z'] #reove inp_z, #load zs_llm hidden_z and do nn.Param(hidden_z copied 4 times).req_grad=False
-
+        
         self.hidden_size = config.hidden_size
         self.intermediate_size = config.intermediate_size 
         print("Intermediate size: ", self.intermediate_size)
@@ -314,58 +314,91 @@ class L0Module_LLAMA(Module):
         return all_head_score, head_score
 
     #both bowman and llm
-    def get_num_parameters_for_mlp(self):
-        
-        inp_layer_score = 1 - self.cdf_qz(0, self.input_layer_mlp_loga) # 3072
-     
-        hid_layer_score = 1 - self.cdf_qz(0, self.hidden_layer_mlp_loga) # 1024 
-        assert self.hidden_layer_mlp_loga.requires_grad and not self.input_layer_mlp_loga.requires_grad 
-
-     
-        expected_params_1 = torch.sum(torch.outer(inp_layer_score,hid_layer_score) )
-        expected_params_2 = torch.sum(torch.outer(hid_layer_score, torch.ones(3)))
-        num_parameters = expected_params_1 + expected_params_2
-        return num_parameters
-
     def get_num_parameters_and_constraint_for_hidden(self):
+        """
+        Calculate expected parameters using z-scores ONLY.
+        Must match the actual architecture exactly.
+        """
         num_parameters = 0
 
         # ---------------------
-        # Scores
+        # Scores from z variables
         # ---------------------
         all_head_score, head_score = self.transform_scores_for_head()
-        hidden_score = 1 - self.cdf_qz(0, self.hidden_loga)  # (H,)
+        hidden_score = 1 - self.cdf_qz(0, self.hidden_loga)  # (H_pruned,) = (2044,)
 
         if all_head_score is not None:
-            layer_score = all_head_score.reshape(-1)                 # (L,)
-            head_score = (all_head_score * head_score).reshape(-1)   # (L * n_kv,)
+            layer_score = all_head_score.reshape(-1)  # (L,)
+            head_score = (all_head_score * head_score).reshape(-1)  # (L * n_kv,)
         else:
             layer_score = torch.ones(self.num_layers, device=hidden_score.device)
             head_score = head_score.reshape(-1)
 
-        H = self.hidden_size
-        D = self.dim_per_head
+        H_orig = self.hidden_size  # 2048 (original)
+        D = self.dim_per_head  # 64
 
         # =====================
         # ATTENTION PARAMETERS
         # =====================
+        # Architecture shows:
+        # Q: (H_pruned, H_orig) = (2044, 2048)
+        # K: (H_pruned, 256) = (2044, n_heads_pruned * D)
+        # V: (H_pruned, 256) = (2044, n_heads_pruned * D)
+        # O: (H_orig, H_pruned) = (2048, 2044)
 
-        # Q + O : H → H (per layer)
-        num_parameters += torch.sum(layer_score) * 2 * H * H
+        # Q projection: sum(hidden_score) × H_orig per layer
+        # O projection: H_orig × sum(hidden_score) per layer
+        # Combined Q + O: 2 × sum(hidden_score) × H_orig per layer
+        num_parameters += torch.sum(layer_score) * 2 * H_orig * torch.sum(hidden_score)
 
-        # K + V : H → (D * n_kv) (per KV head)
-        num_parameters += torch.sum(head_score) * H * D * 2
+        # K + V projections: sum(hidden_score) × D per head × 2 (K and V)
+        num_parameters += torch.sum(head_score) * torch.sum(hidden_score) * D * 2
 
         # =====================
         # MLP PARAMETERS
         # =====================
-
         intlayer_score = 1 - self.cdf_qz(0, self.intlayer_loga)  # (L,)
-        int_score = 1 - self.cdf_qz(0, self.int_loga)            # (L, I)
-        int_score = (intlayer_score.unsqueeze(-1) * int_score).reshape(-1)
+        int_score = 1 - self.cdf_qz(0, self.int_loga)  # (L, I)
+        int_score = (intlayer_score.unsqueeze(-1) * int_score).reshape(-1)  # (L*I,)
 
-        # gate + up + down
+        # gate_proj: (H_pruned, I_layer)
+        # up_proj: (H_pruned, I_layer)
+        # down_proj: (I_layer, H_pruned)
+        # All 3 have same parameter count: H_pruned × I_layer
         num_parameters += torch.sum(torch.outer(hidden_score, int_score)) * 3
+
+        # =====================
+        # LAYER NORMS
+        # =====================
+        # Each layer has 2 RMSNorms, final layer has 1 RMSNorm
+        # Each RMSNorm has H_pruned parameters (weight only, no bias)
+        num_layernorms = 2 * 22 + 1  # 2 per layer + 1 final
+        num_parameters += num_layernorms * torch.sum(hidden_score) + (32000 * torch.sum(hidden_score))
+
+        return num_parameters
+
+
+    def get_num_parameters_for_mlp(self):
+        """
+        Calculate expected classifier parameters using z-scores ONLY.
+        """
+        inp_layer_score = 1 - self.cdf_qz(0, self.input_layer_mlp_loga)  # (8192,)
+        hid_layer_score = 1 - self.cdf_qz(0, self.hidden_layer_mlp_loga)  # (1024,)
+
+        # Linear 1: (inp, hid) with bias
+        expected_params_1 = torch.sum(torch.outer(inp_layer_score, hid_layer_score))
+        expected_bias_1 = torch.sum(hid_layer_score)
+
+        # Linear 2: (hid, 3) with bias
+        expected_params_2 = torch.sum(torch.outer(hid_layer_score, torch.ones(3, device=hid_layer_score.device)))
+        expected_bias_2 = 3  # Always 3 (num classes)
+
+        # BatchNorm1d: weight + bias for inp dimension
+        bn_params = 2 * torch.sum(inp_layer_score)
+
+        num_parameters = (expected_params_1 + expected_bias_1 + 
+                         expected_params_2 + expected_bias_2 + 
+                         bn_params)
 
         return num_parameters
 
@@ -457,94 +490,110 @@ class L0Module_LLAMA(Module):
             numpified_zs[name] = new_z
         return numpified_zs
 
-    
     def calculate_model_size_LLM(self, zs):
-        """
-        Estimate the number of parameters in a LLaMA model given masks zs.
-
-        Masks:
-            hidden_z: hidden neurons (H=2048)
-            intermediate_z: neurons in MLP intermediate layers
-            mlp_z: which MLP blocks are active
-            head_z: which KV heads are active per layer (shape: L x 4)
-            head_layer_z: which layers are active (shape: L,)
-            final_mlp_hidden: final MLP output neurons
-        """
-
-        # Convert masks to numpy arrays with default all ones
         numpified_zs = self.get_z_from_zs(zs)
+        hidden_z = numpified_zs.get("hidden", np.ones(self.hidden_size))
+        intermediate_z = numpified_zs.get("intermediate", np.ones((self.num_hidden_layers, self.intermediate_size)))
+        mlp_z = numpified_zs.get("mlp", np.ones(self.num_hidden_layers)).reshape(-1, 1)
+        head_z = numpified_zs.get("head", np.ones((self.num_hidden_layers, 4)))
+        head_layer_z = numpified_zs.get("head_layer", np.ones((self.num_hidden_layers,))).reshape(-1, 1)
 
-        hidden_z = numpified_zs.get("hidden", np.ones(self.hidden_size))                  # (H,)
-        intermediate_z = numpified_zs.get("intermediate", np.ones((self.num_hidden_layers, self.intermediate_size))) # (L, I)
-        mlp_z = numpified_zs.get("mlp", np.ones((self.num_hidden_layers, 1)))             # (L,1)
-        head_z = numpified_zs.get("head", np.ones((self.num_hidden_layers, 4)))           # (L, n_kv)
-        head_layer_z = numpified_zs.get("head_layer", np.ones((self.num_hidden_layers, 1))) # (L,1)
-        final_mlp_hidden = numpified_zs.get("final_mlp_hidden", np.ones(1024)) # (H_mlp,)
+        # NOTE: final_mlp is excluded (it's the "classifier")
+        # NOTE: We don't need final_mlp_hidden or final_mlp_input for parameter counting
 
-        H = self.hidden_size
-        D = self.dim_per_head  # dim per Q/K/V head
-        n_kv = head_z.shape[1] # number of KV heads (usually 4)
+        print(f"hidden_z: {hidden_z.shape}\nintermediate_z: {intermediate_z.shape}\nmlp_z: {mlp_z.shape}\nhead_z: {head_z.shape}\nhead_layer_z: {head_layer_z.shape}")
 
-        # ---------------------------
+        remaining_hidden_dims = hidden_z.sum().item()
+        remaining_intermediate_nums = intermediate_z.sum(axis=-1).tolist()
+        remaining_head_nums = head_z.sum(axis=-1).tolist()
+
+        H_orig = self.hidden_size  # 2048
+        D = self.dim_per_head  # 64
+        L = self.num_hidden_layers  # 22
+
+        # ===========================
+        # WHAT calculate_parameters() COUNTS:
+        # - Attention: Q, K, V, O
+        # - MLP: gate, up, down
+        # - LayerNorms: input_layernorm, post_attention_layernorm, final norm
+        # 
+        # WHAT IT EXCLUDES (keys):
+        # - "embedding": embed_tokens
+        # - "layer_transformation": the Linear(2044, 2048) layer
+        # - "classifier": the final MLP (bn, mlp.0, mlp.1, mlp.2, mlp.3)
+        # - "pooler": (not present in your model)
+        # ===========================
+
         # 1. ATTENTION PARAMETERS
-        # ---------------------------
+        # Q + O: 2 * H_pruned * H_orig per active layer
+        q_o_nums = np.outer(head_layer_z.reshape(-1), hidden_z).sum().item()
+        q_o_params = q_o_nums * 2 * H_orig
 
-        # Q/O projections (H -> H) per layer
-        # Controlled by hidden neurons + active layer
-        q_o_params = np.sum(hidden_z) * np.sum(head_layer_z) * 2 * H   # 2 for Q + O (q's input * q's ouput) + (o's input * o's output) * (whihc layers are active/not) 
+        # K + V: H_pruned * D per active head * 2
+        kv_nums = np.outer((head_z * head_layer_z).reshape(-1), hidden_z).sum().item()
+        kv_params = kv_nums * D * 2
 
-        # K/V projections (H -> D * n_kv) per layer
-        # Controlled by KV heads only
-        kv_mask = head_z* head_layer_z[:, None]          # shape: (L, n_kv)
-        kv_params = np.sum(kv_mask) * H * D * 2  # 2 for K + V D will always be  (bs, len, kv, D) bc shape of k,v will always be (bs, len, kv, D), then outdim of Q will lways be H 
+        attn_params = q_o_params + kv_params
 
-        # ---------------------------
         # 2. MLP PARAMETERS
-        # ---------------------------
+        # gate, up, down: 3 * H_pruned * I_pruned
+        intermediate_nums = np.outer((intermediate_z * mlp_z).reshape(-1), hidden_z).sum().item()
+        mlp_params = intermediate_nums * 3
 
-        # Intermediate MLP neurons
-        # Controlled by hidden neurons + intermediate mask + mlp block mask
-        mlp_mask = intermediate_z * mlp_z[:,None]        # (L, I)
-        mlp_params = np.sum(np.outer(hidden_z, mlp_mask.reshape(-1))) * 3  # 3 for gate/up/down
+        # 3. LAYER NORMS
+        # 2 per layer + 1 final = (2 * L + 1) * H_pruned
+        num_layernorms = 2 * L + 1
+        layernorm_params = num_layernorms * remaining_hidden_dims
 
-        # ---------------------------
-        # 3. FINAL MLP layer (optional)
-        # ---------------------------
-        mlp_final_input = np.concatenate([hidden_z] * 4)  # if input is 4x concatenation like before
-        final_mlp_params = np.sum(np.outer(mlp_final_input, final_mlp_hidden))
-
-        # ---------------------------
-        # TOTAL
-        # ---------------------------
-        remaining_model_size = q_o_params + kv_params + mlp_params + final_mlp_params
-
+        # TOTAL (backbone only, no classifier, no embeddings, no layer_transformation)
+        
+        mlp_final_hidden = numpified_zs.get("final_mlp_hidden", np.ones(1024))
+        mlp_final_input = numpified_zs.get("final_mlp_input", np.ones(8192))
+        remaining_mlp_inp = mlp_final_input.sum().item()
+        remaining_mlp_hidden = mlp_final_hidden.sum().item()
+        final = (remaining_mlp_inp * remaining_mlp_hidden) + remaining_mlp_hidden + (remaining_mlp_hidden*3)+3
+        remaining_model_size = attn_params + mlp_params + final + layernorm_params + (32000*remaining_hidden_dims)
         pruned_model_size = self.prunable_model_size - remaining_model_size
-        remaining_hidden_dims = hidden_z.sum().item() 
-        remaining_intermediate_nums = intermediate_z.reshape(self.num_hidden_layers, self.intermediate_size).sum(-1).tolist() 
-        remaining_head_nums = head_z.reshape(self.num_hidden_layers, 4).sum(-1).tolist() 
-        remaining_mlp_inp=mlp_final_input.sum().item() 
-        remaining_mlp_hidden=final_mlp_hidden.sum().item()
 
-        # Debug print
-        print(f"HIDDEN: {np.sum(hidden_z)}, LAYER: {np.sum(head_layer_z)}, KV HEADS: {np.sum(kv_mask)}")
-        print(f"q_o_params: {q_o_params}, kv_params: {kv_params}, mlp_params: {mlp_params}, final_mlp_params: {final_mlp_params}")
-        print(f"Remaining model size: {remaining_model_size}, Pruned: {pruned_model_size}")
+        print(f"\nPARAMETER BREAKDOWN (matching calculate_parameters):")
+        print(f"  Q+O:        {q_o_params:,}")
+        print(f"  K+V:        {kv_params:,}")
+        print(f"  MLP:        {mlp_params:,}")
+        print(f"  LayerNorm:  {layernorm_params:,}")
+        print(f"  Final MLP:  {final:,}")
+        print(f"  ──────────────────────────")
+        print(f"  BACKBONE:   {remaining_model_size:,}")
+        print(f"\n  Prunable:   {self.prunable_model_size:,}")
+        print(f"  Pruned:     {pruned_model_size:,}")
+        print(f"  Sparsity:   {pruned_model_size / self.prunable_model_size * 100:.2f}%")
 
-        results={}
-        results["head_layers"] = head_layer_z.reshape(-1).astype(int).tolist() 
-        results["mlp_layers"] = mlp_z.reshape(-1).astype(int).tolist() 
-        results["hidden_dims"] = remaining_hidden_dims 
-        results["intermediate_dims"] = remaining_intermediate_nums 
-        results["head_nums"] = remaining_head_nums 
-        results["mlp_input_3072"] = remaining_mlp_inp 
-        results["mlp_input_1024"] = remaining_mlp_hidden 
-        results["pruned_params"] = pruned_model_size 
-        results["remaining_params"] = remaining_model_size 
-        results["pruned_model_sparsity"] = pruned_model_size / (self.prunable_model_size)
+        # For results, still track classifier dimensions (even though not counted in sparsity)
+        
+
+        results = {}
+        results["head_layers"] = head_layer_z.reshape(-1).astype(int).tolist()
+        results["mlp_layers"] = mlp_z.reshape(-1).astype(int).tolist()
+        results["hidden_dims"] = remaining_hidden_dims
+        results["intermediate_dims"] = remaining_intermediate_nums
+        results["head_nums"] = remaining_head_nums
+        results["mlp_input_8192"] = remaining_mlp_inp
+        results["mlp_input_1024"] = remaining_mlp_hidden
+        results["pruned_params"] = pruned_model_size
+        results["remaining_params"] = remaining_model_size
+        results["pruned_model_sparsity"] = pruned_model_size / self.prunable_model_size
+
+        logger.info(f"remaining_head_layers: {head_layer_z.reshape(-1).tolist()}")
+        logger.info(f"remaining_mlp_layers: {mlp_z.reshape(-1).tolist()}")
+        logger.info(f"remaining_hidden_dims: {remaining_hidden_dims}")
+        logger.info(f"remaining_mlp_inp: {remaining_mlp_inp}")
+        logger.info(f"remaining_mlp_hidden: {remaining_mlp_hidden}")
+        logger.info(f"remaining_intermediate_nums: {remaining_intermediate_nums}")
+        logger.info(f"remaining_head_nums: {remaining_head_nums}")
+        logger.info(f"pruned_model_size: {pruned_model_size}")
+        logger.info(f"remaining_model_size: {remaining_model_size}")
+
         return results
 
-    
-        
     def calculate_model_size(self,zs):
         return self.calculate_model_size_LLM(zs)
     

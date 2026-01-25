@@ -219,6 +219,7 @@ class CoFiTrainer(Trainer):
         print(self.model_name)
         
         self.train_dataloader = self.subset_train_data
+        print("LEn subset", len(self.train_dataloader))
         
         train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, pruning_method='CoFi', max_data=150000, debug=True)
         self.train_initial_learning = dl['train']
@@ -516,12 +517,14 @@ class CoFiTrainer(Trainer):
                     if self.global_step % self.args.eval_steps == 0:
                         logger.warning("evaluating")
                         self.evaluate()
+                        
 
                 epoch_pbar.update(1)
 
                 if using_trained_student and self.pruned_sparsity >= self.additional_args.target_sparsity:
                     print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity}")
-                    
+                    self.save_model(model, student=False)
+                
                     break
 
             epoch_end = time.time()
