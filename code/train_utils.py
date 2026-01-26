@@ -91,8 +91,8 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
         print(f"Pruning method: {pruning_method}")
         filepath = 'cofi' if pruning_method == 'CoFi' else 'unstructured'
 
-        train_batch_dir = os.path.join(root_dir, f"train_batches_{model_type}_{filepath}")
-        val_batch_dir   = os.path.join(root_dir, f"val_batches_{model_type}_{filepath}")
+        train_batch_dir = os.path.join(root_dir, f"train_batches_{model_type}_{filepath}_{max_data}")
+        val_batch_dir   = os.path.join(root_dir, f"val_batches_{model_type}_{filepath}_{max_data}")
         os.makedirs(train_batch_dir, exist_ok=True)
         os.makedirs(val_batch_dir, exist_ok=True)
 
@@ -153,7 +153,7 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
                             "labels": torch.tensor([l for l in targets])
                         })
 
-                    if (idx+1) % 6000 == 0: 
+                    if (idx+1) % (len(temp_train_loader)%10)  == 0: 
                         print(f"Saving until {idx}, {len(batch_data)}")
                         try: 
                             torch.save(batch_data, os.path.join(train_batch_dir, f"batch_{idx:04d}.pth"))
@@ -195,18 +195,19 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
                             "hyp_attention_mask": s2_tokenized["attention_mask"].cpu(),
                             "labels": torch.tensor([l for l in targets])
                         })
-                    if (idx+1) % 6000 == 0:
+                    if (idx+1) % (len(temp_val_loader)%10) == 0:
 
                         torch.save(batch_data, os.path.join(val_batch_dir, f"batch_{idx:04d}.pth"))
                         del batch_data, s1_tokenized, s2_tokenized
                         batch_data=[]
 
                 if batch_data:
+                    print("Saving batchdata")
                     torch.save(batch_data, os.path.join(val_batch_dir, f"batch_{idx:04d}.pth"))
             # --- PART 3: Lazy loading ---
        
     
-
+            print("LOADING DATA")
             train_all_batches = []
 
             files = sorted(os.listdir(train_batch_dir))
