@@ -930,6 +930,7 @@ def main():
     device = 'cuda' if settings.CUDA else 'cpu' 
     
     masks_saved = os.path.exists(save_masks_dir)
+    assert masks_saved, f"Cannot find masks in {save_masks_dir}"
     
     formula_masks = initiate_exp_run(
         model_type=args.model_type, 

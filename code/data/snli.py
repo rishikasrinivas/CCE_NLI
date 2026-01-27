@@ -24,12 +24,12 @@ def load_for_analysis(
     **kwargs,
 ):
     ckpt = torch.load(ckpt_path, map_location="cpu")
-    enc = models.TextEncoder(len(ckpt["stoi"]), **kwargs)
     vocab = {"itos": ckpt["itos"], "stoi": ckpt["stoi"]}
     
     if model_type == "minimal":
         clf = models.EntailmentClassifier
     elif model_type == "bowman":
+        enc = models.TextEncoder(len(ckpt["stoi"]), **kwargs)
         clf = models.BowmanEntailmentClassifier
         model = clf(enc, device='cuda' if cuda else 'cpu')
     elif model_type =='bert':

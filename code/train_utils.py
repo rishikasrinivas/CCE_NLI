@@ -103,9 +103,9 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
         itos = train_dataset.itos
         
 
-        if os.path.exists(os.path.join(root_dir, f"train_batches_{filepath}_{max_data}_all.pth")) and os.path.exists(os.path.join(root_dir, f"val_batches_{filepath}_{max_data}_all.pth")): 
+        if os.path.exists(os.path.join(root_dir, f"train_batches_{model_type}_{max_data}_all.pth")) and os.path.exists(os.path.join(root_dir, f"val_batches_{filepath}_{max_data}_all.pth")): 
             print(f"Loading combined tokenizations from {root_dir}")
-            combined_tokens_train = torch.load(os.path.join(root_dir, f"train_batches_{filepath}_{max_data}_all.pth"))
+            combined_tokens_train = torch.load(os.path.join(root_dir, f"train_batches_{model_type}_{max_data}_all.pth"))
 
             train_loader = DataLoader(combined_tokens_train,
                                       batch_size=1,  # already a batch of size 32
@@ -113,7 +113,7 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
                                       collate_fn=lambda x: x[0])
         
 
-            combined_tokens_val = torch.load(os.path.join(root_dir, f"val_batches_{filepath}_{max_data}_all.pth"))
+            combined_tokens_val = torch.load(os.path.join(root_dir, f"val_batches_{model_type}_{max_data}_all.pth"))
 
             val_loader = DataLoader(combined_tokens_val,
                                     batch_size=1,
@@ -153,7 +153,7 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
                             "labels": torch.tensor([l for l in targets])
                         })
 
-                    if (idx+1) % (len(temp_train_loader)%10)  == 0: 
+                    if (idx+1) % (len(temp_train_loader)%6000)  == 0: 
                         print(f"Saving until {idx}, {len(batch_data)}")
                         try: 
                             torch.save(batch_data, os.path.join(train_batch_dir, f"batch_{idx:04d}.pth"))
@@ -195,7 +195,7 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
                             "hyp_attention_mask": s2_tokenized["attention_mask"].cpu(),
                             "labels": torch.tensor([l for l in targets])
                         })
-                    if (idx+1) % (len(temp_val_loader)%10) == 0:
+                    if (idx+1) % (len(temp_val_loader)%6000) == 0:
 
                         torch.save(batch_data, os.path.join(val_batch_dir, f"batch_{idx:04d}.pth"))
                         del batch_data, s1_tokenized, s2_tokenized
