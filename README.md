@@ -5,6 +5,7 @@ To run pruning: Upload model_best.pth to directory CCE_NLI and snli_1.0 to CCE_N
 
 ```
 git clone https://github.com/rishikasrinivas/CCE_NLI.git
+git switch cofi_merging
 mkdir DataLoaders
 cd CCE_NLI
 ./downloads.sh
@@ -27,6 +28,7 @@ To ONLY run explanations
 Load BERT folder (https://drive.google.com/drive/folders/1HYT3ZqGOi2c_DsvKN9vVf9ImNv7urxrn?usp=sharing) in CCE_NLI/
 ```
 git clone https://github.com/rishikasrinivas/CCE_NLI.git
+git switch cofi_merging
 cd CCE_NLI
 
 # use python3.10 either locally or through virtual env (ex:)
