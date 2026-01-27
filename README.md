@@ -1,16 +1,16 @@
 # CCE_NLI
 
 
-To run pruning:
+To run pruning: Upload model_best.pth to directory CCE_NLI and snli_1.0 to CCE_NLI/data (both uploaded here: https://drive.google.com/drive/folders/1D9onWZBu8aJWnRABIkyIPmeIYHUb50Ky?usp=sharing)
+
 ```
 git clone https://github.com/rishikasrinivas/CCE_NLI.git
 mkdir DataLoaders
 cd CCE_NLI
 ./downloads.sh
 ```
-Upload model_best.pth to directory CCE_NLI and snli_1.0 to CCE_NLI/data (both uploaded here: https://drive.google.com/drive/folders/1D9onWZBu8aJWnRABIkyIPmeIYHUb50Ky?usp=sharing)
 
-To run lottery ticket and wanda
+To run lottery ticket and wanda pruning
 ./scripts/run_[model].sh
 
 To run CoFi
@@ -24,6 +24,7 @@ To run CoFi
 
 
 To ONLY run explanations
+Load BERT folder (https://drive.google.com/drive/folders/1HYT3ZqGOi2c_DsvKN9vVf9ImNv7urxrn?usp=sharing) in CCE_NLI/
 ```
 git clone https://github.com/rishikasrinivas/CCE_NLI.git
 cd CCE_NLI
