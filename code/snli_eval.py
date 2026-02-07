@@ -119,7 +119,6 @@ def main(args):
 
                 if folder == '0_Pruning_Iter':
                     zs=None
-                    continue
                 else:
                     zs=torch.load(os.path.join(args.root_dir, folder,"zs.pt"))
 
@@ -134,7 +133,7 @@ def main(args):
                 else:
                     final_weights_pruned = get_percent_pruned(pruned_model)
                 print("sparsity=", final_weights_pruned)
-                continue
+      
                 all_preds = []
                 all_targets = []
 
