@@ -3,10 +3,10 @@
 # Optional: Print the absolute path of analyze.py
 python -c "import os; print(os.path.abspath('analyze.py'))"
 
-for i in {4..6}; do
+for i in {5..7}; do
     echo "Processing iteration $i"
     
-    if [[ $i -eq 4 ]]; then
+    if [[ $i -eq 5 ]]; then
         echo "Running lottery ticket training for iteration $i (first run - no restart)"
         python3 code/lotteryTicket/snli_lottery_ticket_training.py \
             --model_type llama \
@@ -22,7 +22,7 @@ for i in {4..6}; do
             --model_type llama \
             --filename "Run0.25_$i" \
             --finetune_epochs 3 \
-            --restart_from_ckpt "LLAMA/models/lottery_ticket/Run0.25_4/0_Pruning_Iter/model_best.pth" \
+            --restart_from_ckpt "LLAMA/models/lottery_ticket/Run0.25_5/0_Pruning_Iter/model_best.pth" \
             --start_idx 1 \
             --pretrained_ckpt LLAMA/models/pretrained/llama_MAIN_pretrained_inits.pth
     fi
