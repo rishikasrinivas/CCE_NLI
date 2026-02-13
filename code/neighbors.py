@@ -15,6 +15,29 @@ import numpy as np
 from scipy.spatial.distance import cdist
 import pandas as pd
 import settings
+import networkx as nx
+import csv
+
+import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE
+import torch
+import umap
+from matplotlib.colors import hsv_to_rgb
+
+import pandas as pd
+import re
+from collections import defaultdict
+from pathlib import Path
+import matplotlib.pyplot as plt
+import numpy as np
+import pickle
+
+import os
+from gensim.models import Word2Vec
+import colorcet as cc
+
+from gensim.models.doc2vec import Doc2Vec, TaggedDocument
+from nltk.tokenize import word_tokenize
 
 def load_vecs(path):
     vecs = []
@@ -24,7 +47,6 @@ def load_vecs(path):
         for line in f:
             tok, *nums = line.split(" ")
             nums = np.array(list(map(float, nums)))
-
             assert tok not in vecs_stoi
             new_n = len(vecs_stoi)
             vecs_stoi[tok] = new_n
@@ -87,99 +109,122 @@ def load_csv_data(filepath):
         
     return unit_concepts, set(modified_raw_concepts)
 #how concepts removal same across algortihms 
-mapping, all_conceptsc3 = load_csv_data('BERT/exp/CoFi/Run0.25_5/Expls/0.7789752992375562%Pruned/Cluster3IOUS1024N.csv')
-mapping, all_conceptsc1 = load_csv_data('BERT/exp/CoFi/Run0.25_5/Expls/0.7789752992375562%Pruned/Cluster1IOUS1024N.csv')
-mapping, all_conceptsc2 = load_csv_data('BERT/exp/CoFi/Run0.25_5/Expls/0.7789752992375562%Pruned/Cluster2IOUS1024N.csv')
 
-all_concepts = all_conceptsc3 | all_conceptsc2 | all_conceptsc1
-#for each concept get neighbors (dict {concept: neighbors})
-concept_neighbors_dict = {}
-for concept in set(all_concepts):
-    concept_neighbors_dict[concept] = get_neighbors(concept)
-    
-import pandas as pd
+def get_all_concepts(folder = f'BERT/exp/CoFi/Run0.25_5/Expls/0.7789752992375562%Pruned'):
+    all_concepts = set()
+    for cluster in range(1,4):
+        mapping, all_concepts_cluster = load_csv_data(os.path.join(folder, f'Cluster{cluster}IOUS1024N.csv'))
+        all_concepts = all_concepts | all_concepts_cluster
+    return all_concepts
+      
+def collect_neighbors(concept_set):
+    #for each concept get neighbors (dict {concept: neighbors})
+    concept_neighbors_dict = {}
+    for concept in concept_set:
+        ns=get_neighbors(concept)
+        if not ns:
+            print(concept)
 
-concepts = list(concept_neighbors_dict.keys())
-N = len(concepts)
-sim_matrix = pd.DataFrame(0.0, index=concepts, columns=concepts)
-
-for i, c1 in enumerate(concepts):
-    for j, c2 in enumerate(concepts):
-        if i >= j:
-            continue
-        set1 = concept_neighbors_dict[c1]
-        set2 = concept_neighbors_dict[c2]
-        if c1.startswith("nn") or c1.startswith("vb") or c1.startswith("jj"):
-            sim_matrix.loc[c1, 'POS']=8
-            sim_matrix.loc['POS', c1]=8
-        elif c2.startswith("nn") or c2.startswith("vb") or c2.startswith("jj"):
-            sim_matrix.loc[c2, 'POS']=8
-            sim_matrix.loc['POS', c2]=8
-            
-            
-        if not set1 and not set2:
-            continue
-
-        sim = len(set1 & set2)
-        sim_matrix.loc[c1, c2] = sim
-        sim_matrix.loc[c2, c1] = sim
         
-import networkx as nx
+        concept_neighbors_dict[concept] = ns
+        
+ 
+    return concept_neighbors_dict
 
-G = nx.Graph()
-threshold =2 # e.g., only connect if overlap > 0.3
-concepts.append("POS")
-for c1 in concepts:
-    for c2 in concepts:
-        if c1 == c2:
-            continue
-        if sim_matrix.loc[c1, c2] > threshold:
-            G.add_edge(c1, c2)
+def build_similarity_matrix(concept_neighbors_dict):
+    concepts = list(concept_neighbors_dict.keys())
+    N = len(concepts)
+    sim_matrix = pd.DataFrame(0.0, index=concepts, columns=concepts)
 
-clusters = list(nx.connected_components(G))
-print(clusters)
-#{concept1: [concept5, concept2,....]}
-#group concepts into ones that have similar neighbors  {[concept1, concept2, concept3...], [concept4, concept5,....]}
-#can embed these using w2v so plot it
-#then repeat for other sparsities
+    for i, c1 in enumerate(concepts):
+        for j, c2 in enumerate(concepts):
+            if i >= j:
+                continue
+            set1 = concept_neighbors_dict[c1]
+            set2 = concept_neighbors_dict[c2]
+            if c1.startswith("nn") or c1.startswith("vb") or c1.startswith("jj"):
+                sim_matrix.loc[c1, 'POS']=8
+                sim_matrix.loc['POS', c1]=8
+            elif c2.startswith("nn") or c2.startswith("vb") or c2.startswith("jj"):
+                sim_matrix.loc[c2, 'POS']=8
+                sim_matrix.loc['POS', c2]=8
 
 
+            if not set1 and not set2:
+                continue
+            set1 = set(set1)
+            set2 = set(set2)
+            sim = len(set1 & set2)
+            sim_matrix.loc[c1, c2] = sim
+            sim_matrix.loc[c2, c1] = sim
+    return sim_matrix
+      
+def build_graph(concepts, sim_matrix):
+    if 'POS' not in concepts:
+        concepts.append('POS')
 
+    G = nx.Graph()
+    threshold = 2 # e.g., only connect if overlap > 0.3
+
+    for c1 in concepts:
+        for c2 in concepts:
+            if c1 == c2:
+                continue
+            if sim_matrix.loc[c1, c2] > threshold:
+                G.add_edge(c1, c2)
+
+    abstractions = list(nx.connected_components(G))
+    return abstractions
+
+    
+                                         
+                                    
+    
+        
+
+# UTILS
+from scipy.optimize import linear_sum_assignment
+from scipy.spatial.distance import cdist
+import string
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 import umap
 
-# pick the first clustering
-
-
-
-from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
+import numpy as np
 
+def alignment(coords, labels, groupings):
+    coords = np.array(coords)
+    labels = np.array(labels)
 
-def alignment(coords, labels):
-    red = coords[np.array(labels)==1]
-    blue = coords[np.array(labels)==0]
-    D = cdist(red, blue)
-    row_ind, col_ind = linear_sum_assignment(D)
+    dense_idx = np.where(labels == 0)[0]
+    sparse_idx = np.where(labels == 1)[0]
 
-    matching_dist = D[row_ind, col_ind].mean()
-    print("Mean optimal matching distance:", matching_dist)
-    return matching_dist
+    dense_coords = coords[dense_idx]
+    sparse_coords = coords[sparse_idx]
 
+    # distance matrix: sparse x dense
+    D = cdist(sparse_coords, dense_coords)
 
-with open('data/analysis/snli_1.0_dev.tok', 'r') as f:
-    samples = f.readlines()
+    results = []
 
-for sentence in samples:
-    sentences.append(sentence.split())
-w2v = Word2Vec(sentences, vector_size=128, window=5, epochs=10, workers=4, min_count=1)
+    for i, sparse_i in enumerate(sparse_idx):
+        nearest_dense_local = np.argmin(D[i])
+        nearest_dense_global = dense_idx[nearest_dense_local]
+
+        sparse_topic = groupings[sparse_i]
+        dense_topic = groupings[nearest_dense_global]
+        distance = D[i, nearest_dense_local]
+
+        results.append((sparse_topic, dense_topic, distance))
+
+    return results
 
 def sentence_embedding(words, w2v):
     vecs = []
     for w in words:
-        if w in w2v.wv:
+        if w in w2v.wv.key_to_index:
             v = w2v.wv[w]
             v = v / np.linalg.norm(v)
             vecs.append(v)
@@ -188,81 +233,177 @@ def sentence_embedding(words, w2v):
         return np.zeros(w2v.vector_size)
 
     v = np.mean(vecs, axis=0)
+    
     return v / np.linalg.norm(v)
+model = 'BERT'
+method = 'lottery_ticket'
+fname = 'Run0.25_5'
 
-group = {}
-groupings=[]
-coords_list=[]
-embeddings = []
 
-for index,rel in enumerate(rels):
+print(f"LOADING VALIDATION PAIRS")
+with open('code/data/analysis/snli_1.0_dev.tok', 'r') as f:
+    samples = f.readlines()
+print(f"PREPARING DATA FOR W2V")
+sentences=[]
+for sentence in samples:
+    sentences.append(sentence.split())
 
+print(f"TRAINING W2V")
+w2v = Word2Vec(sentences, vector_size=128, window=5, epochs=10, workers=4, min_count=1)
+print(f"FINDING ABSTRACTIONS FOR EACH MODEL")
+
+
+
+
+save_path=f"{model.upper()}/exp/{method}/{fname}/abstractions.pkl"
+if not os.path.exists(save_path):
+    print(f"FINDING ABSTRACTIONS FOR EACH MODEL")
+
+
+    root_dir = f'{model}/exp/{method}/{fname}/Expls/'
+    abstractions_dict= {}
+    for sparsity in os.listdir(root_dir):
+        if '%Pruned' not in sparsity: continue
+        model_dir = os.path.join(root_dir, sparsity)
+        all_concepts = get_all_concepts(folder = model_dir)
+
+        concept_neighbors_dict = collect_neighbors(all_concepts)
+        sim_matrix = build_similarity_matrix(concept_neighbors_dict)
+        abstractions = build_graph(concepts = list(concept_neighbors_dict.keys()), sim_matrix = sim_matrix)
+        abstractions_dict[sparsity] = abstractions
+
+    with open(save_path, "wb") as f:
+        pickle.dump(abstractions_dict, f)
+else:
+    with open(save_path, "rb") as f:
+        abstractions_dict = pickle.load(f)
+    
+for s, a in abstractions_dict.items():
+    num = 0
+
+    for g in a:
+        for c in g:
+        
+            num += 1
+    print(f"{model}, {method}, {fname}, Sparsity {s} has {num} concepts covered via abstractions")
+
+dense_coverage = abstractions_dict['0.0%Pruned']
+
+dense_rels = sorted(dense_coverage)
+def map_via_concept_alignment(sparse_rels, dense_rels):
+    """
+    For each sparse abstraction (set of concepts),
+    find the dense abstraction with highest Jaccard similarity.
+
+    Returns:
+        list of tuples:
+        (sparse_index, dense_index, similarity_score)
+    """
+
+    results = []
+
+    for i, sparse_set in enumerate(sparse_rels):
+
+        best_score = -1
+        best_j = None
+
+        for j, dense_set in enumerate(dense_rels):
+
+            intersection = len(sparse_set & dense_set)
+            union = len(sparse_set | dense_set)
+
+            score = intersection / union if union > 0 else 0
+
+            if score > best_score:
+                best_score = score
+                best_j = j
+                best_dense=dense_set
+        if best_score <= 0:
+            results.append((sparse_set, 'No Match', best_score))
+        else:
+            results.append((sparse_set, best_dense, best_score))
+
+    return results
+
+#COLLECT EMBEDDINGS AND ASSOCIATED MODEL
+for sparse_coverage in abstractions_dict:
+    print(f"EMBEDDING {sparse_coverage} ABSTRACTIONS")
+    group = {}
+    groupings=[]
+    coords_list=[]
+    embeddings = []
+    if sparse_coverage == '0.0%Pruned': continue
+        
+    sparse_rels = sorted(abstractions_dict[sparse_coverage])
+    with open(f"{model}_{method}_{sparse_coverage}_NEWalignment_results.csv", "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["sparse_topic", "dense_topic", "score"])
+        writer.writerows(map_via_concept_alignment(sparse_rels, dense_rels))
+    continue
     # ---- collect embeddings ----
     
-    rel = sorted(rel)
-    offset = len(group)
-    print(offset)
-   
-    for i, cluster in enumerate(rel):
+    print(sparse_rels, len(sparse_rels))
+    for index,relationship in enumerate([dense_rels, sparse_rels]):
         #if i > subset: break
-        
-        embedding = torch.zeros((128,))
-        embeddings.append(sentence_embedding(cluster, w2v))
-        group[i+offset] = index
-        groupings.append(cluster)
+        offset = len(group)
+        for i, topic in enumerate(relationship):
+            embeddings.append(sentence_embedding(topic,  w2v))
+            group[i+offset] = index
+            groupings.append(topic)
+    print("Numner of abstractions ", len(group))
+     
     
+    labels = [1 if i >= offset else 0 for i in group]
+    print(f"Number of labels {labels}")
+    from sklearn.decomposition import PCA
+    print(f"DIMENSIONALITY REDUCTION FOR {sparse_coverage}")
+    # ---- UMAP projection ----
+    embeddings = np.array(embeddings)
 
-    # ---- word -> cluster mapping ----
-    word_to_cluster = {}
-    for cid, cluster in enumerate(rel):
-        word_to_cluster[cid] = cid
-
-print(group)
-labels = [1 if i > offset else 0 for i in group]
-
-# ---- UMAP projection ----
-embeddings = np.array(embeddings)
-
-reducer = umap.UMAP(n_neighbors=10, min_dist=0.1, n_components=3, random_state=42)
-
-coords = reducer.fit_transform(embeddings)  # supervised
+    #coords = PCA(n_components=3).fit_transform(embeddings)
+    reducer = umap.UMAP(n_neighbors=min(len(embeddings)-1,10), min_dist=0.1, n_components=3, random_state=42)
+    coords = reducer.fit_transform(embeddings)  # supervised
 
 
-    # ---- colors ----
+    #CREATE VISUALIZATION
+    print(f"CREATING VISUALIZATION FOR {sparse_coverage}")
+    num_abstractions = len(embeddings) #len(rels[0]) + len(rels[1])
+    colors_list = ['blue', 'red']
 
-
-
-num_abstractions = len(embeddings) #len(rels[0]) + len(rels[1])
-colors_list = ['red', 'blue'] #cc.glasbey_hv[:num_abstractions]
-
-
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-import string
-
-point_labels = list(string.ascii_uppercase) + [f"{i}+" for i in list(string.ascii_uppercase)] + [f"{i}--" for i in list(string.ascii_uppercase)] +  [f"{i}*" for i in list(string.ascii_uppercase)]
-
-for i, ((x, y,z), l) in enumerate(zip(coords, labels)):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
     
+    
+    point_labels = list(string.ascii_uppercase) + [f"{i}+" for i in list(string.ascii_uppercase)] + [f"{i}--" for i in list(string.ascii_uppercase)] +  [f"{i}*" for i in list(string.ascii_uppercase)] + [f"{i}&" for i in list(string.ascii_uppercase)] + [f"{i}^" for i in list(string.ascii_uppercase)]
 
-    ax.scatter(x, y, z,alpha=0.7, color=colors_list[l])
-    ax.text(x, y, z, point_labels[i], fontsize=10, weight='bold')
+    for i, ((x, y,z), l) in enumerate(zip(coords, labels)):
+        ax.scatter(x, y, z,alpha=0.7, color=colors_list[l])
+        ax.text(x, y, z, point_labels[i], fontsize=10, weight='bold')
 
 
-legend_elements = [
-    Patch(
-        facecolor=colors_list[labels[i]],
-        label=f"{point_labels[i]}: {', '.join(groupings[i])}"
+    legend_elements = [
+        Patch(
+            facecolor=colors_list[labels[i]],
+            label=f"{point_labels[i]}: {', '.join(groupings[i])}"
+        )
+        for i in range(min(len(coords), len(groupings)))
+    ]
+
+    ax.legend(
+        handles=legend_elements,
+        title="Topics",
+        loc="center left",
+        bbox_to_anchor=(1.05, 0.5),
+        ncol=2
     )
-    for i in range(min(len(coords), len(groupings)))
-]
 
-ax.legend(
-    handles=legend_elements,
-    title="Topics",
-    loc="center left",
-    bbox_to_anchor=(1.05, 0.5),
-    ncol=2
-)
-fig.savefig("WordMapping0to68_Cofi.png", dpi=300, bbox_inches="tight")
-alignment(coords, labels)
+    print(f"SAVING TO WordMapping0to{sparse_coverage}_{method}.png")
+    fig.savefig(f"WordMapping0to{sparse_coverage}_{method}.png", dpi=300, bbox_inches="tight")
+    
+    matches = alignment(coords, labels,groupings)
+    with open(f"{model}_{method}_{sparse_coverage}_alignment_results.csv", "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["sparse_topic", "dense_topic", "distance"])
+        writer.writerows(matches)
+        
+    
