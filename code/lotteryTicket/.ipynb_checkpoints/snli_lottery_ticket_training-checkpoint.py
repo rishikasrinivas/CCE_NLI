@@ -113,9 +113,12 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         
         if os.path.exists(start):
             print(f"Alr lt'd {start}")
-            baseline_acc = train_utils.run_eval(model, dataloaders['val'], args.model_type, 'lottery_ticket')
-
             state_dict =  torch.load(os.path.join(start), map_location=torch.device('cpu'))['state_dict']
+            model.load_state_dict(state_dict) 
+            baseline_acc = train_utils.run_eval(model, dataloaders['val'], args.model_type, 'lottery_ticket')
+            model.load_state_dict(base_ckpt['state_dict']) 
+            
+            
             for layer in state_dict.keys():
                 mask = get_mask(state_dict[layer])
                 base_ckpt['state_dict'][layer] *= mask

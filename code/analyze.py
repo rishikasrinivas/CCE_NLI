@@ -799,7 +799,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
         
         #assert type(states)==list and len(states)==10000 and len(states[0]) == 1024 #should be list 100000 ittems ach of len 1024
      
-        #assert(acts.shape[0] == 10000 and acts.shape[1]==1024), acts.shape
+        assert(acts.shape[0] == 10000), acts.shape
         formula_mask = search_feats(acts, states, (tok_feats, tok_feats_vocab), dataset, cluster=cluster_num, weights=weights, save_dir=save_exp_dir, debug=debug)
         
         formula_masks[cluster_num] = formula_mask
@@ -820,7 +820,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
             model_type=model_type,
             cuda=settings.CUDA
             
-        )
+        ) #at the dataset level create the abstraction using neighbors so go to all concepts in the dataset, call neighbors, and create the group. then save the groups [{...,...,..},{...,...}] then map each one in the NEWfile to the group (that way there's more abstraction like ur saying group1 isntead pf [dog, cat,fish])
     else:
         model= model_
         dataset =dataset

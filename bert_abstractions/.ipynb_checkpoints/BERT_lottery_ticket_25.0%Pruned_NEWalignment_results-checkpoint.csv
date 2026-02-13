@@ -1,0 +1,47 @@
+sparse_topic,dense_topic,score
+"{'boys', 'guy', 'old', 'women', 'her', 'children', 'adults', 'girl', 'male', 'he', 'kids', 'ex', 'family', 'friends', 'daughter', 'child', 'lady', 'homeless', 'man', 'older', 'guys', 'girls', 'woman', 'elderly', 'men', 'young', 'boy', 'gentleman', 'his'}","{'boys', 'guy', 'old', 'women', 'son', 'her', 'children', 'little', 'someone', 'male', 'just', 'he', 'girl', 'ex', 'family', 'kids', 'friends', 'female', 'child', 'lady', 'another', 'man', 'it', 'older', 'girls', 'woman', 'elderly', 'him', 'men', 'she', 'friend', 'young', 'boy', 'gentleman', 'else', 'something', 'one', 'nobody', 'wife', 'married', 'his', 'not'}",0.5434782608695652
+"{'microphone', 'cellphone', 'headphones', 'camera'}","{'microphone', 'cellphone', 'phone', 'camera'}",0.6
+"{'polo', 'hockey', 'volleyball', 'soccer', 'football', 'basketball', 'frisbee', 'baseball', 'tennis'}","{'hockey', 'volleyball', 'soccer', 'football', 'basketball', 'baseball', 'tennis'}",0.7777777777777778
+"{'moving', 'putting', 'running'}","{'moving', 'running'}",0.6666666666666666
+"{'orange', 'black', 'blue', 'tan', 'dark', 'yellow', 'brown', 'pink', 'white', 'green', 'red', 'striped'}","{'orange', 'gray', 'black', 'blue', 'purple', 'yellow', 'brown', 'pink', 'white', 'green', 'red'}",0.6428571428571429
+"{'store', 'restaurant', 'grocery', 'chef', 'cafe'}","{'chef', 'restaurant', 'bar'}",0.3333333333333333
+"{'fishing', 'swimming'}","{'fishing', 'swimming', 'wading'}",0.6666666666666666
+"{'river', 'shore', 'park', 'water', 'air', 'beach', 'mountain', 'grass', 'woods', 'tree', 'ocean'}","{'forest', 'river', 'lake', 'park', 'water', 'air', 'beach', 'mountain', 'mountains', 'ocean'}",0.5
+"{'skateboarder', 'snowboarder', 'skateboard'}","{'skateboarder', 'snowboarder', 'skier', 'skateboard'}",0.75
+"{'sidewalk', 'walkway', 'street', 'city', 'road', 'area'}","{'city', 'street'}",0.3333333333333333
+"{'stage', 'team', 'concert', 'player', 'play', 'playing', 'performs', 'plays', 'game', 'performing'}","{'team', 'championship', 'play', 'player', 'playing', 'game'}",0.45454545454545453
+"{'dogs', 'cat', 'dog'}","{'dogs', 'cat', 'dog'}",1.0
+"{'into', 'inside', 'in', 'front', 'outside', 'down', 'through', 'over', 'from', 'behind', 'on', 'towards'}","{'inside', 'around', 'in', 'across', 'front', 'outside', 'through', 'over', 'from', 'on', 'least'}",0.5333333333333333
+"{'one', 'several', 'all', 'some', 'are', 'another', 'other', 'their', 'each', 'others'}","{'all', 'some', 'are', 'other', 'their'}",0.5
+"{'walking', 'riding', 'climbing'}","{'walking', 'riding', 'climbing'}",1.0
+"{'building', 'vacation', 'construction', 'station'}","{'vacation', 'construction'}",0.5
+"{'cooking', 'baking'}",No Match,0.0
+"{'rain', 'ice', 'snowy', 'snow'}","{'rain', 'ice', 'snowy', 'snow'}",1.0
+"{'house', 'home'}","{'house', 'home', 'apartment'}",0.6666666666666666
+"{'bicycle', 'rides', 'bike', 'bikes', 'ride', 'biker', 'motorcycle', 'car'}","{'bicycle', 'bike', 'bikes', 'vehicle', 'biker', 'motorcycle', 'car'}",0.6666666666666666
+"{'two', 'three'}","{'two', 'four', 'three'}",0.6666666666666666
+"{'wear', 'wearing'}",No Match,0.0
+"{'asleep', 'sleep', 'sleeping', 'sleeps', 'nap'}","{'sleeps', 'nap', 'asleep', 'sleeping'}",0.8
+"{'something', 'nothing', 'has', 'they', 'alone', 'nobody', 'have', 'little', 'not', 'just', 'right'}","{'they', 'alone'}",0.18181818181818182
+"{'competing', 'competition'}","{'competing', 'competition'}",1.0
+"{'nn', 'vbp', 'vbz', 'vbd', 'vb', 'vbg', 'vbn', 'nns', 'POS', 'nnp', 'jj'}","{'nn', 'vbp', 'vbz', 'vbg', 'vb', 'jjr', 'vbn', 'nns', 'POS', 'nnp', 'jj'}",0.8333333333333334
+"{'helmets', 'helmet', 'glasses', 'sunglasses'}","{'helmet', 'helmets', 'sunglasses'}",0.75
+"{'being', 'having'}",No Match,0.0
+"{'sitting', 'stand', 'holding', 'sits', 'carrying'}","{'sitting', 'stand', 'stands', 'standing', 'holding', 'sits'}",0.5714285714285714
+"{'cigarette', 'smoking', 'eating', 'drinking'}","{'smoking', 'eating'}",0.5
+"{'near', 'at'}","{'near', 'at'}",1.0
+"{'indoors', 'outdoors', 'pool', 'enjoying', 'outdoor'}","{'pool', 'enjoying', 'indoors', 'outdoors'}",0.8
+"{'marathon', 'race', 'racing'}","{'race', 'racing'}",0.6666666666666666
+"{'watch', 'watches'}",No Match,0.0
+"{'band', 'song', 'dancing', 'singing', 'music'}","{'dance', 'dancing', 'singing'}",0.3333333333333333
+"{'couch', 'bed', 'desk'}","{'couch', 'bed', 'desk'}",1.0
+"{'talking', 'doing', 'reading', 'waiting', 'about', 'looking'}","{'talking', 'doing', 'reading', 'waiting', 'about', 'looking'}",1.0
+"{'large', 'small'}",No Match,0.0
+"{'dinner', 'lunch'}","{'meal', 'dinner', 'lunch'}",0.6666666666666666
+"{'sand', 'dirt', 'rocks'}",No Match,0.0
+"{'with', ','}","{'with', ','}",1.0
+"{'clothes', 'shirt', 'shorts', 'pants', 'jacket'}","{'shorts', 'jeans'}",0.16666666666666666
+"{'walk', 'walks'}","{'walk', 'walks'}",1.0
+"{'blond', 'blonde'}","{'blond', 'brunette'}",0.3333333333333333
+"{'trip', 'tour'}",No Match,0.0
+"{'surfing', 'surfer'}",No Match,0.0

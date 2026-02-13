@@ -69,8 +69,15 @@ def check_sparsity(model, args):
 def get_model_inputs(model, args, dataloader, dev, dev2, seqlen, layers):
     dtype = next(iter(model.parameters())).dtype
     
+    encoder = None
+    if hasattr(model, 'bert'):
+        encoder = model.bert
+    elif hasattr(model, "model"):
+        encoder = model.model
+    elif hasattr(model, 'encoder'):
+        encoder = model.encoder
     inps = torch.zeros(
-        (NUM_SAMPLES, seqlen, model.encoder.config.hidden_size), dtype=dtype, device=dev2
+        (NUM_SAMPLES, seqlen, encoder.config.hidden_size), dtype=dtype, device=dev2
     )
     
     cache = {'i': 0, 'attention_mask': [], 'position_embeddings': []}
@@ -102,6 +109,7 @@ def get_model_inputs(model, args, dataloader, dev, dev2, seqlen, layers):
             if cache['i'] < NUM_SAMPLES:
                 inps[cache['i']][:inp[0].shape[0], :] = inp[0].to(dev2)
                 cache['attention_mask'].append(kwargs['attention_mask'][0])
+                print(kwargs.keys())
                 cache['position_embeddings'].append(kwargs['position_embeddings'])
                 cache['i'] += 1
                 raise ValueError
@@ -180,10 +188,13 @@ def get_inputs_bowman(model,embedder, dataloader, dtype, device):
     return inps, outs, lengths
 
 def get_bert_encodings(model, embedder, s1, s2, device):
-
-    s1enc= model.encoder(**s1.to(device))
+    if hasattr(model, 'bert'):
+        model = model.bert
+    elif hasattr(model, 'model'):
+        model = model.model
+    s1enc= model(**s1.to(device))
     s1enc = s1enc.last_hidden_state[:, 0, :]
-    s2enc= model.encoder(**s2.to(device))
+    s2enc= model(**s2.to(device))
     s2enc = s2enc.last_hidden_state[:, 0, :]
                         
     return s1enc, s2enc
@@ -228,9 +239,15 @@ def get_inputs_mlp(model, embedder, args, dataloader, dtype, device):
     return inps, outs, attention_mask, position_ids
                         
 def prepare_calibration_input(model, args, seg, dataloader, embedder, layers, device):
-    if args.model_type in ['bert', 'llama']:
-        use_cache = model.encoder.config.use_cache
-        model.encoder.config.use_cache = False
+    if args.model_type == 'bert':
+        use_cache = model.bert.config.use_cache
+        model.bert.config.use_cache = False
+        hidden_size=model.bert.config.hidden_size
+    elif args.model_type == 'llama':
+        use_cache = model.model.config.use_cache
+        model.model.config.use_cache = False
+        hidden_size=model.model.config.hidden_size
+        
     
 
     dtype = next(iter(model.parameters())).dtype
@@ -242,22 +259,31 @@ def prepare_calibration_input(model, args, seg, dataloader, embedder, layers, de
     print("Starting data loop")
     if seg == 'enc':
         if args.model_type in ['bert', 'llama']:
-            inps, outs, layers, attention_mask, position_ids = get_model_inputs(model,args, dataloader, device, device, model.encoder.config.hidden_size, layers)
+            inps, outs, layers, attention_mask, position_ids = get_model_inputs(model,args, dataloader, device, device, hidden_size, layers)
         elif args.model_type == 'bowman':
             inps, outs, lengths = get_inputs_bowman(model, None, dataloader, dtype, device) 
     else: #layer == mlp
         inps, outs, attention_mask, position_ids = get_inputs_mlp(model, embedder, args, dataloader, dtype, device)
     
 
-    if args.model_type in ['bert', 'llama']:
-        model.encoder.config.use_cache = use_cache
+    if args.model_type == 'bert':
+        model.bert.config.use_cache = use_cache
+    elif args.model_type == 'llama':
+        model.model.config.use_cache = use_cache
+        
 
     return inps, outs, layers, lengths, attention_mask, position_ids 
 
 
         
 def get_embedder(model):
-    for name, module in model.encoder.named_modules():
+    if hasattr(model, 'bert'):
+        model = model.bert
+    elif hasattr(model, "model"):
+        model = model.model
+    elif hasattr(model, 'encoder'):
+        model = model.encoder
+    for name, module in model.named_modules():
         if name=='':
             continue
         return module
@@ -324,17 +350,20 @@ def pruneLayer(W_metric, subset, name, sparsity_ratio, prune_n=0, wanda_var=Fals
     
 def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.device("cuda:0"), prune_n = 0, prune_m = 0, wanda_var=False):
     if args.model_type == 'bert':
-        use_cache = model.encoder.config.use_cache 
-        model.encoder.config.use_cache = False 
+        use_cache = model.bert.config.use_cache 
+        model.bert.config.use_cache = False
+    elif args.model_type == 'llama':
+        use_cache = model.model.config.use_cache 
+        model.model.config.use_cache = False 
         
     dataloaders=dataloader['train']
     embedder = get_embedder(model)
     #if args.model_type == 'bowman':
         #layers = [model.encoder.rnn]  
     if args.model_type == 'bert':
-        layers = model.encoder.encoder.layer
+        layers = model.bert.encoder.layer
     elif args.model_type == 'llama':
-        layers = model.encoder.layers
+        layers = model.model.layers
     
     if seg == 'mlp':
         layers = model.mlp
@@ -382,6 +411,7 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
                 
                 input_tmp = inps[j].unsqueeze(0)
                 if args.model_type == 'llama' and seg=='enc':
+                    
                     num_tokens = position_ids[j][0].shape[1]
                     
                     inputs = inps[j][:num_tokens,:].unsqueeze(0)
@@ -430,7 +460,10 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
             break
     
     if args.model_type == 'bert':
-        model.encoder.config.use_cache = use_cache
+        model.bert.config.use_cache = use_cache
+    elif args.model_type=='llama':
+        model.model.config.use_cache = use_cache
+        
         
         
     
