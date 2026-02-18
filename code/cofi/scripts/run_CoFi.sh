@@ -37,7 +37,7 @@ reg_learning_rate=0.01
 epochs=5
 
 # seed
-seed=42 #_5 57 seed 
+seed=48 #_5 57 seed  _6 42 seed
 
 #debug
 debug=100
@@ -59,7 +59,7 @@ ex_name_suffix=$2
 ex_name=${task_name}_${ex_name_suffix}
 ex_cate=$3
 iteration=${12}
-teacher_model_dir=${proj_dir}/models/CoFi/Run0.25_6
+teacher_model_dir=${proj_dir}/models/CoFi/Run0.25_5
 output_dir=${teacher_model_dir}/${iteration}_Pruning_Iter
 
 

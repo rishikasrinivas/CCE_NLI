@@ -1,4 +1,5 @@
 
+
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #todo: make clusters
@@ -58,11 +59,23 @@ def load_vecs(path):
 
 # Load vectors
 VECS, VECS_STOI, VECS_ITOS = load_vecs(settings.VECPATH)
+print(f"number of words in ds : {len(VECS_STOI)}")
+import pickle
+
+# Example dictionary
+
+# Write dictionary to a pickle file
+with open("VECS_STOI.pkl", "wb") as f:
+    pickle.dump(VECS_STOI, f)
+with open("code/tok_feats_vocab.pkl", "rb") as f:
+    tok_feats_vocab= pickle.load(f)
+print("Dictionary saved to VECS_STOI.pkl")
+
 
 
 NEIGHBORS_CACHE = {}
 
-neighborhood_size= 10 #settings.EMBEDDING_NEIGHBORHOOD_SIZE
+neighborhood_size= 7 #2*settings.EMBEDDING_NEIGHBORHOOD_SIZE
 def get_neighbors(lemma):
     """
     Get neighbors of lemma given glove vectors.
@@ -81,6 +94,19 @@ def get_neighbors(lemma):
     NEIGHBORS_CACHE[lemma] = nearest
  
     return set(nearest)
+
+
+def buildneighborgraph(concpetset):
+    import networkx as nx
+    G = nx.Graph()
+    
+    for word in concpetset:
+        neighbors = get_neighors(word)
+        for n in neighbors:
+            G.add_edge(word,n)
+    return list(nx.connected_components(G))
+
+
 def get_indiv_concepts(formula) -> list:
     concepts = []
     concps = re.findall(r'(?<!\bNOT\s)(?:\b(?:hyp|pre|oth):[^\s)]+)', formula)
@@ -116,23 +142,104 @@ def get_all_concepts(folder = f'BERT/exp/CoFi/Run0.25_5/Expls/0.7789752992375562
         mapping, all_concepts_cluster = load_csv_data(os.path.join(folder, f'Cluster{cluster}IOUS1024N.csv'))
         all_concepts = all_concepts | all_concepts_cluster
     return all_concepts
-      
+
+def issubset(ns, group):
+    for n in ns:
+        if n not in group:
+            return False
+    return True
+
 def collect_neighbors(concept_set):
-    #for each concept get neighbors (dict {concept: neighbors})
-    concept_neighbors_dict = {}
+    groups = []  # list of sets
+    dictionary={}
+    inv = 0
+    concept_to_group = {}
+    print(len(concept_set))
     for concept in concept_set:
-        ns=get_neighbors(concept)
+        
+        try:
+            concept = concept.split(":")[-1]
+        except:
+            concept = concept
+        ns = set(get_neighbors(concept))
+        
+        
         if not ns:
-            print(concept)
-
+            print("c ", concept)
+            inv += 1
+            continue
         
-        concept_neighbors_dict[concept] = ns
         
- 
-    return concept_neighbors_dict
+        ns.update([concept])
+        
+        groups.append(ns)
+        dictionary[concept] = ns
 
+
+    groups = [g for g in groups if g]
+    unq = set()
+    for g in groups:
+        unq.update(g)
+    print("Number of concepts used: " ,len(dictionary), inv, len(groups))
+    #assert len(dictionary) == len(unq), f'didnt catch all words, got {len(dictionary)}/{len(unq)}'
+    return groups, dictionary
+
+'''import pickle
+
+
+# Write dictionary to a pickle file
+with open("code/NEIGHBORSGLOBAL.pkl", "wb") as f:
+    pickle.dump(collect_neighbors(tok_feats_vocab), f)
+
+print("Dictionary saved to NEIGHBORSGLOBAL.pkl")'''
+
+POS= ["''",
+ '-lrb-',
+ '-rrb-',
+ '``',
+ 'cc',
+ 'cd',
+ 'dt',
+ 'fw',
+ 'jj',
+ 'jjr',
+ 'jjs',
+ 'md',
+ 'nn',
+ 'nnp',
+ 'nnps',
+ 'nns',
+ 'overlap25',
+ 'overlap50',
+ 'overlap75',
+ 'pdt',
+ 'pos',
+ 'prp',
+ 'prp$',
+ 'rb',
+ 'rbr',
+ 'rbs',
+ 'rp',
+ 'sym',
+ 'uh',
+ 'vb',
+ 'vbd',
+ 'vbg',
+ 'vbn',
+ 'vbp',
+ 'vbz',
+ 'wdt',
+ 'wp',
+ 'wp$',
+ 'wrb']
 def build_similarity_matrix(concept_neighbors_dict):
-    concepts = list(concept_neighbors_dict.keys())
+    try:
+        concepts = list(concept_neighbors_dict.keys())
+        
+    except:
+        concepts= concept_neighbors_dict
+    if len(set(concepts) & set(POS)) == 0:
+        concepts.extend(POS)
     N = len(concepts)
     sim_matrix = pd.DataFrame(0.0, index=concepts, columns=concepts)
 
@@ -140,23 +247,30 @@ def build_similarity_matrix(concept_neighbors_dict):
         for j, c2 in enumerate(concepts):
             if i >= j:
                 continue
-            set1 = concept_neighbors_dict[c1]
-            set2 = concept_neighbors_dict[c2]
-            if c1.startswith("nn") or c1.startswith("vb") or c1.startswith("jj"):
+            
+            
+            if c1 in POS:
                 sim_matrix.loc[c1, 'POS']=8
                 sim_matrix.loc['POS', c1]=8
-            elif c2.startswith("nn") or c2.startswith("vb") or c2.startswith("jj"):
+                continue
+            elif c2 in POS:
                 sim_matrix.loc[c2, 'POS']=8
                 sim_matrix.loc['POS', c2]=8
-
-
+                continue
+    
+        
+            set1 = concept_neighbors_dict.get(c1, set())
+            set2 = concept_neighbors_dict.get(c2, set())
             if not set1 and not set2:
                 continue
+            
+            
             set1 = set(set1)
             set2 = set(set2)
             sim = len(set1 & set2)
             sim_matrix.loc[c1, c2] = sim
             sim_matrix.loc[c2, c1] = sim
+            
     return sim_matrix
       
 def build_graph(concepts, sim_matrix):
@@ -170,17 +284,23 @@ def build_graph(concepts, sim_matrix):
         for c2 in concepts:
             if c1 == c2:
                 continue
-            if sim_matrix.loc[c1, c2] > threshold:
+            if sim_matrix.loc[c1, c2] >= threshold:
                 G.add_edge(c1, c2)
 
     abstractions = list(nx.connected_components(G))
     return abstractions
 
-    
-                                         
-                                    
-    
-        
+
+conc , concept_neighbors_dict = collect_neighbors(tok_feats_vocab)
+#sim_matrix = build_similarity_matrix(concept_neighbors_dict)
+#sim_matrix.to_csv("code/sim.csv")
+sim_matrix = pd.read_csv("code/sim.csv")
+sim_matrix = sim_matrix.set_index('Unnamed: 0')
+
+abstractions = build_graph(concepts =  list(concept_neighbors_dict.keys()), sim_matrix = sim_matrix)
+'''with open("code/concept_neighbors_dict.pkl", "wb") as f:
+    pickle.dump(concept_neighbors_dict, f)
+exit(1)'''
 
 # UTILS
 from scipy.optimize import linear_sum_assignment
@@ -221,7 +341,7 @@ def alignment(coords, labels, groupings):
 
     return results
 
-def sentence_embedding(words, w2v):
+def sentence_embedding_W2V(words, w2v):
     vecs = []
     for w in words:
         if w in w2v.wv.key_to_index:
@@ -235,6 +355,12 @@ def sentence_embedding(words, w2v):
     v = np.mean(vecs, axis=0)
     
     return v / np.linalg.norm(v)
+
+def sentence_embedding_ST(concepts):
+    model = SentenceTransformer("all-MiniLM-L6-v2")
+    embeddings = model.encode(concepts)
+    return embeddings
+
 model = 'BERT'
 method = 'lottery_ticket'
 fname = 'Run0.25_5'
@@ -253,8 +379,6 @@ w2v = Word2Vec(sentences, vector_size=128, window=5, epochs=10, workers=4, min_c
 print(f"FINDING ABSTRACTIONS FOR EACH MODEL")
 
 
-
-
 save_path=f"{model.upper()}/exp/{method}/{fname}/abstractions.pkl"
 if not os.path.exists(save_path):
     print(f"FINDING ABSTRACTIONS FOR EACH MODEL")
@@ -270,6 +394,7 @@ if not os.path.exists(save_path):
         concept_neighbors_dict = collect_neighbors(all_concepts)
         sim_matrix = build_similarity_matrix(concept_neighbors_dict)
         abstractions = build_graph(concepts = list(concept_neighbors_dict.keys()), sim_matrix = sim_matrix)
+        
         abstractions_dict[sparsity] = abstractions
 
     with open(save_path, "wb") as f:
@@ -335,7 +460,7 @@ for sparse_coverage in abstractions_dict:
     if sparse_coverage == '0.0%Pruned': continue
         
     sparse_rels = sorted(abstractions_dict[sparse_coverage])
-    with open(f"{model}_{method}_{sparse_coverage}_NEWalignment_results.csv", "w", newline="") as f:
+    with open(f"{model}_{method}_{sparse_coverage}_difEmbedding_alignment_results.csv", "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["sparse_topic", "dense_topic", "score"])
         writer.writerows(map_via_concept_alignment(sparse_rels, dense_rels))
@@ -353,7 +478,7 @@ for sparse_coverage in abstractions_dict:
     print("Numner of abstractions ", len(group))
      
     
-    labels = [1 if i >= offset else 0 for i in group]
+    '''labels = [1 if i >= offset else 0 for i in group]
     print(f"Number of labels {labels}")
     from sklearn.decomposition import PCA
     print(f"DIMENSIONALITY REDUCTION FOR {sparse_coverage}")
@@ -398,7 +523,7 @@ for sparse_coverage in abstractions_dict:
     )
 
     print(f"SAVING TO WordMapping0to{sparse_coverage}_{method}.png")
-    fig.savefig(f"WordMapping0to{sparse_coverage}_{method}.png", dpi=300, bbox_inches="tight")
+    fig.savefig(f"WordMapping0to{sparse_coverage}_{method}.png", dpi=300, bbox_inches="tight")'''
     
     matches = alignment(coords, labels,groupings)
     with open(f"{model}_{method}_{sparse_coverage}_alignment_results.csv", "w", newline="") as f:
