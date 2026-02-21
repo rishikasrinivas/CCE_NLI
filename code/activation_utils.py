@@ -25,6 +25,7 @@ def build_act_mask(states, activ_ranges, cluster_num):
 
 def active_neurons(activations): #activs should be 10,000x1024
     active_neurons = []
+    
     activations = activations.transpose()
     for i,activs in enumerate(activations):
         if len(np.where(activs==1)[0])  > 0:
@@ -48,10 +49,10 @@ def create_clusters(activations, num_clusters):
         activations=activations.detach()
     # ensure activations is the right shape 
 
-    if activations.shape[1] == 1024:
+    if activations.shape[1] in range(1025):
         activations=activations.t()
-    print(activations.shape)
-    
+    print("activs shape ", activations.shape)
+    assert activations.shape[0] in range(1025)
     #clustering
     activation_ranges=[]
     dead_neurons=[]
@@ -105,10 +106,11 @@ def build_masks(activations, activation_ranges, num_clusters, save_dir):
     
             
     saved_masks=[]
+    print(f"Activations os {activations.shape}\nlen(activation_ranges)={len(activation_ranges)}")
+    
     for cluster_num in range(1,num_clusters+1):
         act_masks=[]
         for i, activ_for_neuron in enumerate(activations):
-
             mask=build_act_mask(activ_for_neuron.squeeze(),activation_ranges[i], cluster_num)
             act_masks.append(mask)
 

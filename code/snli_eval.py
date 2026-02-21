@@ -90,8 +90,8 @@ def main(args):
     print("using weights from ", args.ckpt)
     nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger", "ner"])
     ckpt = torch.load(args.ckpt, map_location = 'cuda' if settings.CUDA else 'cpu')
-    
-    train,_,dataloaders=train_utils.create_dataloaders(max_data=10000, model_type=args.model_type, pruning_method=args.pruning_method)
+    print("Building dataset")
+    train,_,dataloaders=train_utils.create_dataloaders(max_data=None, model_type=args.model_type, pruning_method=args.pruning_method)
     # ==== BUILD MODEL ====
     model,_ = train_utils.build_model(vocab_size=len(train.stoi), model_type=args.model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512, is_cofi=args.pruning_method=='CoFi')
    
@@ -119,6 +119,7 @@ def main(args):
 
                 if folder == '0_Pruning_Iter':
                     zs=None
+                    continue
                 else:
                     zs=torch.load(os.path.join(args.root_dir, folder,"zs.pt"))
 
@@ -129,7 +130,8 @@ def main(args):
                     pruned_model.cuda()
                 if args.model_type in ['bert', 'llama']:
                     pruned_model_size = calculate_parameters(pruned_model)
-                    final_weights_pruned = 1 - (pruned_model_size / 1042921475) 
+                    if folder == '0_Pruning_Iter': og=pruned_model_size
+                    final_weights_pruned = 1 - (pruned_model_size / 1) 
                 else:
                     final_weights_pruned = get_percent_pruned(pruned_model)
                 print("sparsity=", final_weights_pruned)
@@ -239,8 +241,6 @@ def parse_args():
     parser.add_argument("--cuda", action="store_true")
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
-
-
 if __name__ == "__main__":
     args = parse_args()
     main(args)

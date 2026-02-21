@@ -425,7 +425,7 @@ def extract_features(
     loader = DataLoader(
         dataset,
         shuffle=False,
-        batch_size=32,
+        batch_size=8,
         collate_fn=lambda batch: pad_collate(batch, sort=False),
     )
 
@@ -884,7 +884,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
     
 from data.snli import SNLI
 
-def main():
+def oldmain():
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     import train_utils
     from data import analysis
@@ -961,7 +961,7 @@ def main():
     
 
     
-def oldmain():
+def main():
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     import train_utils
     from data import analysis
@@ -969,7 +969,7 @@ def oldmain():
         description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("--model_type", default="bert", choices=["bowman", "llama", "bert"])
-    parser.add_argument("--filename", default="Pretrained")
+    parser.add_argument("--filename", default="pretrained")
     parser.add_argument("--ckpt", default="/workspace/CCE_NLI/BERT/models/pretrained/bert_pretrained_inits.pth")
     parser.add_argument("--untrained_model", action="store_true", default=False)  # If `--untrained_model` is used, set to True 
     parser.add_argument("--pruning_method", default='')  # If `--untrained_model` is used, set to True 
@@ -1001,6 +1001,7 @@ def oldmain():
         zs = torch.load(zs_path)
     
     for ckpt in os.listdir(root):
+        if '.ipynb' in ckpt: continue
         path_to_model = os.path.join(root, ckpt, 'model_best.pth')
         print(f"Using {ckpt}")
         model,_ = train_utils.load_model(model_type=args.model_type, pruning_method=args.pruning_method, use_pretrained_weights = False, train=train, ckpt=path_to_model, device=device, zs=zs)

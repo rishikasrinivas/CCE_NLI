@@ -269,6 +269,7 @@ class LLAMAEntailmentClassifier(BaseModel):
         
         if freeze_encoder:
             for param in self.model.parameters():
+                
                 param.requires_grad = False
         
         self.encoder_dim = self.model.config.hidden_size
