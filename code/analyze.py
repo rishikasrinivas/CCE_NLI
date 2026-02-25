@@ -970,72 +970,58 @@ def main():
     )
     parser.add_argument("--model_type", default="bert", choices=["bowman", "llama", "bert"])
     parser.add_argument("--filename", default="pretrained")
-    parser.add_argument("--ckpt", default="/workspace/CCE_NLI/BERT/models/pretrained/bert_pretrained_inits.pth")
-    parser.add_argument("--untrained_model", action="store_true", default=False)  # If `--untrained_model` is used, set to True 
-    parser.add_argument("--pruning_method", default='')  # If `--untrained_model` is used, set to True 
     
     
     
     args = parser.parse_args()
 
-    root = os.path.join(args.model_type.upper(), "models", args.pruning_method, f"{args.filename}")
-    path_to_activations = os.path.join(args.model_type.upper(), "activations", f"{args.filename}_test")
-    path_to_formula_masks = os.path.join(args.model_type.upper(), "formula_masks",  f"{args.filename}_test")
+    root = os.path.join(args.model_type.upper(), "models", f"{args.filename}")
+    path_to_activations = os.path.join(args.model_type.upper(), "activations", f"{args.filename}")
+    path_to_formula_masks = os.path.join(args.model_type.upper(), "formula_masks",  f"{args.filename}")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     os.makedirs(path_to_activations, exist_ok=True)
     os.makedirs(path_to_formula_masks, exist_ok=True)
     
-    if args.untrained_model:
-        use_pretrained_weights = False
-    else:
-        use_pretrained_weights = True
-        
 
       
-    train,val ,dataloaders=train_utils.create_dataloaders(model_type=args.model_type, max_data=None, pruning_method=args.pruning_method)
+    train,val ,dataloaders=train_utils.create_dataloaders(model_type=args.model_type, max_data=None, pruning_method='wanda')
     zs=None
-    if args.pruning_method=='cofi':
-        print(f"Loading zs")
-        zs_path= os.path.join(args.model_type.upper(), "models", args.pruning_method, args.filename, '1_Pruning_Iter/zs.pt')
-        zs = torch.load(zs_path)
     
-    for ckpt in os.listdir(root):
-        if '.ipynb' in ckpt: continue
-        path_to_model = os.path.join(root, ckpt, 'model_best.pth')
-        print(f"Using {ckpt}")
-        model,_ = train_utils.load_model(model_type=args.model_type, pruning_method=args.pruning_method, use_pretrained_weights = False, train=train, ckpt=path_to_model, device=device, zs=zs)
+    
+    path_to_model='/workspace/CCE_NLI/LLAMA/models/pretrained/llama_MAIN_pretrained_inits.pth'
+    model,_ = train_utils.load_model(model_type=args.model_type, pruning_method='wanda', use_pretrained_weights = False, train=train, ckpt=path_to_model, device=device, zs=zs)
 
-        # ==== BUILD VOCAB ====
-        vocab = {"itos": train.itos, "stoi": train.stoi}
+    # ==== BUILD VOCAB ====
+    vocab = {"itos": train.itos, "stoi": train.stoi}
 
-        with open(settings.DATA, "r") as f:
-            lines = f.readlines()
+    with open(settings.DATA, "r") as f:
+        lines = f.readlines()
 
-        dataset = analysis.AnalysisDataset(lines, vocab)
-        save_exp_dir = f"./{args.model_type.upper()}/exp/{args.pruning_method}/{args.filename}/{ckpt}/Expls/"
-        save_masks_dir= f"./{args.model_type.upper()}/exp/{args.pruning_method}/{args.filename}/{ckpt}/Masks/"
-        activations_dir = f"./{args.model_type.upper()}/activations/{args.pruning_method}/{args.filename}/{ckpt}"
-        device = 'cuda' if settings.CUDA else 'cpu' 
+    dataset = analysis.AnalysisDataset(lines, vocab)
+    save_exp_dir = f"./{args.model_type.upper()}/exp/{args.filename}/Expls/"
+    save_masks_dir= f"./{args.model_type.upper()}/exp/{args.filename}/Masks/"
+    activations_dir = f"./{args.model_type.upper()}/activations/{args.filename}"
+    device = 'cuda' if settings.CUDA else 'cpu' 
 
-        masks_saved = os.path.exists(save_masks_dir)
+    masks_saved = os.path.exists(save_masks_dir)
 
-        formula_masks = initiate_exp_run(
-            model_type=args.model_type, 
-            save_exp_dir = save_exp_dir,  
-            save_masks_dir= save_masks_dir, 
-            masks_saved=masks_saved,
-            model_=model, 
-            dataset=dataset, 
-            train=train,
-            activations_dir = activations_dir, 
-            device='cpu', 
-            validation=dataloaders['val'],
-            is_cofi=True if args.pruning_method=='cofi' else False
-        )
+    formula_masks = initiate_exp_run(
+        model_type=args.model_type, 
+        save_exp_dir = save_exp_dir,  
+        save_masks_dir= save_masks_dir, 
+        masks_saved=masks_saved,
+        model_=model, 
+        dataset=dataset, 
+        train=train,
+        activations_dir = activations_dir, 
+        device='cpu', 
+        validation=dataloaders['val'],
+        is_cofi=False
+    )
 
-        with open(os.path.join(path_to_formula_masks, "formula_masks.json"), "w") as f:
-            json.dump(formula_masks, f)
+    with open(os.path.join(path_to_formula_masks, "formula_masks.json"), "w") as f:
+        json.dump(formula_masks, f)
     #alignment.calculate_alignment(formula_masks, f"{args.model_type.upper()}/overlap/{args.filename}_formulalen2") 
     
     
