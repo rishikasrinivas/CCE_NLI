@@ -211,10 +211,25 @@ def main(args):
                 all_targets = np.concatenate(all_targets, 0)
 
             acc = (all_preds == all_targets)
+            cw_predicted=defaultdict(list)
+            for i in acc:
+                if i:
+                    cw_predicted['correct'].append(i)
+                else:
+                    cw_predicted['wrong'].append(i)
+            correct_len = len(cw_predicted['correct'])
+            wrongs_len = len(cw_predicted['wrong'])
+            if correct_len < wrongs_len:
+                cw_predicted['correct'].extend([-1]*(wrongs_len-correct_len))
+            else:
+                cw_predicted['wrong'].extend([-1]*(correct_len-wrongs_len))
+            
+            
+            pd.DataFrame(cw_predicted).transpose().to_csv(f"{path_to_experiment}/Prediction_CW_{folder}.csv")
 
             
          
-            #then here ill have all the activitons in shape 10000x1024 so i can
+            '''#then here ill have all the activitons in shape 10000x1024 so i can
 
 
             final_layer_activations = torch.cat([i for i in final_layer_activations], dim=0)
@@ -241,13 +256,15 @@ def main(args):
                     #print(f"Activs {neuron} {activ_samples}")
 
                     correctly_pred = np.where(acc)[0]
+                    
                     #print("pred ", correctly_pred)
                     for i in activ_samples:
                         if i in correctly_pred:
+                            
                             accuracy += 1
 
                     neuron_acc[num][f'{cluster+1}'] = accuracy/(len(activ_samples))
-            pd.DataFrame(neuron_acc).transpose().to_csv(f"{path_to_experiment}/Neuron_accs_{folder}.csv")
+            pd.DataFrame(neuron_acc).transpose().to_csv(f"{path_to_experiment}/Neuron_accs_{folder}.csv")'''
 
         except Exception as e:
             print(e)
@@ -285,6 +302,7 @@ def parse_args():
     parser.add_argument("--cuda", action="store_true")
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
+
 
 
 if __name__ == "__main__":
