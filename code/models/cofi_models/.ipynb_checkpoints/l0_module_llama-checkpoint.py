@@ -349,7 +349,10 @@ class L0Module_LLAMA(Module):
         # Q projection: sum(hidden_score) × H_orig per layer
         # O projection: H_orig × sum(hidden_score) per layer
         # Combined Q + O: 2 × sum(hidden_score) × H_orig per layer
-        num_parameters += torch.sum(layer_score) * 2 * H_orig * torch.sum(hidden_score)
+        # Q+O: hidden_dim  (same for all layers) * total_active kv heads * 512 
+            #say 2 layers if hidden = 2044 and lauer1 has 1 kv head pruned and layer 2 has 2 ie 3 in first, 2 in second:
+                #2 * 2044 * (2048 - (64x8(4-3))) + 2 * 2044 * (2048 - (64x8(4-2)))  ----> 2*2044*64x8x3 + 2*2044*64*8*2 --> 2*hidden*512*(total kv heads saved)
+        num_parameters +=  2 * torch.sum(hidden_score) * torch.sum(head_score) * D*8
 
         # K + V projections: sum(hidden_score) × D per head × 2 (K and V)
         num_parameters += torch.sum(head_score) * torch.sum(hidden_score) * D * 2
@@ -373,7 +376,7 @@ class L0Module_LLAMA(Module):
         # Each layer has 2 RMSNorms, final layer has 1 RMSNorm
         # Each RMSNorm has H_pruned parameters (weight only, no bias)
         num_layernorms = 2 * 22 + 1  # 2 per layer + 1 final
-        num_parameters += num_layernorms * torch.sum(hidden_score) + (32000 * torch.sum(hidden_score))
+        num_parameters += num_layernorms * torch.sum(hidden_score)
 
         return num_parameters
 
@@ -525,13 +528,16 @@ class L0Module_LLAMA(Module):
         # ===========================
 
         # 1. ATTENTION PARAMETERS
-        # Q + O: 2 * H_pruned * H_orig per active layer
-        q_o_nums = np.outer(head_layer_z.reshape(-1), hidden_z).sum().item()
-        q_o_params = q_o_nums * 2 * H_orig
+        # Q: (H_pruned, H_orig) = (2044, 2048)
+        # K: (H_pruned, 256) = (2044, n_heads_pruned * D)
+        # V: (H_pruned, 256) = (2044, n_heads_pruned * D)
+        # O: (H_orig, H_pruned) = (2048, 2044)
 
         # K + V: H_pruned * D per active head * 2
         kv_nums = np.outer((head_z * head_layer_z).reshape(-1), hidden_z).sum().item()
-        kv_params = kv_nums * D * 2
+
+        kv_params = kv_nums * D * 2          # each KV head → (D, hidden)
+        q_o_params = kv_nums * 512 * 2   
 
         attn_params = q_o_params + kv_params
 
@@ -552,7 +558,7 @@ class L0Module_LLAMA(Module):
         remaining_mlp_inp = mlp_final_input.sum().item()
         remaining_mlp_hidden = mlp_final_hidden.sum().item()
         final = (remaining_mlp_inp * remaining_mlp_hidden) + remaining_mlp_hidden + (remaining_mlp_hidden*3)+3
-        remaining_model_size = attn_params + mlp_params + final + layernorm_params + (32000*remaining_hidden_dims)
+        remaining_model_size = attn_params + mlp_params + final + layernorm_params
         pruned_model_size = self.prunable_model_size - remaining_model_size
 
         print(f"\nPARAMETER BREAKDOWN (matching calculate_parameters):")
@@ -569,7 +575,9 @@ class L0Module_LLAMA(Module):
 
         # For results, still track classifier dimensions (even though not counted in sparsity)
         
-
+        #[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 'mlp_layers': [1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1], 'hidden_dims': 2044, 'intermediate_dims': [5552, 5527, 5532, 5549, 5550, 5551, 5549, 5558, 5570, 5566, 5570, 5576, 5579, 5586, 5589, 5590, 5596, 5604, 5604, 5600, 5599, 5595], 'head_nums': [4, 4, 4, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4], 'mlp_input_8192': 8192.0, 'mlp_input_1024': 1022,
+        80, 105, 100, 83, 82, 81, 83, 74, 62, 66, 62, 56, 53, 46, 43, 42, 36, 28, 28, 32, 33, 37
+        
         results = {}
         results["head_layers"] = head_layer_z.reshape(-1).astype(int).tolist()
         results["mlp_layers"] = mlp_z.reshape(-1).astype(int).tolist()

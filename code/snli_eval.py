@@ -165,11 +165,13 @@ def main(args):
             else:
                 torch.cuda.empty_cache()
                 if '.ipy' in folder or not folder[0].isdigit(): continue
-                model.load_state_dict(torch.load(os.path.join(args.root_dir, folder, 'model_best.pth'))['state_dict'])
+                weights = torch.load(os.path.join(args.root_dir, folder, 'model_best.pth'))['state_dict']
+                model.load_state_dict(weights)
                 all_preds = []
                 all_targets = []
                 model.eval()
-
+                print("Loaded some apth ", os.path.join(args.root_dir, folder, 'model_best.pth'))
+                print("Percent pruned of 1 layer ", torch.where(weights['model.layers.8.self_attn.k_proj.weight']==0,1,0).sum()/(256* 2048))
                 if settings.CUDA:
                     model = model.cuda()
                 if args.model_type=='bowman':
@@ -241,6 +243,7 @@ def parse_args():
     parser.add_argument("--cuda", action="store_true")
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
+
 if __name__ == "__main__":
     args = parse_args()
     main(args)

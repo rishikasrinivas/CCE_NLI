@@ -254,10 +254,17 @@ class BaseModel(torch.nn.Module):
         raise NotImplementedError()
 
 class LLAMAEntailmentClassifier(BaseModel):
-    def __init__(self, encoder_name="knowledgator/Llama-encoder-1.0B", freeze_encoder=False, device='cuda'):
+    def __init__(self, encoder_name="knowledgator/Llama-encoder-1.0B", pretrained = True, freeze_encoder=False, device='cuda'):
         super().__init__()
         self.encoder_name = encoder_name
-        self.model = LlamaBiModel.from_pretrained(encoder_name)
+        if pretrained:
+            print("Loading PRETRAINED")
+            self.model = LlamaBiModel.from_pretrained(encoder_name)
+        else:
+            print("Loading UNTRAINED")
+            config = AutoConfig.from_pretrained(encoder_name)
+            self.model = LlamaBiModel.from_config(config)
+        
         self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
         self.tokenizer.model_max_length = 512
         self.model_name='llama'
@@ -332,8 +339,10 @@ class BertEntailmentClassifier(BaseModel):
         self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
         self.model_name='bert'
         if pretrained:
+            print("Loading PRETRAINED")
             self.bert = AutoModel.from_pretrained(encoder_name)
         else:
+            print("Loading UNTRAINED")
             config = AutoConfig.from_pretrained(encoder_name)
             self.bert = AutoModel.from_config(config)
         

@@ -73,7 +73,7 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
         print("⚠️ Base SNLI dataset cache not found. Creating from text files...")
         if debug:
             train_dataset = SNLI("data/snli_1.0", "train", max_data=max_data)
-            val_dataset = SNLI("data/snli_1.0", "dev", max_data=max_data,
+            val_dataset = SNLI("data/snli_1.0", "dev", max_data=None,
                                vocab=(train_dataset.stoi, train_dataset.itos),
                                unknowns=False)
             torch.save(train_dataset, f'{root_dir}/train_dataset_debug{max_data}.pth')
@@ -407,7 +407,7 @@ def build_model(model_type, vocab, vocab_size=None, pretrained=True, embedding_d
             model = nli_models.BertEntailmentClassifier(pretrained=pretrained, device=device)
         elif model_type == 'llama':
             # CORRECTED: Removed the 'vocab' argument
-            model = nli_models.LLAMAEntailmentClassifier( freeze_encoder=True, device=device)
+            model = nli_models.LLAMAEntailmentClassifier(pretrained=pretrained, device=device)
         elif model_type == 'bowman':
             # This path remains the same
             tokenizer = nli_models.TextEncoder(vocab_size=vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim)
@@ -442,7 +442,7 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
             model.load_state_dict(state_dict=ckpt_["state_dict"], strict=False)
     else:
         # This logic for saving initial weights is fine
-        print("Loading pretrained weights")
+        print("Loading pretrained/untrained weights")
         save_dir_type = "pretrained" if use_pretrained_weights else "untrained"
         save_dir = os.path.join(model_type.upper(), "models", save_dir_type)
         os.makedirs(save_dir, exist_ok=True)
