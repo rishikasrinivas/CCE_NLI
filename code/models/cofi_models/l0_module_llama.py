@@ -178,7 +178,7 @@ class L0Module_LLAMA(Module):
 
     def initialize_hidden(self): 
         if self.learned_zs and 'hidden_z' in self.learned_zs:
-            self.hidden_loga = Parameter(self.learned_zs['hidden_z'].reshape(self.hidden_size))
+            self.hidden_loga = Parameter(self.learned_zs['hidden_z'].reshape(self.hidden_size)).to(device)
             self.hidden_loga.requires_grad = False
         else:
             self.hidden_loga = self.initialize_parameters(self.hidden_size) #shared across all layers if in 768->3072->768 neuron 0 is pruned out that is the 0th in the first  768 and the last 768 
@@ -457,6 +457,7 @@ class L0Module_LLAMA(Module):
         return eps
 
     # during training
+    
     def _sample_z(self, loga):
         eps = self.get_eps(torch.FloatTensor(*loga.shape)).to(loga.device)
         z = self.quantile_concrete(eps, loga)

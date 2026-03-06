@@ -263,7 +263,10 @@ class LLAMAEntailmentClassifier(BaseModel):
         else:
             print("Loading UNTRAINED")
             config = AutoConfig.from_pretrained(encoder_name)
-            self.model = LlamaBiModel.from_config(config)
+            self.model = AutoModel.from_config(
+                config,
+                trust_remote_code=True
+            )
         
         self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
         self.tokenizer.model_max_length = 512
@@ -412,7 +415,7 @@ class BowmanEntailmentClassifier(BaseModel):
     def __init__(self, encoder, device):
         super().__init__()
 
-        self.bert = encoder
+        self.encoder = encoder
         self.model_name='bowman'
         self.encoder_dim = encoder.output_dim
         self.mlp_input_dim = self.encoder_dim * 4
@@ -434,8 +437,8 @@ class BowmanEntailmentClassifier(BaseModel):
         
         
     def forward(self, s1, s1len, s2, s2len):
-        s1enc = self.bert(s1, s1len)
-        s2enc = self.bert(s2, s2len)
+        s1enc = self.encoder(s1, s1len)
+        s2enc = self.encoder(s2, s2len)
 
         diffs = s1enc - s2enc
         prods = s1enc * s2enc
@@ -477,8 +480,8 @@ class BowmanEntailmentClassifier(BaseModel):
             linear_pruned.bias_orig.copy_(linear_unpruned.bias)
 
     def get_final_reprs(self, s1, s1len, s2, s2len):
-        s1enc = self.bert(s1, s1len)
-        s2enc = self.bert(s2, s2len)
+        s1enc = self.encoder(s1, s1len)
+        s2enc = self.encoder(s2, s2len)
 
         diffs = s1enc - s2enc
         prods = s1enc * s2enc
@@ -498,7 +501,7 @@ class BowmanEntailmentClassifier(BaseModel):
         return preds
     
     def get_encoder(self):
-        return self.bert
+        return self.encoder
     
     
      

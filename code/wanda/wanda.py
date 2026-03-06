@@ -342,7 +342,8 @@ def pruneLayer(W_metric, subset, name, sparsity_ratio, prune_n=0, wanda_var=Fals
                 W_mask.scatter_(1,ii+torch.topk(tmp, prune_n,dim=1, largest=False)[1], True)
     else:
         sort_res = torch.sort(W_metric, dim=-1, stable=True)
-        indices = sort_res[1][:,:int(W_metric.shape[1]*sparsity_ratio)]
+        
+        indices = sort_res[1][:,:int(W_metric.shape[1]*sparsity_ratio)] #indicdeos to prune
         W_mask.scatter_(1, indices, True).cpu()
             
     
@@ -418,11 +419,13 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
                     attn_masks = attention_mask[j][:num_tokens,:].unsqueeze(0)
                     outs[j][:num_tokens, :] = layer(inputs, attention_mask=attn_masks ,position_embeddings=position_ids[j])[0]
                     outs[j][num_tokens:, :] = 0
+                    
                 elif args.model_type=='bert' and seg == 'enc':
             
                     outs[j] = layer(inps[j].unsqueeze(0),attention_mask=None)[0]
                 else:
                     outs[j] = layer(inps[j])[0]
+                    
                     
         for h in handles:
             h.remove()
@@ -431,8 +434,8 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
             print(f"pruning layer {name}: {subset[name]}")
             subset_value = subset[name]
             W_metric = torch.abs(subset_value.weight.data).cpu() * torch.sqrt(wrapped_layers[subset_value].scaler_row.reshape((1,-1))).cpu()
-            print("Weights being pruned are of shape: ", W_metric.shape)
-            W_mask = pruneLayer(W_metric, subset, name, sparsity_ratio)
+       
+            W_mask = pruneLayer(W_metric, subset, name, sparsity_ratio=sparsity_ratio)
         
             subset[name].weight.data[W_mask] = 0
             

@@ -51,7 +51,7 @@ def main():
     if args.debug:
         max_data = 1000
     else:
-        max_data = None
+        max_data = 10000
     if args.untrained_model:
         use_pretrained_weights = False
     else:
@@ -78,6 +78,7 @@ def main():
     #========== Prune ===========
     print(f"====Done training. Going to prune from {prune_metrics_dir}/{args.offset} Pruning Iter====")
     for i,sparsity_ratio in enumerate(settings.SPARSITY_RATIOS[args.offset:]):
+  
         torch.cuda.empty_cache()
         os.makedirs(f"{prune_metrics_dir}/{i+args.offset+1}_Pruning_Iter", exist_ok=True)
         
@@ -95,8 +96,8 @@ def main():
 
         #===== Pruning =====
         device = torch.device("cuda:0")
-        if args.model_type != 'bowman':
-            wanda.prune_wanda(args, model, 'enc', dataloaders, sparsity_ratio, device)
+        #if args.model_type != 'bowman':
+            #wanda.prune_wanda(args, model, 'enc', dataloaders, sparsity_ratio, device)
         
         wanda.prune_wanda(args, model, 'mlp', dataloaders, sparsity_ratio, device)
         

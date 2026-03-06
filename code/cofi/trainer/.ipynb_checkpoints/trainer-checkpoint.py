@@ -302,6 +302,7 @@ class CoFiTrainer(Trainer):
                 )
             else:
                 self.lr_scheduler = None
+        print("created optimizer")
                 
 
     
@@ -391,6 +392,7 @@ class CoFiTrainer(Trainer):
         print(f"Training for {num_train_epochs} epochs")
         for epoch in range(epochs_trained, int(np.ceil(num_train_epochs))): #! 20 epoch
             
+            
             print(f"Starting epoch {epoch}")
             epoch_start = time.time()
 
@@ -415,21 +417,21 @@ class CoFiTrainer(Trainer):
             self.eval_counter.clear()
             
                 
-
+            
             for step, inputs in enumerate(epoch_iterator):
                 #print(f"Can only start pruning at {self.global_step} == {self.prepruning_finetune_steps}")
                 #print(f"right now, glboal step = {self.global_step} and self.prepruning_finetune_steps = {self.prepruning_finetune_steps}" )
-                
+              
                 if using_trained_student and not self.start_prune: #elf.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps: #! before pruning, run 12272 steps
                     self.global_step = self.prepruning_finetune_steps
-                    logger.warning("started pruning")
+                    #logger.warning("started pruning")
                     self.start_prune = True
-                    print("starting ptuning")
                     self.student_optimizer = None
                     self.lr_scheduler = None
                     lr_steps = self.t_total - self.global_step
 
                     # reset the optimizer
+
                     self.create_optimizer_and_scheduler(lr_steps, self.start_prune)
                     logger.info("Starting l0 regularization!")
             
@@ -438,10 +440,9 @@ class CoFiTrainer(Trainer):
                     zs = self.l0_module.forward(training=True) #! get the zs
                     
                     self.fill_inputs_with_zs(zs, inputs) #! use the zs
-                
-                    
+              
  
-                
+      
                 loss_terms =  self.training_step(model, inputs)
                 tr_loss_step = loss_terms["loss"]
                 lag_loss_step = loss_terms["lagrangian_loss"]
@@ -777,9 +778,9 @@ class CoFiTrainer(Trainer):
             head_layer_z = None
             # logger.info(f"zs={zs}")
             if "mlp_z" in zs:
-                mlp_z = zs["mlp_z"].detach().cpu()
+                mlp_z = zs["mlp_z"]
             if "head_layer_z" in zs:
-                head_layer_z = zs["head_layer_z"].detach().cpu()
+                head_layer_z = zs["head_layer_z"]
 
             
             
@@ -1081,6 +1082,7 @@ class CoFiTrainer(Trainer):
 
                
             zs = {key: inputs[key] for key in inputs if "_z" in key}
+            
             distill_loss, distill_ce_loss, loss = self.calculate_distillation_loss(
                 teacher_outputs, student_outputs, zs)
 

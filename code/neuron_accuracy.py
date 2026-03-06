@@ -212,8 +212,8 @@ def main(args):
 
             acc = (all_preds == all_targets)
             cw_predicted=defaultdict(list)
-            for i in acc:
-                if i:
+            for i,j in enumerate(acc):
+                if j:
                     cw_predicted['correct'].append(i)
                 else:
                     cw_predicted['wrong'].append(i)
@@ -292,8 +292,8 @@ def parse_args():
     )
     
     
-    parser.add_argument("--root_dir", default="/workspace/CCE_NLI/BOWMAN/models/lottery_ticket/Run0.25/")
-    parser.add_argument("--ckpt", default="BOWMAN/models/lottery_ticket/Run0.25/0_Pruning_Iter/model_best.pth")
+    parser.add_argument("--root_dir", default="/workspace/CCE_NLI/BOWMAN/models/lottery_ticket/Run0.25_3/")
+    parser.add_argument("--ckpt", default="BOWMAN/models/lottery_ticket/Run0.25_3/0_Pruning_Iter/model_best.pth")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "bert", "llama"])
     parser.add_argument("--filename")
     parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "CoFi"])

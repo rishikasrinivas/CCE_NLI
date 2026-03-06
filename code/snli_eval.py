@@ -171,7 +171,6 @@ def main(args):
                 all_targets = []
                 model.eval()
                 print("Loaded some apth ", os.path.join(args.root_dir, folder, 'model_best.pth'))
-                print("Percent pruned of 1 layer ", torch.where(weights['model.layers.8.self_attn.k_proj.weight']==0,1,0).sum()/(256* 2048))
                 if settings.CUDA:
                     model = model.cuda()
                 if args.model_type=='bowman':
@@ -234,6 +233,7 @@ def parse_args():
         default="test.txt",
         help="Data to eval interactively (pairs of sentences); use - for stdin",
     )
+    
     parser.add_argument("--root_dir", default="/workspace/CCE_NLI/BOWMAN/models/lottery_ticket/Run0.25/")
     parser.add_argument("--ckpt", default="BOWMAN/models/lottery_ticket/Run0.25/0_Pruning_Iter/model_best.pth")
     parser.add_argument("--model_type", default="bowman", choices=["bowman", "bert", "llama"])

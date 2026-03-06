@@ -310,7 +310,7 @@ class L0Module(Module):
 
      
         expected_params_1 = torch.sum(torch.outer(inp_layer_score,hid_layer_score) )
-        expected_params_2 = torch.sum(torch.outer(hid_layer_score, torch.ones(3)))
+        expected_params_2 = torch.sum(torch.outer(hid_layer_score, torch.ones(3, device=hid_layer_score.device)))
         num_parameters = expected_params_1 + expected_params_2
         return num_parameters
 
