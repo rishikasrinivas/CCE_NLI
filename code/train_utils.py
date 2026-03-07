@@ -1,5 +1,5 @@
 import sys
-sys.path.append("code/models/")
+sys.path.append("code/models/") #to support model imports
 import models.cofi_models as cofi_models
 import models.nli_models as nli_models
 import cofi.utils.cofi_utils as cofi_utils
@@ -7,7 +7,7 @@ import torch
 import util
 import tqdm as tqdm
 from contextlib import nullcontext
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader, Subset, Dataset
 import torch.nn.utils.prune as prune
 import numpy as np
 #!pip install llm2vec #add to donwloads
@@ -17,12 +17,13 @@ from tqdm import tqdm
 from data.snli import SNLI, pad_collate
 from collections import defaultdict
 import os,fileio
-from transformers import BertTokenizer, BertModel, AdamW, get_linear_schedule_with_warmup
+from transformers import BertTokenizer, BertModel, AdamW, get_linear_schedule_with_warmup, AutoTokenizer
 from torch.cuda.amp import autocast,GradScaler
 from transformers import AutoTokenizer
 from torch.nn.utils.rnn import pad_sequence
-
+import glob
 import json
+
 def collate_as_dict(batch):
     """
     We don't sort here to take advantage of enforce_sorted=False since we'd
@@ -38,18 +39,9 @@ def collate_as_dict(batch):
     s2_pad = pad_sequence(s2, padding_value=1)
     s2len = torch.tensor(s2len)
     
-
     return {'s1': s1_pad, 's1len': s1len, 's2':s2_pad, 's2len': s2len, 'labels':label}
 
-import os
-import glob
-import torch
-from torch.utils.data import DataLoader, Dataset
-from tqdm import tqdm
-from transformers import AutoTokenizer
-import torch
-from torch.utils.data import Dataset
-import glob
+
 
 
 def create_dataloaders(max_data, model_type, pruning_method, debug=False):
@@ -60,9 +52,9 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
     root_dir = "../DataLoaders"
     os.makedirs(root_dir, exist_ok=True)
 
-    # --- PART 1: Load or create base datasets ---
+    # Load/create base datasets
     try:
-        print("✅ Loading base SNLI dataset from cache...")
+        print("Loading base SNLI dataset from cache")
         if debug:
             train_dataset = torch.load(f'{root_dir}/train_dataset_debug{max_data}.pth')
             val_dataset = torch.load(f'{root_dir}/val_dataset_debug{max_data}.pth')
@@ -70,7 +62,7 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
             train_dataset = torch.load(f'{root_dir}/train_dataset.pth')
             val_dataset = torch.load(f'{root_dir}/val_dataset.pth')
     except:
-        print("⚠️ Base SNLI dataset cache not found. Creating from text files...")
+        print("Base SNLI dataset cache not found. Creating from text files")
         if debug:
             train_dataset = SNLI("data/snli_1.0", "train", max_data=max_data)
             val_dataset = SNLI("data/snli_1.0", "dev", max_data=None,
@@ -86,7 +78,7 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
             torch.save(train_dataset, f'{root_dir}/train_dataset.pth')
             torch.save(val_dataset, f'{root_dir}/val_dataset.pth')
 
-    # --- PART 2: Transformer-specific batch conversion ---
+    # transformer specific batch conversion
     if model_type in ['bert', 'llama']:
         print(f"Pruning method: {pruning_method}")
         filepath = 'cofi' if pruning_method == 'CoFi' else 'unstructured'
@@ -102,7 +94,7 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
             tokenizer.add_special_tokens({'pad_token': tokenizer.eos_token})
         itos = train_dataset.itos
         
-
+        #check if full file already loaded (indicate if in debug or nondebug since files saved separately) and if so compile that into DL
         if os.path.exists(os.path.join(root_dir, f"train_batches_{model_type}_{max_data}_all.pth")) and os.path.exists(os.path.join(root_dir, f"val_batches_{filepath}_{max_data}_all.pth")): 
             print(f"Loading combined tokenizations from {root_dir}")
             combined_tokens_train = torch.load(os.path.join(root_dir, f"train_batches_{model_type}_{max_data}_all.pth"))
@@ -120,10 +112,9 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
                                     shuffle=False,
                                 collate_fn=lambda x: x[0])
         else:
-
-            # --- Convert & save train batches ---
+            # cache batches
             if os.path.exists(train_batch_dir) and len(os.listdir(train_batch_dir)) > 0:
-                print(f"✅ Tokenized train batches already exist in {train_batch_dir}, skipping conversion.")
+                print(f"Tokenized train batches already exist in {train_batch_dir}, skipping conversion.")
 
             else:
                 temp_train_loader = DataLoader(train_dataset,
@@ -132,7 +123,7 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
                                                num_workers=4,
                                                collate_fn=pad_collate)
 
-                print("⚡ Converting and saving train batches...")
+                print("Converting and saving train batches")
                 batch_data=[]
                 for idx, batch in enumerate(tqdm(temp_train_loader)):
                     s1_pad, _, s2_pad, _, targets = batch
@@ -167,7 +158,7 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
                     torch.save(batch_data, os.path.join(train_batch_dir, f"batch_{idx:04d}.pth"))
                     del batch_data, s1_tokenized, s2_tokenized
             if os.path.exists(val_batch_dir) and len(os.listdir(val_batch_dir)) > 0:
-                print(f"✅ Tokenized val batches already exist in {val_batch_dir}, skipping conversion.")
+                print(f"Tokenized val batches already exist in {val_batch_dir}, skipping conversion.")
             # --- Convert & save val batches ---
             else:
                 temp_val_loader = DataLoader(val_dataset,
@@ -180,6 +171,8 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
                 for idx, batch in enumerate(tqdm(temp_val_loader)):
                     s1_pad, _, s2_pad, _, targets = batch
                     s1_indices, s2_indices = s1_pad.cpu().numpy().T, s2_pad.cpu().numpy().T
+                    
+                    
                     s1_sentences = [" ".join([itos.get(i, "") for i in row if i not in (0, 1)]) for row in s1_indices]
                     s2_sentences = [" ".join([itos.get(i, "") for i in row if i not in (0, 1)]) for row in s2_indices]
                     s1_tokenized = tokenizer(s1_sentences, return_tensors="pt", padding=True, truncation=True)
@@ -202,42 +195,32 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
                         batch_data=[]
 
                 if batch_data:
-                    print("Saving batchdata")
                     torch.save(batch_data, os.path.join(val_batch_dir, f"batch_{idx:04d}.pth"))
-            # --- PART 3: Lazy loading ---
+            
        
-    
-            print("LOADING DATA")
+            #TRAIN: Reload from cache into 1 file
             train_all_batches = []
-
             files = sorted(os.listdir(train_batch_dir))
-
             for f in files:
-               
                 batches = torch.load(os.path.join(train_batch_dir,f))
                 train_all_batches.extend(batches)  # flatten into a single list
 
-            # save as one big file
-
+            # save the file
             torch.save(train_all_batches, os.path.join(root_dir, f"train_batches_{filepath}_{max_data}_all.pth"))
-            print(f"✅ Saved {len(train_all_batches)} batches into train_batches_{filepath}_{max_data}_all.pth")
+            print(f"Saved {len(train_all_batches)} batches into train_batches_{filepath}_{max_data}_all.pth")
 
             train_loader = DataLoader(train_all_batches,
                                       batch_size=1,  # already a batch of size 32
                                       shuffle=True,
                                       collate_fn=lambda x: x[0])
-
+            #Repeat for VAL
             val_all_batches = []
-
             files = sorted(os.listdir(val_batch_dir))
-
             for f in files:
                 batches = torch.load(os.path.join(val_batch_dir,f))
                 val_all_batches.extend(batches)  # flatten into a single list
-
-
             torch.save(val_all_batches, os.path.join(root_dir, f"val_batches_{filepath}_{max_data}_all.pth"))
-            print(f"✅ Saved {len(val_all_batches)} batches into val_batches_{filepath}_{max_data}_all.pth")
+            print(f"Saved {len(val_all_batches)} batches into val_batches_{filepath}_{max_data}_all.pth")
 
 
             val_loader = DataLoader(val_all_batches,
@@ -270,10 +253,7 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
     else:
         ctx = torch.no_grad
         model.eval()
-    
-    # CORRECTED: Disable the GradScaler for this test
-    # scaler = GradScaler(enabled=(training and torch.cuda.is_available()))
-    
+        
     ranger = tqdm(dataloaders[split], desc=f"{split} epoch {epoch}")
     scheduler = None
     if model_type in ['bert', 'llama'] and training:
@@ -307,8 +287,6 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
                     logits = model(s1, s1len, s2, s2len)
                     loss = criterion(logits, targets)
         else:
-            
-            
             if torch.cuda.is_available():
                 batch = {k: v.to(device) for k, v in batch.items()}
                 targets = batch['labels']
@@ -317,6 +295,7 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
                 output = model(**batch)
                 loss = output.loss
             logits=output[1][2]
+            
         if training:
             optimizer.zero_grad()
             

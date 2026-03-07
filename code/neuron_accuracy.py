@@ -292,11 +292,11 @@ def parse_args():
     )
     
     
-    parser.add_argument("--root_dir", default="/workspace/CCE_NLI/BOWMAN/models/lottery_ticket/Run0.25_3/")
-    parser.add_argument("--ckpt", default="BOWMAN/models/lottery_ticket/Run0.25_3/0_Pruning_Iter/model_best.pth")
-    parser.add_argument("--model_type", default="bowman", choices=["bowman", "bert", "llama"])
-    parser.add_argument("--filename")
-    parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "CoFi"])
+    parser.add_argument("--root_dir", default="/workspace/CCE_NLI/BERT/models/wanda/Run0.25_5/")
+    parser.add_argument("--ckpt", default="BERT/models/lottery_ticket/Run0.25_5/0_Pruning_Iter/model_best.pth")
+    parser.add_argument("--model_type", default="bert", choices=["bowman", "bert", "llama"])
+    parser.add_argument("--filename", default='Run0.25_5')
+    parser.add_argument("--pruning_method", default="wanda", choices=["lottery_ticket", "wanda", "CoFi"])
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--eval_data_path", default="data/snli_1.0/")
     parser.add_argument("--cuda", action="store_true")
