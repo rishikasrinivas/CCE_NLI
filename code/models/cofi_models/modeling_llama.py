@@ -625,8 +625,9 @@ class CoFiLlamaMLP(LlamaMLP):
 
  
     def forward(self, x, intermediate_z=None, mlp_z=None, hidden_z=None):
+        if mlp_z is not None and  mlp_z.sum().eq(0): return torch.zeros_like(x)
         
-        if self.gate_proj is None: return x
+        
         gate = self.gate_proj(x)
         up = self.up_proj(x)
 
@@ -641,9 +642,6 @@ class CoFiLlamaMLP(LlamaMLP):
         if hidden_z is not None:
             out = out * hidden_z.view(1, 1, -1)
 
-
-        if mlp_z is not None and mlp_z.sum().eq(0):
-            return torch.zeros_like(out)
 
         return out
 
@@ -689,30 +687,26 @@ class CoFiLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         )
 
         # Mirrors CoFiBertSelfOutput logic
-        if attn_out is None:
+        if attn_out is None or attn_out.sum().eq(0).item():
             
-            # Fully pruned (self.value is None equivalent) — pure residual
+            # Fully pruned (self.value is None equivalent) — pure residual or Zeroed by head_layer_z — skip post_attention_layernorm, just residual
+            # attn_out is 0 so residual + 0 = residual
             hidden_states = residual
-        elif attn_out.sum().eq(0).item():
-            
-            # Zeroed by head_layer_z — skip post_attention_layernorm, just residual
-            hidden_states = residual  # attn_out is 0 so residual + 0 = residual
+          
         else:
-            
-            if head_layer_z is not None:
-                attn_out = attn_out.mul(head_layer_z)
             hidden_states = residual + attn_out
 
         # MLP always runs — independent pruning decision (same as BERT)
         residual = hidden_states
 
         hidden_states = self.post_attention_layernorm(hidden_states, hidden_z)
+        
+        #if mlp dne return should be none so hiden states doesnt change 
 
-        hidden_states = self.mlp(hidden_states, intermediate_z, hidden_z, mlp_z)
-
+            
+        hidden_states = self.mlp(hidden_states, intermediate_z, mlp_z, hidden_z)       
         hidden_states = residual + hidden_states
 
-        
         if hidden_z is not None:
             hidden_states = hidden_states.mul(hidden_z)
 
@@ -868,23 +862,18 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         attn_output = self.o_proj(attn_output)
      
         
+            
+        if attn_output.sum().eq(0).item(): #if the attn head is masked out
+            attn_output = torch.zeros_like(hidden_states)
+            
+        else:
+            if hidden_z is not None:
+                attn_output = attn_output.mul(hidden_z)
+
         
         if head_layer_z is not None:
             print("Applying headlayerz")
             attn_output = attn_output.mul(head_layer_z)
-            
-        if attn_output.sum().eq(0).item(): #if the hidden states are all masked out preserve the res connect to lep gradient flow
-            attn_output = attn_output + hidden_states
-            
-        else:
-            if hidden_z is not None:
-                
-                
-                attn_output = attn_output.mul(hidden_z)
-        
-                
-       
-    
     
         #print(f"Next state will be {attn_output.shape}")
         

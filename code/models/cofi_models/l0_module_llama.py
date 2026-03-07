@@ -643,6 +643,7 @@ class L0Module_LLAMA(Module):
             for type in zs:
                 if type != "hidden_z" and type != 'final_mlp_hidden_z' and type != 'final_mlp_inp_z': #used to be if type != hidden_z
                     zs[type] = torch.stack(zs[type])
+                zs[type] = zs[type].cpu()
         return zs 
 
 if __name__ == "__main__":
