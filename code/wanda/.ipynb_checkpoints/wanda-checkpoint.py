@@ -61,7 +61,7 @@ def check_sparsity(model, args):
         except:
             pass
 
-    if args.model == 'bert': 
+    if args.model_type == 'bert': 
         model.config.use_cache = use_cache 
     return float(count)/total_params 
 
@@ -228,7 +228,7 @@ def get_inputs_mlp(model, embedder, args, dataloader, dtype, device):
             prods = s1enc * s2enc
 
             mlp_input = torch.cat([s1enc, s2enc, diffs, prods], 1)
-
+            mlp_input = model.bn(mlp_input)
             inps[i][:mlp_input.shape[0],:]= mlp_input
 
         except ValueError:
@@ -344,6 +344,7 @@ def pruneLayer(W_metric, subset, name, sparsity_ratio, prune_n=0, wanda_var=Fals
         sort_res = torch.sort(W_metric, dim=-1, stable=True)
         
         indices = sort_res[1][:,:int(W_metric.shape[1]*sparsity_ratio)] #indicdeos to prune
+        print("Pruning ", len(indices))
         W_mask.scatter_(1, indices, True).cpu()
             
     
@@ -388,6 +389,7 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
             continue
         
         inps, outs  = inps.to(device), outs.to(device)
+        print(f"inps stats: min={inps.min():.4f}, max={inps.max():.4f}, std={inps.std():.4f}")
         
         wrapped_layers = {}
         for name in subset:
@@ -433,10 +435,13 @@ def prune_wanda(args, model, seg, dataloader, sparsity_ratio, device=torch.devic
         for name in subset:
             print(f"pruning layer {name}: {subset[name]}")
             subset_value = subset[name]
+            print(f"scaler_row stats: min={wrapped_layers[subset_value].scaler_row.min():.4f}, max={wrapped_layers[subset_value].scaler_row.max():.4f}, std={wrapped_layers[subset_value].scaler_row.std():.4f}")
             W_metric = torch.abs(subset_value.weight.data).cpu() * torch.sqrt(wrapped_layers[subset_value].scaler_row.reshape((1,-1))).cpu()
        
             W_mask = pruneLayer(W_metric, subset, name, sparsity_ratio=sparsity_ratio)
         
+            print(f"W_metric mean kept: {W_metric[~W_mask].mean():.4f}")
+            print(f"W_metric mean pruned: {W_metric[W_mask].mean():.4f}")
             subset[name].weight.data[W_mask] = 0
             
             
