@@ -690,7 +690,7 @@ class CoFiTrainer(Trainer):
     def evaluate(self, eval_dataset: Optional[Dataset] = None) -> Tuple[Dict[str, float], List]:
         
 
-   
+        logger.warning("EVALUATING")
         output = self.prediction_loop(
             self.eval_dataloader, description="Evaluation")
         

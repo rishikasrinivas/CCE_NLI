@@ -96,7 +96,7 @@ def update_llama_params(model, zs):
                     llama.layers[layer].mlp.down_proj.weight.data.mul(intermediate_z)
                 
                 if "mlp_z" in zs:
-                    mlp_z = zs["mlp_z"][layer].cpu()
+                    mlp_z = zs["mlp_z"][layer]
                     
                     llama.layers[layer].mlp.down_proj.weight.data = \
                         llama.layers[layer].mlp.down_proj.weight.data.transpose(0, 1).mul(mlp_z).transpose(0, 1)
@@ -117,7 +117,7 @@ def update_llama_params(model, zs):
                 # No bias
                 
                 if "head_layer_z" in zs:
-                    head_layer_z = zs["head_layer_z"][layer].cpu()
+                    head_layer_z = zs["head_layer_z"][layer]
                     # o_proj instead of attention.output.dense
                     llama.layers[layer].self_attn.o_proj.weight.data = \
                         llama.layers[layer].self_attn.o_proj.weight.transpose(0, 1).data.mul(head_layer_z).transpose(0, 1)
@@ -134,7 +134,7 @@ def update_llama_params(model, zs):
             
             for layer in range(22):
                 # Attention projections
-                #print('k ', layer, llama.layers[layer].self_attn.k_proj.weight.data.shape, hidden_z.shape)
+                print('k ', layer, llama.layers[layer].self_attn.k_proj.weight.data.shape, hidden_z.shape)
                 #print('q ', llama.layers[layer].self_attn.k_proj.weight.data.shape, hidden_z.shape)
                 #print('v ', llama.layers[layer].self_attn.v_proj.weight.data.shape, hidden_z.shape)
                 #print('o ', layer, llama.layers[layer].self_attn.o_proj.weight.data.transpose(0, 1).shape, hidden_z.shape)
@@ -183,7 +183,7 @@ def update_bert_params(model, zs):
                 intermediate_z = zs["intermediate_z"][layer].cpu().squeeze().clone()
                 bert.encoder.layer[layer].output.dense.weight.data = bert.encoder.layer[layer].output.dense.weight.data.mul(intermediate_z)
                 if "mlp_z" in zs:
-                    mlp_z = zs["mlp_z"][layer].cpu()
+                    mlp_z = zs["mlp_z"][layer]
                     bert.encoder.layer[layer].output.dense.weight.data = bert.encoder.layer[layer].output.dense.weight.data.transpose(0, 1).mul(mlp_z).transpose(0, 1)
                     bert.encoder.layer[layer].output.dense.bias.data = bert.encoder.layer[layer].output.dense.bias.data.mul(mlp_z)
 
@@ -194,7 +194,7 @@ def update_bert_params(model, zs):
                 bert.encoder.layer[layer].attention.self.value.weight.data = bert.encoder.layer[layer].attention.self.value.weight.transpose(0, 1).data.mul(head_z).transpose(0, 1)
                 bert.encoder.layer[layer].attention.self.value.bias.data = bert.encoder.layer[layer].attention.self.value.bias.data.mul(head_z)
                 if "head_layer_z" in zs:
-                    head_layer_z = zs["head_layer_z"][layer].cpu()
+                    head_layer_z = zs["head_layer_z"][layer]
                     bert.encoder.layer[layer].attention.output.dense.weight.data = bert.encoder.layer[
                         layer].attention.output.dense.weight.transpose(0, 1).data.mul(head_layer_z).transpose(0, 1)
                     bert.encoder.layer[layer].attention.output.dense.bias.data = bert.encoder.layer[
@@ -233,7 +233,7 @@ def prune_model_with_z(zs, model):
     concat_index=None
     
     
-    
+    #print("238")
     if "head_z" in zs:
         head_z = zs.get("head_z", None)
         head_layer_z = zs.get("head_layer_z", None)
@@ -250,9 +250,10 @@ def prune_model_with_z(zs, model):
 
     bert = model.bert if hasattr(model, "bert") else None
     llama = model.model if hasattr(model, "model") else None
+   
     assert (hasattr(model, "model") and llama is not None) or (hasattr(model, "bert") and bert is not None)
     
-    print("intermediate")
+    #print("intermediate")
     kept_intermediate_dims = None
     if "intermediate_z" in zs:
         kept_intermediate_dims = {}
@@ -287,7 +288,7 @@ def prune_model_with_z(zs, model):
         layer = prune_linear_layer(layer, index, dim=dim)
         return layer
     
-    print("hidden")
+    #print("hidden")
     if hasattr(model, "bert"):
         if "hidden_z" in zs:
             hidden_zs = zs["hidden_z"]
@@ -377,7 +378,7 @@ def prune_model_with_z(zs, model):
                 
                 # Attention projections - all take hidden_dim as input (dim=1)
                 if llama.layers[layer].self_attn.q_proj is not None:
-                    print("NON MLP q", llama.layers[layer].self_attn.q_proj.weight.data.shape, index)
+                    #print("NON MLP q", llama.layers[layer].self_attn.q_proj.weight.data.shape, index)
                     #print("NON MLP k", llama.layers[layer].self_attn.k_proj.weight.data.shape, index)
                     #print("NON MLP v", llama.layers[layer].self_attn.v_proj.weight.data.shape, index)
                     
