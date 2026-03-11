@@ -289,6 +289,7 @@ class L0Module_LLAMA(Module):
         """Implements the CDF of the 'stretched' concrete distribution"""
         xn = (x - limit_a) / (limit_b - limit_a)
         logits = math.log(xn) - math.log(1 - xn)
+        
         return torch.sigmoid(logits * self.temperature - loga).clamp(min=epsilon, max=1 - epsilon)
     
     #both bowman and llm

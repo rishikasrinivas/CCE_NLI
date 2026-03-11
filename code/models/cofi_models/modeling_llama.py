@@ -585,7 +585,6 @@ class CoFiLlamaModel(CoFiLlamaBiModel):
                 hidden_z=hidden_z,
                 **flash_attn_kwargs,
             )
-            
             hidden_states = layer_outputs[0]
 
             if output_attentions:
@@ -623,26 +622,24 @@ class CoFiLlamaMLP(LlamaMLP):
         self.up_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=config.mlp_bias)
         self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=config.mlp_bias)
 
- 
-    def forward(self, x, intermediate_z=None, mlp_z=None, hidden_z=None):
-        if mlp_z is not None and  mlp_z.sum().eq(0): return torch.zeros_like(x)
+    
+    def forward(self, x, intermediate_z=None, mlp_z=None):
         
         
         gate = self.gate_proj(x)
         up = self.up_proj(x)
 
         hidden = self.act_fn(gate) * up
-
         if intermediate_z is not None:
             hidden = hidden * intermediate_z.view(1, 1, -1)
 
-        out = self.down_proj(hidden)
-
+        if hidden.sum().eq(0).item():
+            return hidden + x
   
-        if hidden_z is not None:
-            out = out * hidden_z.view(1, 1, -1)
+        if mlp_z is not None:
+            hidden *= mlp_z
 
-
+        out = self.down_proj(hidden)
         return out
 
 
@@ -683,42 +680,27 @@ class CoFiLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
 
         attn_out, self_attn_weights = self.self_attn(
             hidden_states, position_embeddings, attention_mask,
-            output_attentions=output_attentions, head_z=head_z, hidden_z=hidden_z,
+            output_attentions=output_attentions, head_z=head_z, hidden_z=hidden_z,head_layer_z=head_layer_z
         )
-
-        # Mirrors CoFiBertSelfOutput logic
-        if attn_out is None or attn_out.sum().eq(0).item():
-            
-            # Fully pruned (self.value is None equivalent) — pure residual or Zeroed by head_layer_z — skip post_attention_layernorm, just residual
-            # attn_out is 0 so residual + 0 = residual
+        if attn_out is None:
             hidden_states = residual
-          
+        elif not inference and attn_out.sum().eq(0).item():
+            hidden_states = attn_out + residual  # ← keep this, it's intentional
         else:
+            if head_layer_z is not None:
+                attn_out = attn_out.mul(head_layer_z)
+
             hidden_states = residual + attn_out
-
-        # MLP always runs — independent pruning decision (same as BERT)
         residual = hidden_states
-
         hidden_states = self.post_attention_layernorm(hidden_states, hidden_z)
         
-        #if mlp dne return should be none so hiden states doesnt change 
-
-            
-        hidden_states = self.mlp(hidden_states, intermediate_z, mlp_z, hidden_z)       
+        hidden_states = self.mlp(hidden_states, intermediate_z, mlp_z)       
         hidden_states = residual + hidden_states
 
         if hidden_z is not None:
             hidden_states = hidden_states.mul(hidden_z)
 
-        outputs = (hidden_states,)
-        if output_attentions:
-            if self_attn_weights is None:
-                # Return dummy tensor matching expected shape [batch, heads, seq, seq]
-                # Caller knows this layer was pruned
-                outputs += (torch.zeros(1, device=hidden_states.device),)
-            else:
-                outputs += (self_attn_weights,)
-        return outputs
+        return hidden_states, self_attn_weights
     
 
 
@@ -862,18 +844,13 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         attn_output = self.o_proj(attn_output)
      
         
-            
-        if attn_output.sum().eq(0).item(): #if the attn head is masked out
-            attn_output = torch.zeros_like(hidden_states)
-            
-        else:
-            if hidden_z is not None:
-                attn_output = attn_output.mul(hidden_z)
-
-        
         if head_layer_z is not None:
-            print("Applying headlayerz")
-            attn_output = attn_output.mul(head_layer_z)
+            attn_output=attn_output.mul(head_layer_z)
+            
+
+        if hidden_z is not None:
+            attn_output = attn_output.mul(hidden_z)
+
     
         #print(f"Next state will be {attn_output.shape}")
         
