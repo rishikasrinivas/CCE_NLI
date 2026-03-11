@@ -109,13 +109,14 @@ def main(args):
         if '.pt' in folder: continue
         if '.csv' in folder: continue
         final_layer_activations = []
+        
         neuron_acc = defaultdict(dict)
         masks_dir = os.path.join(path_to_experiment, folder)
         try:
             if args.pruning_method == 'CoFi':
                 if args.model_type in ['bert', 'llama']:
-                    #tokenizer = AutoTokenizer.from_pretrained(os.path.join(args.root_dir, f"0_Pruning_Iter"), trust_remote_code=True)
-                    tokenizer=None
+                    tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
+                    #tokenizer=None
                 else:
                     tokenizer = model.encoder
                 
@@ -139,7 +140,8 @@ def main(args):
       
                 all_preds = []
                 all_targets = []
-
+                premises = []
+                hyps=[]
                 # CORRECTED: Added conditional logic for batch handling
                 for batch in dataloaders['val']:
 
@@ -156,7 +158,12 @@ def main(args):
                         logits = pruned_model(**batch)
                         final_layer_activations.append(pruned_model.get_final_reprs(**batch)) #may be list of tensors that i can stack where each tesnor is batchx1024 ?
                         
-
+                 
+                    for ids in batch["pre_input_ids"]:
+                        premises.append(tokenizer.decode(ids, skip_special_tokens=True))
+                    for ids in batch["hyp_input_ids"]:
+                        hyps.append(tokenizer.decode(ids, skip_special_tokens=True))
+                    
                     preds = logits[1][2].argmax(1)
                     all_preds.append(preds.cpu().numpy())
                     all_targets.append(targets.cpu().numpy())
@@ -212,17 +219,25 @@ def main(args):
 
             acc = (all_preds == all_targets)
             cw_predicted=defaultdict(list)
-            for i,j in enumerate(acc):
+            for i,p, h, j in zip(range(len(acc)), premises, hyps, acc):
                 if j:
                     cw_predicted['correct'].append(i)
+                    cw_predicted['correct_prem'].append(p)
+                    cw_predicted['correct_hyp'].append(h)
                 else:
                     cw_predicted['wrong'].append(i)
+                    cw_predicted['wrong_prem'].append(p)
+                    cw_predicted['wrong_hyp'].append(h)
             correct_len = len(cw_predicted['correct'])
             wrongs_len = len(cw_predicted['wrong'])
             if correct_len < wrongs_len:
                 cw_predicted['correct'].extend([-1]*(wrongs_len-correct_len))
+                cw_predicted['correct_prem'].extend([-1]*(wrongs_len-correct_len))
+                cw_predicted['correct_hyp'].extend([-1]*(wrongs_len-correct_len))
             else:
                 cw_predicted['wrong'].extend([-1]*(correct_len-wrongs_len))
+                cw_predicted['wrong_prem'].extend([-1]*(correct_len-wrongs_len))
+                cw_predicted['wrong_hyp'].extend([-1]*(correct_len-wrongs_len))
             
             
             pd.DataFrame(cw_predicted).transpose().to_csv(f"{path_to_experiment}/Prediction_CW_{folder}.csv")

@@ -16,20 +16,30 @@ def get_model(args,ckpt, train,zs=None):
     model, _=train_utils.load_model(model_type=args.model_type, train=train, ckpt=ckpt, use_pretrained_weights=True, pruning_method=args.pruning_method, device='cpu', i=0, zs=zs)
     return model,tok
 
-def prune_neurons(model, ckpt, neurons_to_prune):
+def prune_neurons(model, ckpt, neurons_to_prune, ref=None):
     try:
         ckpt = torch.load(ckpt, map_location='cpu')['state_dict']
     except:
         print(f" ckpt not a file")
-    for neuron in neurons_to_prune:
-        ckpt['mlp.0.weight'][neuron] = torch.zeros_like(ckpt['mlp.0.weight'][neuron])
         
-        #print(f"Pruned neuron {neuron}")
+    #mimic wanda
+#     for neuron, topruneckpt, refckpt in zip(range(1024), ckpt['mlp.0.weight'], ref['mlp.0.weight']):
+#         for i,weight in enumerate(refckpt):
+#             if weight==0:
+#                 ckpt['mlp.0.weight'][neuron][i]=0
+    #prune random weights
+    for neuron in range(1024):
+        for i in range(int(1024*neurons_to_prune)):
+            ckpt['mlp.0.weight'][neuron][i]=0
+    #prune nrurins
+#     for neuron in neurons_to_prune:
+#         ckpt['mlp.0.weight'][neuron] = torch.zeros_like(ckpt['mlp.0.weight'][neuron])
+        
+#         print(f"Pruned neuron {neuron}")
     
     
-    
+    print(torch.where(ckpt['mlp.0.weight']==0,1,0).sum())
     model.load_state_dict(ckpt)
-    assert (torch.sum(ckpt['mlp.0.weight'][neuron])==0 for neuron in neurons_to_prune)
     return model
 
 
@@ -48,7 +58,7 @@ def parse_args():
         help="Data to eval interactively (pairs of sentences); use - for stdin",
     )
 
-    parser.add_argument("--model_type", default="bert", choices=["bowman", "bert", "llama"])
+    parser.add_argument("--model_type", default="llama", choices=["bowman", "bert", "llama"])
     parser.add_argument("--pruning_method", default="wanda", choices=["lottery_ticket", "wanda", "CoFi"])
     return parser.parse_args()
 
@@ -62,7 +72,7 @@ if __name__ == "__main__":
    
     
     
-    root_dir='/workspace/CCE_NLI/BERT/exp/wanda/Run0.25_5/Expls/0.0%Pruned'
+    root_dir='/workspace/CCE_NLI/LLAMA/exp/wanda/Run0.25_5/Expls/0.0%Pruned'
     #BERT
     bert_foundaational_concepts_removed_25= ['pre:tok:guy', 'pre:tag:wp', 'pre:tok:sit', 'hyp:tok:some', 'pre:tok:team', 'hyp:tok:child', 'pre:tok:some', 'hyp:tok:guy', 'pre:tok:or', 'pre:tok:fish', 'pre:tok:their', 'pre:tok:market', 'hyp:tok:player', 'pre:tok:performs', 'pre:tok:jeans', 'pre:tok:him', 'pre:tok:vendor', 'hyp:tok:other', 'hyp:tok:and', 'pre:tok:costume', 'pre:tok:middle', 'pre:tok:picture', 'hyp:tok:bench', 'pre:tok:trick', 'pre:tok:about']
     bert_foundaational_concepts_removed_43 = ['pre:tok:guy', 'pre:tok:down', 'pre:tag:wp', 'hyp:tok:stage', 'pre:tok:team', 'hyp:tok:holds', 'pre:tok:some', 'hyp:tok:while', 'pre:tok:through', 'hyp:tag:rp', 'pre:tok:or', 'hyp:tok:from', 'hyp:tok:player', 'pre:tok:jeans', 'pre:tok:all', 'hyp:tok:three', 'pre:tok:vendor', 'hyp:tok:other', 'hyp:tok:smiling', 'pre:tok:rock', 'pre:tok:costume', 'pre:tok:four', 'pre:tok:middle', 'pre:tok:holding', 'pre:tok:picture', 'pre:tok:-', 'pre:tok:helmet', 'hyp:tag:md', 'pre:tok:trick', 'pre:tok:colorful', 'pre:tok:about']
@@ -105,51 +115,51 @@ if __name__ == "__main__":
     #test2 groups
     neuron_groups_formulas=get_all_cps_for_pi(root_dir)
     sparsity= {1:25.0, 2:43.75, 3:57.812, 4: 68.359, 5:76.27}
-    cps_to_prune = {1:{'removed_found': bowman_foundaational_concepts_removed_25, 'baseline_rem': baseline_removed_25},
-                   2:{'removed_found': bowman_foundaational_concepts_removed_43, 'baseline_rem': baseline_removed_43},
-                   3:{'removed_found': bowman_foundaational_concepts_removed_57, 'baseline_rem': baseline_removed_57},
-                   4:{'removed_found': bowman_foundaational_concepts_removed_68, 'baseline_rem': baseline_removed_68},
-                   5:{'removed_found': bowman_foundaational_concepts_removed_76, 'baseline_rem': baseline_removed_76},}
-    ckpt = f'BOWMAN/models/lottery_ticket/Run0.25_3/0_Pruning_Iter/model_best.pth'
-    model,_ = get_model(args, ckpt, train)
+    cps_to_prune = {1:{'removed_found': foundaational_concepts_removed_25, 'baseline_rem': baseline_removed_25},
+                   2:{'removed_found': foundaational_concepts_removed_43, 'baseline_rem': baseline_removed_43},
+                   3:{'removed_found': foundaational_concepts_removed_57, 'baseline_rem': baseline_removed_57},
+                   4:{'removed_found': foundaational_concepts_removed_68, 'baseline_rem': baseline_removed_68},
+                   5:{'removed_found': foundaational_concepts_removed_76, 'baseline_rem': baseline_removed_76},}
+    #ckpt = f'LLAMA/models/lottery_ticket/Run0.25_5/0_Pruning_Iter/model_best.pth'
+    #model,_ = get_model(args, ckpt, train)
     print("Removing BASELINE Concepts lost to WANDA")
     for i in [1,2,3,4,5]:
-        
+        ckpt = f'/workspace/CCE_NLI/LLAMA/models/wanda/Run0.25_pruneonlyenc/{i}_Pruning_Iter/model_best.pth'
+        model,_ = get_model(args, ckpt, train)
         dense_val_acc = train_utils.run_eval(model, val_loader, args.model_type, args.pruning_method)
         print(f"Initial dense acc at {sparsity[i]} = ", dense_val_acc)
         #for unit in neurons_to_prune:
         
-        print(f"Pruning out concepts that are lost to wanda from dense&pretrained {sparsity[i]}% ")
+#         print(f"Pruning out concepts that are lost to wanda from dense&pretrained {sparsity[i]}% ")
         neurons_to_prune = get_neurons_for_cps(cps_to_prune[i]['removed_found'], neuron_groups_formulas)
-        print(f"Pruning {len(neurons_to_prune)} neurons that encompass all forgotten concepts")
-        specifically_pruned_model = prune_neurons(model, ckpt, neurons_to_prune=neurons_to_prune)
-        isPruned = [torch.sum(model.state_dict()['mlp.0.weight'][neuron])==0 for neuron in neurons_to_prune]
-        for j in isPruned:
-            assert j, 'some neuron not pruned'
-        specifically_pruned_model.eval()
-        specifically_pruned_model_val_acc = train_utils.run_eval(specifically_pruned_model, val_loader, args.model_type, args.pruning_method)
-        print(f"Validation acc: after pruning {len(neurons_to_prune)} = {specifically_pruned_model_val_acc}")
+#         print(f"Pruning {len(neurons_to_prune)} neurons that encompass all forgotten concepts")
+        
+#         ckpt = f'/workspace/CCE_NLI/LLAMA/models/wanda/Run0.25_pruneonlyenc/{i}_Pruning_Iter/model_best.pth'
+#         specifically_pruned_model = prune_neurons(model, ckpt, neurons_to_prune=neurons_to_prune)
+#         isPruned = [torch.sum(specifically_pruned_model.state_dict()['mlp.0.weight'][neuron])==0 for neuron in neurons_to_prune]
+#         for j in isPruned:
+#             assert j, 'some neuron not pruned'
+#         torch.save(specifically_pruned_model.state_dict(), f'code/SelectivePruning/{i}_weights.pth')
+#         specifically_pruned_model.eval()
+#         specifically_pruned_model_val_acc = train_utils.run_eval(specifically_pruned_model, val_loader, args.model_type, args.pruning_method)
+#         print(f"Validation acc: after pruning {len(neurons_to_prune)} = {specifically_pruned_model_val_acc}")
 
                                     
-        num_removed_found=len(cps_to_prune[i]['removed_found'])
+        #num_removed_found=len(cps_to_prune[i]['removed_found'])
         #concepts_to_prune = cps_to_prune[i]['removed_found'] + surived
-        #random_neurons_to_prune, concepts_pruned_out, _ = get_k_neurons(bert_survived, 0, neuron_groups_formulas, k=int(sparsity[i]*10.24))
-        random_neurons_to_prune = []
+        #random_neurons_to_prune, concepts_pruned_out, _ = get_k_neurons(llama_surived, 0, neuron_groups_formulas, k=int(sparsity[i]*10.24))
+
         max_random_ct=0
-        max_random=len(neurons_to_prune)
-        for i in range(1024):
-            if i not in neurons_to_prune:
-                random_neurons_to_prune.append(i)
-                max_random_ct+=1
-                if max_random_ct == max_random:
-                    break
+        random_neurons_to_prune=[]
+        ckpt = f'/workspace/CCE_NLI/LLAMA/models/wanda/Run0.25_pruneonlyenc/{i}_Pruning_Iter/model_best.pth'
+        
         #number_survived_concepts = max(0, len(concepts_pruned_out) - num_removed_found)
         #num_foundational_removed = len(concepts_pruned_out) - number_survived_concepts
         #print(f"Pruning {len(random_neurons_to_prune)} neurons that encompass {number_survived_concepts} survived concepts and {num_foundational_removed} lost from pt&dense { concepts_pruned_out}")
-        randomly_pruned_model = prune_neurons(model, ckpt, neurons_to_prune=random_neurons_to_prune)
-        isPruned = [torch.sum(model.state_dict()['mlp.0.weight'][neuron])==0 for neuron in random_neurons_to_prune]
-        for j in isPruned:
-            assert j, 'some neuron not pruned'
+        randomly_pruned_model = prune_neurons(model, ckpt, sparsity[i]/100, torch.load(f'/workspace/CCE_NLI/LLAMA/models/wanda/Run0.25_5/{i}_Pruning_Iter/model_best.pth',map_location='cpu')['state_dict'])
+        #isPruned = [torch.sum(randomly_pruned_model.state_dict()['mlp.0.weight'][neuron])==0 for neuron in random_neurons_to_prune]
+        #for j in isPruned:
+        #    assert j, 'some neuron not pruned'
         randomly_pruned_model.eval()
         randomly_pruned_model_val_acc = train_utils.run_eval(randomly_pruned_model, val_loader, args.model_type, args.pruning_method)
         print(f"Validation acc: after pruning {len(random_neurons_to_prune)} = {randomly_pruned_model_val_acc}")
