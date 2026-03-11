@@ -1,4 +1,4 @@
-ismport math
+import math
 import os
 import sys
 import time
