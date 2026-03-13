@@ -37,7 +37,7 @@ reg_learning_rate=0.01
 epochs=5
 
 # seed
-seed=42 #_5 57 seed  _6 42 seed _7 48
+seed=57 #_5 57 seed  _6 42 seed _7 48
 
 #debug
 debug=100

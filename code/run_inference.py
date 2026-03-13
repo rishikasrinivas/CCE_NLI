@@ -3,6 +3,7 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 import pickle
+from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 from data.snli import SNLI, pad_collate
 from contextlib import nullcontext
@@ -16,7 +17,7 @@ import settings
 import models
 import util
 import train_utils
-import data.snli
+from data.snli import SNLI, pad_collate
 from cofi.utils.utils import calculate_parameters
 
 from cofi.utils.cofi_utils import load_model
@@ -30,21 +31,26 @@ def run_inference(args, pair):
     model,_ = train_utils.build_model(vocab_size=len(train.stoi), model_type=args.model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512, is_cofi=args.pruning_method=='CoFi')
     
     s1,s2=pair
-    s1_pad = pad_sequence(s1, padding_value=1) #takes 10,000x longest sent length and flips to longest*10,000 which is then batched
-    s1len = torch.tensor(s1len)
+    model.eval()
+    s1 = torch.tensor([train.stoi[i.lower()] for i in s1.split()])
+    s2 = torch.tensor([train.stoi[i.lower()] for i in s2.split()])
+    s1_pad = pad_sequence([s1], padding_value=1) #takes 10,000x longest sent length and flips to longest*10,000 which is then batched
+    s1len = torch.tensor(len(s1))
 
-    s2_pad = pad_sequence(s2, padding_value=1)
-    s2len = torch.tensor(s2len)
+    s2_pad = pad_sequence([s2], padding_value=1)
+    s2len = torch.tensor(len(s2))
     
     s1_indices, s2_indices = s1_pad.cpu().numpy().T, s2_pad.cpu().numpy().T
-    
-    tokenizer_name = "bert-base-uncased" if model_type == 'bert' else "knowledgator/Llama-encoder-1.0B"
+    print(s1_indices)
+    tokenizer_name = "bert-base-uncased" if args.model_type == 'bert' else "knowledgator/Llama-encoder-1.0B"
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
     if tokenizer.pad_token is None:
         tokenizer.add_special_tokens({'pad_token': tokenizer.eos_token})
-        
-    s1_sentences = [" ".join([itos.get(i, "") for i in row if i not in (0, 1)]) for row in s1_indices]
-    s2_sentences = [" ".join([itos.get(i, "") for i in row if i not in (0, 1)]) for row in s2_indices]
+    for row in s1_indices:
+        for i in row:
+            print(type(i))
+    s1_sentences = [" ".join([train.itos.get(i, "") for i in row if i not in (0, 1)]) for row in s1_indices]
+    s2_sentences = [" ".join([train.itos.get(i, "") for i in row if i not in (0, 1)]) for row in s2_indices]
     s1_tokenized = tokenizer(s1_sentences, return_tensors="pt", padding=True, truncation=True)
     s2_tokenized = tokenizer(s2_sentences, return_tensors="pt", padding=True, truncation=True)
     if args.pruning_method=='CoFi':
@@ -54,10 +60,13 @@ def run_inference(args, pair):
             "hyp_input_ids": s2_tokenized["input_ids"].cpu(),
             "hyp_attention_mask": s2_tokenized["attention_mask"].cpu(),
         }]
+        outputs = model(**batch_data)
     else:
-        batch_data=[(s1_tokenized, s2_tokenized)]
+        outputs = model(s1_tokenized, s2_tokenized)
+    print(torch.argmax(outputs))
     
-    return model(**batch_data)
+    
+   
 
 
 def parse_args():
@@ -85,6 +94,6 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    pair=['A man in apron and latex glove cleaning the desk tables in a theater type auditorium .','The man works hard cleaning the auditorium .']
+    pair=['Two young children in blue jerseys , one with the number 9 and one with the number 2 are standing on wooden steps in a bathroom and washing their hands in a sink', 'Two kids in numbered jerseys wash their hands .']
     print(run_inference(args, pair))
 
