@@ -634,7 +634,7 @@ class CoFiLlamaMLP(LlamaMLP):
             hidden = hidden * intermediate_z.view(1, 1, -1)
 
         if hidden.sum().eq(0).item():
-            return hidden + x
+            return x
   
         if mlp_z is not None:
             hidden *= mlp_z
