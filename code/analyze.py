@@ -865,7 +865,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
         print("Mask search")
         print(acts.shape)
         assert type(states)==list and len(states)==10000 and len(states[0]) == 1024
-        search_feats(acts, states, (tok_feats, tok_feats_vocab), classification_weights, dataset, cluster=None, save_dir=save_exp_dir, formula_masks=formula_masks)
+        search_feats(acts, states, (tok_feats, tok_feats_vocab), dataset, cluster=None, save_dir=save_exp_dir, debug=debug)
    
     else:
         formula_masks = clustered_NLI(tok_feats, 
@@ -969,7 +969,7 @@ def main():
         description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("--model_type", default="bert", choices=["bowman", "llama", "bert"])
-    parser.add_argument("--filename", default="pretrained")
+    parser.add_argument("--filename", default="singlecuster")
     
     
     
@@ -989,8 +989,8 @@ def main():
     zs=None
     
     
-    path_to_model='/workspace/CCE_NLI/LLAMA/models/pretrained/llama_MAIN_pretrained_inits.pth'
-    model,_ = train_utils.load_model(model_type=args.model_type, pruning_method='wanda', use_pretrained_weights = False, train=train, ckpt=path_to_model, device=device, zs=zs)
+    path_to_model='/workspace/CCE_NLI/BERT/models/lottery_ticket/Run0.25_5/0_Pruning_Iter/model_best.pth'
+    model,_ = train_utils.load_model(model_type=args.model_type, pruning_method='wanda', use_pretrained_weights = True, train=train, ckpt=path_to_model, device=device, zs=zs)
 
     # ==== BUILD VOCAB ====
     vocab = {"itos": train.itos, "stoi": train.stoi}

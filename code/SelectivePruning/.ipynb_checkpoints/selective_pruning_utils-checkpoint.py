@@ -59,6 +59,7 @@ def get_k_neurons(concepts, starting_concept_idx, mapping, k):
             break
             
         current_concept = concepts[i]
+    
         concepts_used.append(current_concept)
         
         # Find all neurons that explain this concept
@@ -70,7 +71,7 @@ def get_k_neurons(concepts, starting_concept_idx, mapping, k):
                 if len(selected_neurons) >= k:
                     last_cp_idx = i
                     break
-    
+    print(len(concepts_used) , len(concepts))
     return list(selected_neurons)[:k], concepts_used, last_cp_idx
 
 
