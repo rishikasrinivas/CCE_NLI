@@ -865,7 +865,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
         print("Mask search")
         print(acts.shape)
         assert type(states)==list and len(states)==10000 and len(states[0]) == 1024
-        search_feats(acts, states, (tok_feats, tok_feats_vocab), dataset, cluster=None, save_dir=save_exp_dir, debug=debug)
+        return search_feats(acts, states, (tok_feats, tok_feats_vocab), dataset, cluster=None, save_dir=save_exp_dir, debug=debug)
    
     else:
         formula_masks = clustered_NLI(tok_feats, 
@@ -894,7 +894,7 @@ def oldmain():
     parser.add_argument("--directory", default="bert")
     parser.add_argument("--model_type", default="bert", choices=["bowman", "llama", "bert"])
     parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "CoFi"])
-    parser.add_argument("--filename")
+    parser.add_argument("--filename", default = 'withoutclustering')
     
     
     
@@ -969,7 +969,7 @@ def main():
         description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("--model_type", default="bert", choices=["bowman", "llama", "bert"])
-    parser.add_argument("--filename", default="singlecuster")
+    parser.add_argument("--filename", default="singlecuster_withmask")
     
     
     
