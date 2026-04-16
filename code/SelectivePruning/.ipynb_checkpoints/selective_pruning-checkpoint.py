@@ -64,8 +64,8 @@ def parse_args():
         help="Data to eval interactively (pairs of sentences); use - for stdin",
     )
 
-    parser.add_argument("--model_type", default="llama", choices=["bowman", "bert", "llama"])
-    parser.add_argument("--pruning_method", default="wanda", choices=["lottery_ticket", "wanda", "CoFi"])
+    parser.add_argument("--model_type", default='bert', choices=["bowman", "bert", "llama"])
+    parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "CoFi"])
     return parser.parse_args()
 
 
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     print("Removing BASELINE Concepts lost to WANDA")
     for i in [1,2]:
         ckpt = f'/workspace/CCE_NLI/BERT/models/lottery_ticket/Run0.25_5/0_Pruning_Iter/model_best.pth'
-        pruned_ckpt = f'/workspace/CCE_NLI/BERT/models/wanda/Run0.25_5/1_Pruning_Iter/model_best.pth'
+        pruned_ckpt = f'/workspace/CCE_NLI/BERT/models/lottery_ticket/Run0.25_5/1_Pruning_Iter/model_best.pth'
         model,_ = get_model(args, ckpt, train)
         dense_val_acc = train_utils.run_eval(model, val_loader, args.model_type, args.pruning_method)
         print(f"Initial dense acc at {sparsity[i]} = ", dense_val_acc)
@@ -109,7 +109,15 @@ if __name__ == "__main__":
 #         specifically_pruned_model_val_acc = train_utils.run_eval(specifically_pruned_model, val_loader, args.model_type, args.pruning_method)
 #         print(f"Validation acc: after pruning {len(neurons_to_prune)} = {specifically_pruned_model_val_acc}")
 
-                                    
+           
+        neurons_to_prune = get_neurons_for_cps([], neuron_groups_formulas)
+        ckpt = f'/workspace/CCE_NLI/BERT/models/lottery_ticket/Run0.25_5/0_Pruning_Iter/model_best.pth'
+        specifically_pruned_model = prune_neurons(model, ckpt, neurons_to_prune=neurons_to_prune)
+        specifically_pruned_model.eval()
+        specifically_pruned_model_val_acc = train_utils.run_eval(specifically_pruned_model, val_loader, args.model_type, args.pruning_method)
+        print(f"Validation acc: after pruning {len(neurons_to_prune)} = {specifically_pruned_model_val_acc}")
+
+
         #num_removed_found=len(cps_to_prune[i]['removed_found'])
         #concepts_to_prune = abs_to_rem
         #random_neurons_to_prune, concepts_pruned_out, _ = get_k_neurons(abs_to_rem, 0, neuron_groups_formulas, k=1024)
