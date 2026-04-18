@@ -625,7 +625,8 @@ class CoFiLlamaMLP(LlamaMLP):
     
     def forward(self, x, intermediate_z=None, mlp_z=None):
         
-        
+        if self.gate_proj is None or self.up_proj is None:
+            return x
         gate = self.gate_proj(x)
         up = self.up_proj(x)
 
