@@ -42,7 +42,7 @@ class L0Module_LLAMA(Module):
         '''for llama ill need 
         
         headlayer_z: which layers are pruned 
-        kvhead_z: which kv heads are pruned? (instead of head_z) 
+        kvhead_z: which kv heads are pruned? 4 kv heads (instead of head_z) 
             
         mlp_z: which mlp blocks are pruned 
             int_z: which neurons in the mlp blocks are pruned
@@ -534,16 +534,18 @@ class L0Module_LLAMA(Module):
         # K: (H_pruned, 256) = (2044, n_heads_pruned * D)
         # V: (H_pruned, 256) = (2044, n_heads_pruned * D)
         # O: (H_orig, H_pruned) = (2048, 2044)
-
+                            kv headmask * attnlayermask(which layers) *hidden
         # K + V: H_pruned * D per active head * 2
         kv_nums = np.outer((head_z * head_layer_z).reshape(-1), hidden_z).sum().item()
 
         kv_params = kv_nums * D * 2          # each KV head → (D, hidden)
-        q_o_params = kv_nums * 512 * 2   
+        q_o_params = kv_nums * 512 * 2    #each kv covers 8 query groups 
 
         attn_params = q_o_params + kv_params
+        
 
         # 2. MLP PARAMETERS
+        
         # gate, up, down: 3 * H_pruned * I_pruned
         intermediate_nums = np.outer((intermediate_z * mlp_z).reshape(-1), hidden_z).sum().item()
         mlp_params = intermediate_nums * 3
@@ -559,15 +561,17 @@ class L0Module_LLAMA(Module):
         mlp_final_input = numpified_zs.get("final_mlp_input", np.ones(8192))
         remaining_mlp_inp = mlp_final_input.sum().item()
         remaining_mlp_hidden = mlp_final_hidden.sum().item()
-        final = (remaining_mlp_inp * remaining_mlp_hidden) + remaining_mlp_hidden + (remaining_mlp_hidden*3)+3
-        remaining_model_size = attn_params + mlp_params + final + layernorm_params
+        final = (remaining_mlp_inp * remaining_mlp_hidden)+ (remaining_mlp_hidden*3)
+        remaining_model_size = attn_params + mlp_params + final #+ layernorm_params
+        
+       
         pruned_model_size = self.prunable_model_size - remaining_model_size
 
         print(f"\nPARAMETER BREAKDOWN (matching calculate_parameters):")
         print(f"  Q+O:        {q_o_params:,}")
         print(f"  K+V:        {kv_params:,}")
         print(f"  MLP:        {mlp_params:,}")
-        print(f"  LayerNorm:  {layernorm_params:,}")
+        #print(f"  LayerNorm:  {layernorm_params:,}")
         print(f"  Final MLP:  {final:,}")
         print(f"  ──────────────────────────")
         print(f"  BACKBONE:   {remaining_model_size:,}")

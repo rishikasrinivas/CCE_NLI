@@ -209,7 +209,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         # -----------------------
         if pretrained_model_name_or_path and ".pth" in str(pretrained_model_name_or_path) and os.path.exists(pretrained_model_name_or_path):
             print(f"Loading pretrained llama entailment ({pretrained_model_name_or_path})")
-            weights = torch.load(pretrained_model_name_or_path)["state_dict"]
+            weights = torch.load(pretrained_model_name_or_path, map_location=kwargs['device'])["state_dict"]
 
             # Convert old gamma/beta to weight/bias
             old_keys, new_keys = [], []
@@ -229,7 +229,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             trained = True
             return model, trained
         elif os.path.exists(kwargs['ckpt']):
-            weights = torch.load(kwargs['ckpt'])['state_dict']
+            weights = torch.load(kwargs['ckpt'], map_location=kwargs['device'])['state_dict']
             model.load_state_dict(weights, strict=False)
             assert trained==False
             return model, trained
@@ -540,7 +540,11 @@ class CoFiLlamaModel(CoFiLlamaBiModel):
             raise ValueError("The `past_key_values` should be either a `Cache` object or `None`.")
 
         if inputs_embeds is None:
-            inputs_embeds = self.embed_tokens(input_ids.cuda())
+            if torch.cuda.is_available():
+                input_ids = input_ids.cuda()
+            else:
+                input_ids = input_ids.cpu()
+            inputs_embeds = self.embed_tokens(input_ids)
 
         if use_cache and past_key_values is None:
             past_key_values = DynamicCache()
