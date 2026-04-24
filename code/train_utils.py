@@ -100,7 +100,7 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
             combined_tokens_train = torch.load(os.path.join(root_dir, f"train_batches_{model_type}_{max_data}_all.pth"))
 
             train_loader = DataLoader(combined_tokens_train,
-                                      batch_size=2,  # already a batch of size 32
+                                      batch_size=1,  # already a batch of size 32
                                       shuffle=True,
                                       collate_fn=lambda x: x[0])
         

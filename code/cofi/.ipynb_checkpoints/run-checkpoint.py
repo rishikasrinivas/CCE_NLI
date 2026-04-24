@@ -165,7 +165,8 @@ def main():
             teacher_model, _ = Teach_Model.from_pretrained(
                 pretrained_model_name_or_path=os.path.join(f"/workspace/CCE_NLI/{additional_args.model_name}/models/CoFi/Run0.25_5/0_Pruning_Iter/model_best.pth"), #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
                 ckpt= os.path.join(data_args.path_to_pretrained, f'{additional_args.model_name}_MAIN_pretrained_inits.pth'),
-                config=config
+                config=config,
+                device='cuda' if torch.cuda.is_available() else 'cpu'
 
             )
             config.do_layer_distill = additional_args.do_layer_distill #! True
@@ -192,6 +193,7 @@ def main():
         config=config,
         encoder=tokenizer,
         ckpt= os.path.join(data_args.path_to_pretrained, f'{additional_args.model_name}_MAIN_pretrained_inits.pth'),
+        device='cuda' if torch.cuda.is_available() else 'cpu'
         
     ) #! inside the function, we get the original struct  #! CofiBertForSequenceClassification
    

@@ -376,8 +376,8 @@ class L0Module_LLAMA(Module):
         # =====================
         # Each layer has 2 RMSNorms, final layer has 1 RMSNorm
         # Each RMSNorm has H_pruned parameters (weight only, no bias)
-        num_layernorms = 2 * 22 + 1  # 2 per layer + 1 final
-        num_parameters += num_layernorms * torch.sum(hidden_score)
+        #num_layernorms = 2 * 22 + 1  # 2 per layer + 1 final
+        #num_parameters += num_layernorms * torch.sum(hidden_score)
 
         return num_parameters
 
@@ -391,18 +391,17 @@ class L0Module_LLAMA(Module):
 
         # Linear 1: (inp, hid) with bias
         expected_params_1 = torch.sum(torch.outer(inp_layer_score, hid_layer_score))
-        expected_bias_1 = torch.sum(hid_layer_score)
+        #expected_bias_1 = torch.sum(hid_layer_score)
 
         # Linear 2: (hid, 3) with bias
         expected_params_2 = torch.sum(torch.outer(hid_layer_score, torch.ones(3, device=hid_layer_score.device)))
-        expected_bias_2 = 3  # Always 3 (num classes)
+        #expected_bias_2 = 3  # Always 3 (num classes)
 
         # BatchNorm1d: weight + bias for inp dimension
-        bn_params = 2 * torch.sum(inp_layer_score)
+        #bn_params = 2 * torch.sum(inp_layer_score)
 
-        num_parameters = (expected_params_1 + expected_bias_1 + 
-                         expected_params_2 + expected_bias_2 + 
-                         bn_params)
+        num_parameters = (expected_params_1 + 
+                         expected_params_2 )
 
         return num_parameters
 
@@ -412,7 +411,7 @@ class L0Module_LLAMA(Module):
         num_parameters = 0
 
         all_head_score, head_score = self.transform_scores_for_head()
-        primt("l0m llama 358 all_head_score:", all_head_score.shape, "head_score: ",  head_score.shape)
+        #primt("l0m llama 358 all_head_score:", all_head_score.shape, "head_score: ",  head_score.shape)
         head_score = head_score * all_head_score
         num_parameters += torch.sum(head_score) * self.parameters_per_dim["head"]
 
@@ -440,9 +439,9 @@ class L0Module_LLAMA(Module):
    
         expected_sparsity = 1 - (expected_size / self.prunable_model_size)
         
-    
         if self.lagrangian_warmup > 0:
             target_sparsity = self.get_target_sparsity(pruned_steps)
+        
         lagrangian_loss = (
             self.lambda_1 * (expected_sparsity - target_sparsity)
             + self.lambda_2 * (expected_sparsity - target_sparsity)**2
@@ -533,8 +532,7 @@ class L0Module_LLAMA(Module):
         # Q: (H_pruned, H_orig) = (2044, 2048)
         # K: (H_pruned, 256) = (2044, n_heads_pruned * D)
         # V: (H_pruned, 256) = (2044, n_heads_pruned * D)
-        # O: (H_orig, H_pruned) = (2048, 2044)
-                            kv headmask * attnlayermask(which layers) *hidden
+        # O: (H_orig, H_pruned) = (2048, 2044)=
         # K + V: H_pruned * D per active head * 2
         kv_nums = np.outer((head_z * head_layer_z).reshape(-1), hidden_z).sum().item()
 
@@ -558,12 +556,11 @@ class L0Module_LLAMA(Module):
         # TOTAL (backbone only, no classifier, no embeddings, no layer_transformation)
         
         mlp_final_hidden = numpified_zs.get("final_mlp_hidden", np.ones(1024))
-        mlp_final_input = numpified_zs.get("final_mlp_input", np.ones(8192))
+        mlp_final_input = np.concatenate((hidden_z,hidden_z,hidden_z,hidden_z))
         remaining_mlp_inp = mlp_final_input.sum().item()
         remaining_mlp_hidden = mlp_final_hidden.sum().item()
         final = (remaining_mlp_inp * remaining_mlp_hidden)+ (remaining_mlp_hidden*3)
         remaining_model_size = attn_params + mlp_params + final #+ layernorm_params
-        
        
         pruned_model_size = self.prunable_model_size - remaining_model_size
 
