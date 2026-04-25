@@ -20,7 +20,7 @@ def log_all_parameters(logger, model_args, data_args, training_args, additional_
         logger.info(f"{arg} = {getattr(additional_args, arg)}")
 
 def calculate_parameters(module):
-    keys = ["embedding", 'embed_tokens', "layer_transformation", "classifier", "pooler", 'norm']
+    keys = ['bn', "embedding", 'embed_tokens', "layer_transformation", "classifier", "pooler", 'norm']
     return sum(p.numel() for n, p in module.named_parameters() if not any(key in n for key in keys))
 
 def load_from_tsv(file):
