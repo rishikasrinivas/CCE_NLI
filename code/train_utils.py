@@ -370,7 +370,7 @@ def build_model(model_type, vocab, vocab_size=None, pretrained=True, embedding_d
         if model_type=='bowman':
             from cofi_models import modeling_bowman
             tokenizer = modeling_bowman.TextEncoder(len(vocab['stoi']))
-            model = modeling_bowman.CoFiBowmanEntailmentClassifier(tokenizer, 'cuda')
+            model = modeling_bowman.CoFiBowmanEntailmentClassifier(tokenizer,device)
 
         elif model_type=='bert':
             from cofi_models import modeling_bert
@@ -413,7 +413,7 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
     if ckpt and os.path.exists(ckpt): #and not cofi
         if zs or cofi:
             print(f"Loading zs")
-            model = cofi_utils.load_model_with_zs(ckpt, model, zs=zs, train_data=train, ckpt=ckpt, encoder=tokenizer)
+            model = cofi_utils.load_model_with_zs(ckpt, model, zs=zs, train_data=train, ckpt=ckpt, encoder=tokenizer, device=device)
         else:
             print(f"Loading from checkpoint (no zs): {ckpt}")
             ckpt_ = torch.load(ckpt, map_location=torch.device(device))
