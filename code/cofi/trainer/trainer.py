@@ -221,8 +221,8 @@ class CoFiTrainer(Trainer):
         self.train_dataloader = self.subset_train_data
         print("LEn subset", len(self.train_dataloader))
         
-        train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, pruning_method='CoFi', max_data=150000, debug=True)
-        self.train_initial_learning = dl['train']
+        #train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, pruning_method='CoFi', max_data=1500, debug=True)
+        self.train_initial_learning =self.subset_train_data # dl['train']
         
         
         self.device=device
