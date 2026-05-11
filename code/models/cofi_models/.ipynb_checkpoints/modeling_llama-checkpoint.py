@@ -111,10 +111,22 @@ class CoFiLlamaRMSNorm(LlamaRMSNorm):
         hidden_states = hidden_states.to(torch.float32)
 
         if hidden_z is not None:
-            masked = hidden_states * hidden_z
-            norm_dim = hidden_z.sum(-1, keepdim=True).clamp(min=1.0)
-            variance = (masked ** 2).sum(-1, keepdim=True) / norm_dim
-            hidden_states = masked * torch.rsqrt(variance + self.variance_epsilon)
+            # REASON 1: Only normalise the active dimensions.
+            # If we compute variance over the full masked vector, zeroed-out
+            # dims drag the mean to ~0 and inflate rsqrt(variance), blowing
+            # up the scale of active dims relative to what the teacher expects.
+            remaining_index = torch.where(hidden_z.squeeze() != 0)[0]
+ 
+            compressed = torch.index_select(hidden_states, dim=-1, index=remaining_index)
+            compressed_weight = self.weight[remaining_index]
+ 
+            variance = compressed.pow(2).mean(-1, keepdim=True)
+            compressed = compressed * torch.rsqrt(variance + self.variance_epsilon)
+            compressed = compressed_weight * compressed.to(input_dtype)
+ 
+            # Write normalised values back into a clone; inactive dims untouched.
+            output = hidden_states.clone().to(input_dtype)
+            output[..., remaining_index] = compressed
         else:
             variance = hidden_states.pow(2).mean(-1, keepdim=True)
             hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
@@ -627,26 +639,54 @@ class CoFiLlamaMLP(LlamaMLP):
         self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=config.mlp_bias)
 
     
-    def forward(self, x, intermediate_z=None, mlp_z=None):
-        
+    '''def forward(self, x, intermediate_z=None, mlp_z=None):
         if self.gate_proj is None or self.up_proj is None:
-            return x
-        gate = self.gate_proj(x)
-        up = self.up_proj(x)
+            return torch.zeros_like(x)
 
-        hidden = self.act_fn(gate) * up
+        # whole-block pruned — skip everything
+        if mlp_z is not None and mlp_z.eq(0).all():
+            return torch.zeros_like(x)
+
+        hidden = self.act_fn(self.gate_proj(x)) * self.up_proj(x)
+
+        # neuron-level pruning
         if intermediate_z is not None:
             hidden = hidden * intermediate_z.view(1, 1, -1)
-
-        if hidden.sum().eq(0).item():
-            return x
-  
-        if mlp_z is not None:
-            hidden *= mlp_z
+            if not hidden.any():   # all neurons zeroed, skip down_proj
+                return x
 
         out = self.down_proj(hidden)
-        return out
 
+        # block-level gate
+        if mlp_z is not None:
+            out = out * mlp_z
+
+        return out'''
+
+    def forward(self, x, intermediate_z=None, mlp_z=None):
+        # Structurally pruned — weights removed entirely, return zeros so the
+        # decoder layer's zero-output guard fires and skips the residual add.
+        if self.gate_proj is None or self.up_proj is None:
+            return torch.zeros_like(x)
+ 
+        hidden = self.act_fn(self.gate_proj(x)) * self.up_proj(x)
+ 
+        if intermediate_z is not None:
+            hidden = hidden * intermediate_z.view(1, 1, -1)
+ 
+        # Apply block-level gate before the zero-output check so the check
+        # correctly fires when the whole MLP is pruned via mlp_z.
+        # REASON 2: Check *here*, before down_proj, so we skip the matmul
+        # entirely rather than running it and getting scaled zeros out.
+        if mlp_z is not None:
+            hidden = hidden * mlp_z
+ 
+        if not hidden.any():
+            # Block is fully zeroed — return zeros so the decoder layer can
+            # detect this and pass the residual through unchanged (see below).
+            return torch.zeros_like(x)
+ 
+        return self.down_proj(hidden)
 
     
 class CoFiLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
@@ -681,34 +721,53 @@ class CoFiLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         inference=False
     ):
         residual = hidden_states
+ 
+        # REASON 3 (first half): zero out inactive dims *before* the norm so
+        # they never contribute to the variance calculation inside RMSNorm.
+        if hidden_z is not None:
+            hidden_states = hidden_states * hidden_z
+ 
         hidden_states = self.input_layernorm(hidden_states, hidden_z)
 
+        # REASON 3 (second half): re-apply after norm to restore the sparsity
+        # pattern — the norm's learned weight can reintroduce values in pruned
+        # dims, so we zero them out again.
+        if hidden_z is not None:
+            hidden_states = hidden_states * hidden_z
+ 
         attn_out, self_attn_weights = self.self_attn(
             hidden_states, position_embeddings, attention_mask,
             output_attentions=output_attentions, head_z=head_z, hidden_z=hidden_z,head_layer_z=head_layer_z
         )
         if attn_out is None:
             hidden_states = residual
-        elif not inference and attn_out.sum().eq(0).item():
-            hidden_states = attn_out + residual  # ← keep this, it's intentional
         else:
-            if head_layer_z is not None:
-                attn_out = attn_out.mul(head_layer_z)
 
             hidden_states = residual + attn_out
         residual = hidden_states
-        hidden_states = self.post_attention_layernorm(hidden_states, hidden_z)
         
+        # REASON 3 (first half): same as above — zero before norm.
+        if hidden_z is not None:
+            hidden_states = hidden_states * hidden_z
+        hidden_states = self.post_attention_layernorm(hidden_states, hidden_z)
+        # REASON 3 (second half): zero after norm.
+        if hidden_z is not None:
+            hidden_states = hidden_states * hidden_z
+ 
+
         hidden_states = self.mlp(hidden_states, intermediate_z, mlp_z)       
-        hidden_states = residual + hidden_states
+        # REASON 2: same guard for the MLP block. CoFiLlamaMLP returns
+        # zeros_like(x) when fully pruned, so this fires cleanly.
+        if not inference and mlp_out.sum().eq(0).item():
+            hidden_states = residual
+        else:
+            hidden_states = residual + mlp_out
 
         if hidden_z is not None:
             hidden_states = hidden_states.mul(hidden_z)
 
         return hidden_states, self_attn_weights
     
-
-
 class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
     def __init__(self, config: LlamaConfig, layer_idx: int):
         
@@ -804,6 +863,10 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         
         if not self.k_proj:
             return (None, None)
+        
+        if head_layer_z is not None and head_layer_z.eq(0).all():
+            return (torch.zeros_like(hidden_states), None)
+        
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
         
@@ -849,15 +912,70 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         attn_output = self.o_proj(attn_output)
      
         
+
+        # head_layer_z gates the whole block's residual contribution
         if head_layer_z is not None:
-            attn_output=attn_output.mul(head_layer_z)
-            
-
-        if hidden_z is not None:
-            attn_output = attn_output.mul(hidden_z)
-
-    
+            attn_output = attn_output * head_layer_z
         #print(f"Next state will be {attn_output.shape}")
         
+        #decoder handles hidden z 
+        
         return (attn_output, attn_weights)
+    
+    '''
+    
+    if self.k_proj is None:
+            return (None, None)
+ 
+        # REASON 2: whole-layer gate is zero before doing any matmuls.
+        if head_layer_z is not None and head_layer_z.eq(0).all():
+            return (torch.zeros_like(hidden_states), None)
+ 
+        input_shape = hidden_states.shape[:-1]
+        hidden_shape = (*input_shape, -1, self.head_dim)
+ 
+        query_states = self.q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        key_states   = self.k_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        value_states = self.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+ 
+        cos, sin = position_embeddings
+        from .cofi_llama import apply_rotary_pos_emb  # local import to avoid circular
+        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
+ 
+        if past_key_value is not None:
+            cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
+            key_states, value_states = past_key_value.update(
+                key_states, value_states, self.layer_idx, cache_kwargs
+            )
+ 
+        from .cofi_llama import eager_attention_forward
+        attn_output, attn_weights = eager_attention_forward(
+            self, query_states, key_states, value_states, attention_mask,
+            dropout=0.0 if not self.training else self.attention_dropout,
+            scaling=self.scaling,
+            **kwargs,
+        )
+ 
+        # head_z gates individual KV heads before reshape
+        if head_z is not None:
+            attn_output = attn_output.transpose(1, 2)
+            attn_output = attn_output * head_z.view(1, -1, 1, 1).repeat_interleave(
+                self.num_key_value_groups, dim=1
+            )
+            attn_output = attn_output.transpose(1, 2)
+ 
+        attn_output = attn_output.reshape(*input_shape, -1).contiguous()
+        attn_output = self.o_proj(attn_output)
+ 
+        # head_layer_z gates the whole block's residual contribution
+        if head_layer_z is not None:
+            attn_output = attn_output * head_layer_z
+ 
+        # REASON 2: check *after* head_layer_z so a non-zero gate that happens
+        # to zero the output still triggers the guard in the decoder layer.
+        # We do NOT apply hidden_z here — the decoder layer does it on the
+        # full residual *after* the add, which is the correct place.
+ 
+        return (attn_output, attn_weights)
+    '''
 

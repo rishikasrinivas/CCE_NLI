@@ -34,7 +34,7 @@ max_seq_length=128
 batch_size=32
 learning_rate=2e-5
 reg_learning_rate=0.01
-epochs=5
+epochs=50
 
 # seed
 seed=57 #_5 57 seed  _6 42 seed _7 48
@@ -59,7 +59,7 @@ ex_name_suffix=$2
 ex_name=${task_name}_${ex_name_suffix}
 ex_cate=$3
 iteration=${12}
-teacher_model_dir=${proj_dir}/models/CoFi/Run0.25_5
+teacher_model_dir=${proj_dir}/models/CoFi/Run_LTHStarter
 output_dir=${teacher_model_dir}/${iteration}_Pruning_Iter
 
 
