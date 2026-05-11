@@ -131,7 +131,7 @@ def main():
         Teach_Model = CoFiLlamaForSequenceClassification
         Student_Model = CoFiLlamaForSequenceClassification
     # ======= Load the model params ========
-    base_model_path = os.path.join(f"/workspace/CCE_NLI/{additional_args.model_name}/models/lottery_ticket/Run0.25_5/0_Pruning_Iter/model_best.pth")
+    base_model_path = os.path.join(f"/workspace/CCE_NLI/{additional_args.model_name.upper()}/models/lottery_ticket/Run0.25_5/0_Pruning_Iter/model_best.pth")
     pretrained_path = os.path.join(data_args.path_to_pretrained, f'{additional_args.model_name}_MAIN_pretrained_inits.pth')
     if additional_args.model_name in ['bert', 'llama']:
         config = AutoConfig.from_pretrained(
@@ -164,7 +164,7 @@ def main():
             
         if additional_args.do_distill:
         
-            teacher_model, _ = Teach_Model.from_pretrained(
+            teacher_model, trained_teacher = Teach_Model.from_pretrained(
                 pretrained_model_name_or_path=base_model_path, #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
                 ckpt= pretrained_path,
                 config=config,
@@ -178,7 +178,7 @@ def main():
         tokenizer= TextEncoder(len(vocab['stoi']))
         Teach_Model = CoFiBowmanEntailmentClassifier(tokenizer_teacher, training_args.device)
         Student_Model = CoFiBowmanEntailmentClassifier(tokenizer, training_args.device)
-        teacher_model, _ = Teach_Model.from_pretrained(
+        teacher_model, trained_teacher = Teach_Model.from_pretrained(
                 pretrained_model_name_or_path=base_model_path,
                 encoder=tokenizer_teacher,
                 device=device
@@ -190,7 +190,7 @@ def main():
  
    
     
-    student_path = os.path.join(f"/workspace/CCE_NLI/{additional_args.model_name}/models/CoFi/Run0.25_5/student_model.pth")
+    student_path = os.path.join(f"/workspace/CCE_NLI/{additional_args.model_name}/models/CoFi/Run0.25_5/student_model_finaluzd.pth")
     print(f'Loading student model from : {student_path}')
     
     #load an untrained student model which we need to initially finetune before pruning
@@ -328,7 +328,8 @@ def main():
         l0_module=l0_module,
         teacher_model=teacher_model,
         teacher_model_dir = data_args.teacher_model_dir,
-        device=device
+        device=device,
+        trained_teacher=trained_teacher
     )
 
     if training_args.do_train:
