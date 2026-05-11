@@ -171,6 +171,7 @@ class CoFiTrainer(Trainer):
             l0_module=None,
             teacher_model=None,
             teacher_model_dir = None,
+            trained_teacher=None,
             **kwargs,
     ):
 
@@ -181,7 +182,7 @@ class CoFiTrainer(Trainer):
         
         self.dataset=dataset
         self.additional_args = additional_args
-        self.finetuned_teacher = False
+        self.finetuned_teacher = trained_teacher
         self.l0_module = l0_module
         self.prepruning_finetune_steps = 100
         self.start_prune = False
@@ -222,7 +223,7 @@ class CoFiTrainer(Trainer):
         print("LEn subset", len(self.train_dataloader))
         
         #train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, pruning_method='CoFi', max_data=1500, debug=True)
-        self.train_initial_learning =self.subset_train_data # dl['train']
+        self.train_initial_learning =self.full_train_data # dl['train']
         
         
         self.device=device
@@ -386,7 +387,7 @@ class CoFiTrainer(Trainer):
         if not self.finetuned_teacher:
             self.teacher_model = self.finetune_teacher(self.teacher_model)
             self.finetuned_teacher = True
-
+        self.store_results(self.teacher_model)
         self.evaluate()
         # training
         print(f"Training for {num_train_epochs} epochs")
@@ -543,6 +544,8 @@ class CoFiTrainer(Trainer):
             if self.pruned_sparsity >= self.additional_args.target_sparsity:
                 print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity}")
                 break
+            if self.global_step % SAVE_EVERY == 0:
+                self.save_model(model, student=False)
 
         train_pbar.close()
 
@@ -757,7 +760,7 @@ class CoFiTrainer(Trainer):
             filename='student_model.pth'
         else:
             is_best=True
-            filename='model_best.pth'
+            filename=f'model_best.pth'
         # Assuming 'model' is your PyTorch or Hugging Face model
         util.save_checkpoint(
             train_utils.serialize(model, self.model_name, self.dataset),
