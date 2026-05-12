@@ -30,6 +30,8 @@ class CoFiLlamaRMSNorm(LlamaRMSNorm):
             variance = (masked ** 2).sum(-1, keepdim=True) / norm_dim
             hidden_states = masked * torch.rsqrt(variance + self.variance_epsilon)
             # Mask weight to prevent pruned dims from contributing
+            
+            
             return (self.weight * hidden_z) * hidden_states.to(input_dtype)
         else:
             variance = hidden_states.pow(2).mean(-1, keepdim=True)
@@ -58,6 +60,10 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         hidden_z=None,  # Prune hidden dimensions
         **kwargs,
     ):
+        '''input_shape = hidden_states.shape[:-1]
+        hidden_shape = (*input_shape, -1, self.head_dim)
+        print("HIDDEN STATES SHAPE IN ATTN ", hidden_states.shape)
+        print("HIDDEN STATES SHAPE IN ATTN ", hhidden_shape)'''
         # Check if entire attention layer is pruned
         if head_layer_z is not None and head_layer_z == 0:
             return (None, None) if output_attentions else (None, None)
@@ -73,7 +79,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
         
-        # Reshape for multi-head attention
+        # Reshape for GQA
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
         value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
@@ -119,6 +125,56 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
             attn_output = attn_output * head_layer_z
         
         return (attn_output, attn_weights) if output_attentions else (attn_output, None )
+    
+    def prune_heads(self, heads):
+        len_heads = len(heads)
+        
+        if len_heads == 0: 
+            return
+        
+    
+        heads, index = find_pruneable_heads_and_indices(
+            heads,
+            4,      # NOT num_attention_heads
+            self.attention_head_size,      # 64
+            self.pruned_heads
+        )
+
+        group_size = self.num_heads // self.num_key_value_heads  # e.g. 32 // 4 = 8
+
+        qo_index_to_prune = []
+       
+        for head in heads:  # these are KV heads
+            q_head_start = head * group_size #2*8 to 3*8 so 16->24 
+            start = q_head_start * self.attention_head_size
+            q_head_end = (head+1)*group_size
+            end = q_head_end * self.attention_head_size
+            qo_index_to_prune.extend(range(start, end))
+        qo_index_to_keep = [i for i in range(2048) if i not in qo_index_to_prune]
+        qo_index_to_keep=torch.tensor(qo_index_to_keep)
+        # Prune linear layers
+        if len(index) == 0:
+           
+            self.q_proj = None
+            self.k_proj = None
+            self.v_proj = None
+            self.o_proj = None
+        else:
+            self.k_proj = prune_linear_layer(self.k_proj, index, dim=0)
+            self.v_proj = prune_linear_layer(self.v_proj, index, dim=0)
+            self.q_proj = prune_linear_layer(self.q_proj, qo_index_to_keep, dim=0)
+            self.o_proj = prune_linear_layer(self.o_proj, qo_index_to_keep, dim=1)
+           
+        
+        # Update hyper params and store pruned heads
+        self.num_attention_heads = self.num_attention_heads - \
+            len(heads)
+        self.all_head_size = self.attention_head_size * \
+            self.num_attention_heads
+        self.pruned_heads = self.pruned_heads.union(heads)
+
+
+ 
     
     def _apply_rotary_pos_emb(self, q, k, cos, sin):
         # Helper method to apply rotary embeddings
@@ -225,6 +281,8 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         # Final application of hidden_z
         if hidden_z is not None:
             hidden_states = hidden_states * hidden_z
+            
+        
         
         return (hidden_states, attn_weights) if output_attentions else (hidden_states,)
 
@@ -255,6 +313,7 @@ class CoFiModifiedLlamaMLP(nn.Module):
         
         # Apply intermediate_z again to intermediate activations
         if intermediate_z is not None:
+            #assert torch.equal(intermediate_z, torch.ones_like(intermediate_z)), f'intermediate_z s not all 1s'
             hidden = hidden * intermediate_z.view(1, 1, -1)
         
         out = self.down_proj(hidden)
@@ -262,6 +321,9 @@ class CoFiModifiedLlamaMLP(nn.Module):
         # Apply mlp_z to gate entire block
         if mlp_z is not None:
             out = out * mlp_z
+            if mlp_z == 0:
+                assert out.sum() == 0, f'out is = {out}'
+            
         
         return out
 
@@ -369,6 +431,14 @@ class CoFiLlamaBiModel(LlamaBiModel):
             attentions=all_self_attns,
         )
 
+    def _prune_heads(self, heads_to_prune):
+        """
+        Prunes heads of the model. heads_to_prune: dict of {layer_num: list of heads to prune in this layer} See base
+        class PreTrainedModel
+        """
+        for layer, heads in heads_to_prune.items():
+        
+            self.layers[layer].self_attn.prune_heads(heads)
 class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
@@ -543,7 +613,14 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         #pre_attention_mask = pre_attention_mask.unsqueeze(0)
 
         
-
+        if hidden_z is not None:  
+            hidden_z = torch.ones_like(hidden_z)
+            
+        if intermediate_z is not None:  
+            intermediate_z = torch.ones_like(intermediate_z)
+        
+        if mlp_z is not None:
+            mlp_z[5]=0 # manually pruning 1 random mlp layer
         outputs_pre = self.model(
             pre_input_ids,
             attention_mask=pre_attention_mask,
