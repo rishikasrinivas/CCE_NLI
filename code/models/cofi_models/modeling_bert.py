@@ -725,7 +725,7 @@ class CoFiBertSelfAttention(BertSelfAttention):
             context_layer,)
         return outputs
 
-
+#hidden is applied after dense bfore and after lyr norm
 class CoFiBertSelfOutput(BertSelfOutput):
     def __init__(self, config):
         super().__init__(config)

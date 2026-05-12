@@ -2,6 +2,7 @@ import logging
 import math
 from typing import Optional, Tuple, Union, Dict, List
 import os
+import pdb
 import torch
 from torch import nn
 from torch.nn import CrossEntropyLoss, MSELoss
@@ -106,33 +107,24 @@ class CoFiLlamaRMSNorm(LlamaRMSNorm):
         """
         super().__init__(hidden_size)
 
-    def forward(self, hidden_states, hidden_z):
+    def forward(self, hidden_states, hidden_z=None):
         input_dtype = hidden_states.dtype
         hidden_states = hidden_states.to(torch.float32)
-
         if hidden_z is not None:
-            # REASON 1: Only normalise the active dimensions.
-            # If we compute variance over the full masked vector, zeroed-out
-            # dims drag the mean to ~0 and inflate rsqrt(variance), blowing
-            # up the scale of active dims relative to what the teacher expects.
-            remaining_index = torch.where(hidden_z.squeeze() != 0)[0]
- 
-            compressed = torch.index_select(hidden_states, dim=-1, index=remaining_index)
-            compressed_weight = self.weight[remaining_index]
- 
-            variance = compressed.pow(2).mean(-1, keepdim=True)
-            compressed = compressed * torch.rsqrt(variance + self.variance_epsilon)
-            compressed = compressed_weight * compressed.to(input_dtype)
- 
-            # Write normalised values back into a clone; inactive dims untouched.
-            output = hidden_states.clone().to(input_dtype)
-            output[..., remaining_index] = compressed
+            masked = hidden_states * hidden_z
+            # variance only over active dims — norm_dim tracks how many are active
+            norm_dim = hidden_z.sum(-1, keepdim=True).clamp(min=1.0)
+            variance = (masked ** 2).sum(-1, keepdim=True) / norm_dim
+            hidden_states = masked * torch.rsqrt(variance + self.variance_epsilon)
+            # mask weight too so pruned dims don't reintroduce signal
+            return (self.weight * hidden_z) * hidden_states.to(input_dtype)
         else:
             variance = hidden_states.pow(2).mean(-1, keepdim=True)
             hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+            return self.weight * hidden_states.to(input_dtype)
+    
 
-        return self.weight * hidden_states.to(input_dtype)
-
+  
     def extra_repr(self):
         return f"{tuple(self.weight.shape)}, eps={self.variance_epsilon}" 
 
@@ -372,7 +364,11 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         final_layer_reps=mlp_input
         if final_mlp_hidden_z is not None:
             #print("MULT BY ZS Hidden (1024->3): ", final_mlp_hidden_z.shape)
+            
+            #print(f"MLP input bfore {mlp_input}")
             mlp_input *= final_mlp_hidden_z
+            #print(f"MLP input after {mlp_input}")
+            
         logits = mlp_unpacked[3](mlp_input)
         
         
@@ -581,6 +577,16 @@ class CoFiLlamaModel(CoFiLlamaBiModel):
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
 
+        
+        '''
+        intermediate_zs: torch.Size([22, 1, 1, 5632])
+        head_z: torch.Size([22, 1, 4, 1, 1])
+        mlp_z: torch.Size([22])
+        head_layer_z: torch.Size([22])
+        hidden_z: torch.Size([2048])
+
+        '''
+        
         for i, decoder_layer in enumerate(self.layers):
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
@@ -663,6 +669,7 @@ class CoFiLlamaMLP(LlamaMLP):
 
         return out'''
 
+    #removing the intermediate mask applcaiotn
     def forward(self, x, intermediate_z=None, mlp_z=None):
         # Structurally pruned — weights removed entirely, return zeros so the
         # decoder layer's zero-output guard fires and skips the residual add.
@@ -672,21 +679,25 @@ class CoFiLlamaMLP(LlamaMLP):
         hidden = self.act_fn(self.gate_proj(x)) * self.up_proj(x)
  
         if intermediate_z is not None:
+            #print(f'Intermed mask is of shape {intermediate_z.shape} and output from act fn is {hidden.shape}\nintermed mask is shaped to {intermediate_z.view(1, 1, -1).shape}')
             hidden = hidden * intermediate_z.view(1, 1, -1)
+            #print(f"Resulting shape of hidden is {hidden.shape} which is used to multiply with mlpz which id of shape {mlp_z.shape}")
  
         # Apply block-level gate before the zero-output check so the check
         # correctly fires when the whole MLP is pruned via mlp_z.
         # REASON 2: Check *here*, before down_proj, so we skip the matmul
         # entirely rather than running it and getting scaled zeros out.
+        
+        out=self.down_proj(hidden)
         if mlp_z is not None:
-            hidden = hidden * mlp_z
+            #print(out.shape , " before mlp applcitio")
+            out = out * mlp_z #leaves hiidens shape as batch,seqlen,5632
+            #print(hidden , " after mlp applcitio")
+        if mlp_z==0:
+            assert out.sum()==0, f'MLP_z says 0 but adter dwn proj it not 0 it is {out}'
+            
  
-        if not hidden.any():
-            # Block is fully zeroed — return zeros so the decoder layer can
-            # detect this and pass the residual through unchanged (see below).
-            return torch.zeros_like(x)
- 
-        return self.down_proj(hidden)
+        return out
 
     
 class CoFiLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
@@ -697,7 +708,7 @@ class CoFiLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         self.self_attn = CoFiModifiedLlamaAttention(config=config, layer_idx=layer_idx)
         
         
-        self.mlp = CoFiLlamaMLP(config)
+        self.ffnmlp = CoFiLlamaMLP(config)
         self.input_layernorm = CoFiLlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.post_attention_layernorm = CoFiLlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         
@@ -742,8 +753,7 @@ class CoFiLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         if attn_out is None:
             hidden_states = residual
         else:
-
-            hidden_states = residual + attn_out
+            hidden_states = attn_out + residual
         residual = hidden_states
         
         # REASON 3 (first half): same as above — zero before norm.
@@ -754,8 +764,9 @@ class CoFiLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         if hidden_z is not None:
             hidden_states = hidden_states * hidden_z
  
-
-        hidden_states = self.mlp(hidden_states, intermediate_z, mlp_z)       
+        #pdb.set_trace()
+        mlp_out = self.ffnmlp(hidden_states, intermediate_z, mlp_z)    
+        
         # REASON 2: same guard for the MLP block. CoFiLlamaMLP returns
         # zeros_like(x) when fully pruned, so this fires cleanly.
         if not inference and mlp_out.sum().eq(0).item():
@@ -864,8 +875,6 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         if not self.k_proj:
             return (None, None)
         
-        if head_layer_z is not None and head_layer_z.eq(0).all():
-            return (torch.zeros_like(hidden_states), None)
         
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
