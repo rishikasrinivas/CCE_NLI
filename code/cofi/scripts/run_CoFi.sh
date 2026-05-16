@@ -33,7 +33,7 @@ save_steps=0
 max_seq_length=128
 batch_size=32
 learning_rate=2e-5
-reg_learning_rate=0.01
+reg_learning_rate=0.001
 epochs=50
 
 # seed
@@ -72,7 +72,7 @@ if [[ " ${glue_low[*]} " =~ ${task_name} ]]; then
 fi
 
 if [[ " ${glue_high[*]} " =~ ${task_name} ]]; then
-    eval_steps=500
+    eval_steps=50
     prepruning_finetune_epochs=1
     lagrangian_warmup_epochs=2
 fi
