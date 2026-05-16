@@ -225,7 +225,7 @@ class L0Module_LLAMA(Module):
             self.int_loga.requires_grad = False
         else:
             self.int_loga = self.initialize_parameters(self.intermediate_size, self.num_hidden_layers)
-            self.reset_loga(self.int_loga)
+            self.reset_loga(self.int_loga, mean=10)
             
         self.add_one_module(self.int_loga, type="intermediate", 
                             parameter_per_dim=self.params_per_intermediate_dim, size=self.intermediate_size,

@@ -448,6 +448,7 @@ class CoFiBertModel(BertModel):
         # ourselves in which case we just need to make it broadcastable to all heads.
         extended_attention_mask: torch.Tensor = self.get_extended_attention_mask(
             attention_mask, input_shape, device)
+        #
 
             
         embedding_output = self.embeddings(
@@ -725,7 +726,7 @@ class CoFiBertSelfAttention(BertSelfAttention):
             context_layer,)
         return outputs
 
-
+#hidden is applied after dense bfore and after lyr norm
 class CoFiBertSelfOutput(BertSelfOutput):
     def __init__(self, config):
         super().__init__(config)
