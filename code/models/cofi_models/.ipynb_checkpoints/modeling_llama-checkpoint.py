@@ -671,11 +671,11 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
          
-            head_z=None,
-            head_layer_z=None,
-            intermediate_z=None,
-            mlp_z=None,
-            hidden_z=None
+            head_z=head_z,
+            head_layer_z=head_layer_z,
+            intermediate_z=intermediate_z,
+            mlp_z=mlp_z,
+            hidden_z=hidden_z
         ) #! [32, 68, 768]
         
         
@@ -689,11 +689,11 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
   
-            head_z=None,
-            head_layer_z=None,
-            intermediate_z=None,
-            mlp_z=None,
-            hidden_z=None
+            head_z=head_z,
+            head_layer_z=head_layer_z,
+            intermediate_z=intermediate_z,
+            mlp_z=mlp_z,
+            hidden_z=hidden_z
         )
         '''if mlp_z is not None:
             print("PREMISED OUTPUTS ", outputs_pre[0])
