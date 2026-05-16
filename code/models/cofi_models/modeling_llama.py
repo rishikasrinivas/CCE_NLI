@@ -396,7 +396,10 @@ class CoFiLlamaBiModel(LlamaBiModel):
         # Input embedding
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
-        #if hidden_z is not None:
+            
+        # apply hidden mask to embeddings
+        if hidden_z is not None:
+            inputs_embeds *= hidden_z
             #print(f"Input embeds shape = {inputs_embeds.shape}")
         
         # Position embeddings
