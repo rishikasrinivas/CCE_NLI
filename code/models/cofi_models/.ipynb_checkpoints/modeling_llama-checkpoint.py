@@ -96,7 +96,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
         value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
         
-        # Apply head_z to prune KV heads
+        # APPLY HEAD Z TO PRUNE THE KV HEADS SO IT CAN PROJECT THAT PRNING INTO Q AS WELL
         if head_z is not None:
             key_states = key_states * head_z.view(1, -1, 1, 1)
             value_states = value_states * head_z.view(1, -1, 1, 1)
@@ -128,13 +128,16 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         attn_output = torch.matmul(attn_weights, value_states)
         attn_output = attn_output.transpose(1, 2).contiguous()
         attn_output = attn_output.reshape(bsz, q_len, -1)
-        
+      
+            
         # Output projection
         attn_output = self.o_proj(attn_output)
         
-        # Apply head_layer_z to gate entire attention output
+        #AFTER IT DOES THE PROJECTION APPLY HEAD LAYER Z
         if head_layer_z is not None:
             attn_output = attn_output * head_layer_z
+        
+        
         
         return (attn_output, attn_weights) if output_attentions else (attn_output, None )
     
@@ -275,7 +278,7 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         if attn_out is None:
             attn_out = torch.zeros_like(hidden_states)
         
-        # Apply hidden_z to attention output before residual
+        #DONT APPLY BEFORE THE RESIDUAL
         if hidden_z is not None:
             attn_out = attn_out * hidden_z
         
@@ -285,9 +288,9 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         # FFN path
         residual = hidden_states
         
-        # Apply hidden_z before post-norm
-        if hidden_z is not None:
-            hidden_states = hidden_states * hidden_z
+        # DONT APPLY HIDDEN Z AFTER THE RESIDUAL IS APPLIED!!!
+        # if hidden_z is not None:
+           # hidden_states = hidden_states * hidden_z
         
         # Post-norm
         hidden_states = self.post_attention_layernorm(hidden_states, hidden_z)
@@ -345,10 +348,11 @@ class CoFiModifiedLlamaMLP(nn.Module):
             x = x * mlp_z
         #print(f"After mlpz = {x.shape}")
         
-                
-        if hidden_z is not None:
+            
+        #NO APPYL HIDDEN AGAIN BECAUE UR NOT LAYERNORMING AFTER THISSS
+        #if hidden_z is not None:
             #print("X should be 2038 dims since it was downproj'd already")
-            x=x * hidden_z #apply hidden bfore resdual aplied in Layer
+            3x=x * hidden_z #apply hidden bfore resdual aplied in Layer
             
         
         return x
@@ -664,11 +668,11 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
          
-            head_z=head_z,
-            head_layer_z=head_layer_z,
-            intermediate_z=intermediate_z,
-            mlp_z=mlp_z,
-            hidden_z=hidden_z
+            head_z=None,
+            head_layer_z=None,
+            intermediate_z=None,
+            mlp_z=None,
+            hidden_z=None
         ) #! [32, 68, 768]
         
         
@@ -682,11 +686,11 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
   
-            head_z=head_z,
-            head_layer_z=head_layer_z,
-            intermediate_z=intermediate_z,
-            mlp_z=mlp_z,
-            hidden_z=hidden_z
+            head_z=None,
+            head_layer_z=None,
+            intermediate_z=None,
+            mlp_z=None,
+            hidden_z=None
         )
         '''if mlp_z is not None:
             print("PREMISED OUTPUTS ", outputs_pre[0])
