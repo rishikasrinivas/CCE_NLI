@@ -352,7 +352,7 @@ class CoFiModifiedLlamaMLP(nn.Module):
         #NO APPYL HIDDEN AGAIN BECAUE UR NOT LAYERNORMING AFTER THISSS
         #if hidden_z is not None:
             #print("X should be 2038 dims since it was downproj'd already")
-            3x=x * hidden_z #apply hidden bfore resdual aplied in Layer
+            #x=x * hidden_z #apply hidden bfore resdual aplied in Layer
             
         
         return x
