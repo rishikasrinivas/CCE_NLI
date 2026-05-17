@@ -25,7 +25,7 @@ class CoFiLlamaRMSNorm(LlamaRMSNorm):
         self.weight = nn.Parameter(torch.ones(hidden_size))
         self.eps = eps
 
-    def forward(self, hidden_states: torch.Tensor, hidden_z: torch.Tensor | None = None) -> torch.Tensor:
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
       
         
         
@@ -238,7 +238,7 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         # Pre-norm
         if hidden_z is not None:
             hidden_states = hidden_states * hidden_z
-        hidden_states = self.input_layernorm(hidden_states, hidden_z)
+        hidden_states = self.input_layernorm(hidden_states)
         if hidden_z is not None:
             hidden_states = hidden_states * hidden_z
         
@@ -276,7 +276,7 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         
         
         # Post-norm
-        hidden_states = self.post_attention_layernorm(hidden_states, hidden_z)
+        hidden_states = self.post_attention_layernorm(hidden_states)
         
         if hidden_z is not None:
             hidden_states = hidden_states * hidden_z
@@ -290,8 +290,6 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
      
         # Final residual connection
         hidden_states = residual + hidden_states
-        if hidden_z is not None:
-            hidden_states = hidden_states * hidden_z
         
         
         return (hidden_states, attn_weights) if output_attentions else (hidden_states,)
@@ -455,7 +453,7 @@ class CoFiLlamaBiModel(LlamaBiModel):
         
         # Final norm
         
-        hidden_states = self.norm(hidden_states, hidden_z)
+        hidden_states = self.norm(hidden_states)
         
         if output_hidden_states:
             all_hidden_states = all_hidden_states + (hidden_states,)
