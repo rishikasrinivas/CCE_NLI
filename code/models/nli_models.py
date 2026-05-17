@@ -328,8 +328,24 @@ class LLAMAEntailmentClassifier(BaseModel):
         return preds
 
     def encode_sentence(self, tokens):
-        outputs = self.model(**tokens).last_hidden_state.mean(dim=1) 
-        return outputs
+       
+        outputs = self.model(**tokens)
+        hidden = outputs.last_hidden_state  # (B, T, H)
+
+        attention_mask = tokens["attention_mask"]  # (B, T)
+        seq_lengths = attention_mask.sum(dim=-1)   # (B,)
+
+        reps = []
+
+        for i, length in enumerate(seq_lengths):
+            length = length.item()
+
+            # take ONLY real tokens (assumes padding is on left OR mask-aligned)
+            token_reprs = hidden[i, -length:, :]  # (length, H)
+
+            reps.append(token_reprs.mean(dim=0))  # (H,)
+
+        return torch.stack(reps, dim=0)  # (B, H)
 
     def to(self, device):
         self.model = self.model.to(device)

@@ -622,7 +622,25 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
       
 
             return self.tokenizer(words, is_split_into_words=True, return_tensors="pt", padding=True, truncation=True)
-       
+    
+     def encode_sentence(self, outputs):
+        hidden = outputs.last_hidden_state  # (B, T, H)
+
+        attention_mask = tokens["attention_mask"]  # (B, T)
+        seq_lengths = attention_mask.sum(dim=-1)   # (B,)
+
+        reps = []
+
+        for i, length in enumerate(seq_lengths):
+            length = length.item()
+
+            # take ONLY real tokens (assumes padding is on left OR mask-aligned)
+            token_reprs = hidden[i, -length:, :]  # (length, H)
+
+            reps.append(token_reprs.mean(dim=0))  # (H,)
+
+        return torch.stack(reps, dim=0)  # (B, H)
+
     def forward(
             self,
             pre_input_ids=None,
@@ -687,12 +705,10 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             print("HYPED OUTPUTS ", outputs_hyp[0])'''
         
         
-   
-    
-   
 
-        hyp_out = outputs_hyp.last_hidden_state[:,0,:]
-        pre_out = outputs_pre.last_hidden_state[:,0,:]
+        pre_out = self.encode_sentence(outputs_pre)
+        hyp_out = self.encode_sentence(outputs_hyp)
+        
         diffs = pre_out - hyp_out
         prods = pre_out * hyp_out
         
