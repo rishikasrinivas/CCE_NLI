@@ -190,7 +190,7 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
     ):
 
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-    
+        
         outputs_pre = self.bert(
             pre_input_ids,
             attention_mask=pre_attention_mask,
@@ -776,6 +776,8 @@ class CoFiBertOutput(BertOutput):
             hidden_states = self.dropout(hidden_states)
             hidden_states = self.LayerNorm(
                 hidden_states + input_tensor, hidden_z)
+            
+            #print(f"BERT after post_attetnon_layernorm - mean: {hidden_states.mean():.4f} std: {hidden_states.std():.4f} min: {hidden_states.min():.4f} max: {hidden_states.max():.4f}")
             if hidden_z is not None:
                 hidden_states = hidden_states.mul(hidden_z)
         return hidden_states

@@ -26,30 +26,15 @@ class CoFiLlamaRMSNorm(LlamaRMSNorm):
         self.eps = eps
 
     def forward(self, hidden_states: torch.Tensor, hidden_z: torch.Tensor | None = None) -> torch.Tensor:
-        if hidden_z is not None:
-            # Only use hidden_z for compression - NO masking!
-            active_dims = torch.where(~hidden_z.eq(0))[0]
-            if len(active_dims) == 0:
-                return torch.zeros_like(hidden_states)
-            
-            # Compress to active dims only
-            compressed = hidden_states[..., active_dims].float()
-            
-            # Apply RMSNorm on compressed tensor
-            variance = compressed.pow(2).mean(-1, keepdim=True)
-            normalized = compressed * torch.rsqrt(variance + self.eps)
-            normalized = self.weight[active_dims] * normalized
-            
-            # Restore to full shape (preserve pruned dimensions as they were)
-            # Use clone like BERT, not zeros!
-            output = hidden_states.clone()  # ← CLONE, not zeros!
-            output[..., active_dims] = normalized.to(hidden_states.dtype)
-            return output
+      
+        
         
         # Standard path (no pruning)
         hidden_states = hidden_states.float()
         variance = hidden_states.pow(2).mean(-1, keepdim=True)
         hidden_states = hidden_states * torch.rsqrt(variance + self.eps)
+       
+        
         return (self.weight * hidden_states).to(hidden_states.dtype)
 
 
@@ -81,6 +66,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         #print("HIDDEN STATES SHAPE IN ATTN ", hhidden_shape)
         # Check if entire attention layer is pruned
         if self.v_proj is None: #only return none if the final proj is pruned out, othewise just apply the mask and see for youself
+            print("V Proj is pruned out so returning None in Attention (line 85)")
             return (None, None) if output_attentions else (None, None)
         
         bsz, q_len, _ = hidden_states.size()
@@ -97,9 +83,9 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
         
         # APPLY HEAD Z TO PRUNE THE KV HEADS SO IT CAN PROJECT THAT PRNING INTO Q AS WELL
-        if head_z is not None:
-            key_states = key_states * head_z.view(1, -1, 1, 1)
-            value_states = value_states * head_z.view(1, -1, 1, 1)
+        #if head_z is not None:
+            #key_states = key_states * head_z.view(1, -1, 1, 1)
+            #value_states = value_states * head_z.view(1, -1, 1, 1)
         
         # Apply rotary embeddings
         cos, sin = position_embeddings
@@ -126,6 +112,12 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         
         # Apply attention to values
         attn_output = torch.matmul(attn_weights, value_states)
+        
+        if head_z is not None:
+            # head_z is over KV heads, need to expand to query heads
+            head_z_expanded = head_z.repeat_interleave(self.num_key_value_groups)
+            attn_output = attn_output * head_z_expanded.view(1, -1, 1, 1)
+    
         attn_output = attn_output.transpose(1, 2).contiguous()
         attn_output = attn_output.reshape(bsz, q_len, -1)
       
@@ -243,21 +235,13 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
     ):
         residual = hidden_states
         
-        
-        # Apply hidden_z before norm
-        if hidden_z is not None:
-            
-            #hidden staes shape torch.Size([16, 20, 2048]) and z's is torch.Size([2048])
-            #print(f"hidden staes shape {hidden_states.shape} and z's is {hidden_z.shape}")
-            hidden_states = hidden_states * hidden_z
-        
         # Pre-norm
+        if hidden_z is not None:
+            hidden_states = hidden_states * hidden_z
         hidden_states = self.input_layernorm(hidden_states, hidden_z)
         if hidden_z is not None:
-            
-            #hidden staes shape torch.Size([16, 20, 2048]) and z's is torch.Size([2048])
-            #print(f"hidden staes shape {hidden_states.shape} and z's is {hidden_z.shape}")
             hidden_states = hidden_states * hidden_z
+        
         
         # Self-attention
         attn_out, attn_weights = self.self_attn(
@@ -274,37 +258,41 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
             hidden_z=hidden_z,
             **kwargs,
         )
-        
+       
         if attn_out is None:
+            print("0ing out all hiddens")
             attn_out = torch.zeros_like(hidden_states)
         
-        #DONT APPLY BEFORE THE RESIDUAL
+   
         if hidden_z is not None:
             attn_out = attn_out * hidden_z
         
         # First residual connection (attention path)
         hidden_states = residual + attn_out
         
+       
         # FFN path
         residual = hidden_states
         
-        # DONT APPLY HIDDEN Z AFTER THE RESIDUAL IS APPLIED!!!
-        # if hidden_z is not None:
-           # hidden_states = hidden_states * hidden_z
         
         # Post-norm
         hidden_states = self.post_attention_layernorm(hidden_states, hidden_z)
         
-        # Apply hidden_z after post-norm
         if hidden_z is not None:
             hidden_states = hidden_states * hidden_z
         
-        # MLP
-        hidden_states = self.mlp(hidden_states, intermediate_z, mlp_z, hidden_z)
+       
         
+        # MLP
+        hidden_states = self.mlp(hidden_states, intermediate_z, mlp_z)
+        
+    
      
         # Final residual connection
         hidden_states = residual + hidden_states
+        if hidden_z is not None:
+            hidden_states = hidden_states * hidden_z
+        
         
         return (hidden_states, attn_weights) if output_attentions else (hidden_states,)
 
@@ -320,7 +308,7 @@ class CoFiModifiedLlamaMLP(nn.Module):
         self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=False)
         self.act_fn = nn.SiLU()
     
-    def forward(self, x, intermediate_z=None, mlp_z=None, hidden_z=None):
+    def forward(self, x, intermediate_z=None, mlp_z=None):
     
         
         # Apply intermediate_z to prune neurons (mask input to gate/up projections)
@@ -661,6 +649,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
   
         #pre_input_ids = pre_input_ids.unsqueeze(0)  # Shape becomes [1, 46]
         #pre_attention_mask = pre_attention_mask.unsqueeze(0)
+        
 
         
         outputs_pre = self.model (

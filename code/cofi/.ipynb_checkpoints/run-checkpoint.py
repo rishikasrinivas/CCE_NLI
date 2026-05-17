@@ -102,7 +102,7 @@ def main():
 
     # ====== Data Loading ===========
  
-    
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     max_data = None if data_args.data_debug > 0 else None
     train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, pruning_method='CoFi', max_data=None, debug=False)
     train_subset,val_subset,dls = train_utils.create_dataloaders(model_type=additional_args.model_name, pruning_method='CoFi', max_data=150000, debug=True)
@@ -131,7 +131,8 @@ def main():
         Teach_Model = CoFiLlamaForSequenceClassification
         Student_Model = CoFiLlamaForSequenceClassification
     # ======= Load the model params ========
-    
+    base_model_path = os.path.join(f"/workspace/CCE_NLI/{additional_args.model_name.upper()}/models/lottery_ticket/Run0.25_5/0_Pruning_Iter/model_best.pth")
+    pretrained_path = os.path.join(data_args.path_to_pretrained, f'{additional_args.model_name}_MAIN_pretrained_inits.pth')
     if additional_args.model_name in ['bert', 'llama']:
         config = AutoConfig.from_pretrained(
             model_args.model_name_or_path,
@@ -162,11 +163,12 @@ def main():
             config.output_hidden_states = True
             
         if additional_args.do_distill:
-            teacher_model, _ = Teach_Model.from_pretrained(
-                pretrained_model_name_or_path=os.path.join(f"/workspace/CCE_NLI/{additional_args.model_name}/models/CoFi/Run0.25_5/0_Pruning_Iter/model_best.pth"), #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
-                ckpt= os.path.join(data_args.path_to_pretrained, f'{additional_args.model_name}_MAIN_pretrained_inits.pth'),
+        
+            teacher_model, trained_teacher = Teach_Model.from_pretrained(
+                pretrained_model_name_or_path=base_model_path, #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
+                ckpt= pretrained_path,
                 config=config,
-                device='cuda' if torch.cuda.is_available() else 'cpu'
+                device=device
 
             )
             config.do_layer_distill = additional_args.do_layer_distill #! True
@@ -176,9 +178,10 @@ def main():
         tokenizer= TextEncoder(len(vocab['stoi']))
         Teach_Model = CoFiBowmanEntailmentClassifier(tokenizer_teacher, training_args.device)
         Student_Model = CoFiBowmanEntailmentClassifier(tokenizer, training_args.device)
-        teacher_model, _ = Teach_Model.from_pretrained(
-                pretrained_model_name_or_path=None, #"/workspace/CCE_NLI/BOWMAN/models/CoFi/Run0.25/0_Pruning_Iter/model_best.pth", #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
+        teacher_model, trained_teacher = Teach_Model.from_pretrained(
+                pretrained_model_name_or_path=base_model_path,
                 encoder=tokenizer_teacher,
+                device=device
 
             )
     if teacher_model:
@@ -186,14 +189,17 @@ def main():
         
  
    
-    print(f'Loading student model from : {os.path.join("/".join(training_args.output_dir.split("/")[:-1]), "student_model.pth")}')
+    
+    student_path = os.path.join(f"/workspace/CCE_NLI/{additional_args.model_name.upper()}/models/CoFi/Run_LTHStarter/2_Pruning_Iter/student_model.pth")
+    print(f'Loading student model from : {student_path}')
+    
     #load an untrained student model which we need to initially finetune before pruning
     student_model, trained_student = Student_Model.from_pretrained(
-        pretrained_model_name_or_path= os.path.join("/".join(training_args.output_dir.split("/")[:-1]), "student_model.pth"), # if llm part of student model is alr trained itll be here otherwise a default model will be loaded and finetuned
+        pretrained_model_name_or_path= student_path, # if student model is alr trained itll be here otherwise a default model will be loaded and finetuned
         config=config,
         encoder=tokenizer,
-        ckpt= os.path.join(data_args.path_to_pretrained, f'{additional_args.model_name}_MAIN_pretrained_inits.pth'),
-        device='cuda' if torch.cuda.is_available() else 'cpu'
+        ckpt= pretrained_path,
+        device=device
         
     ) #! inside the function, we get the original struct  #! CofiBertForSequenceClassification
    
@@ -205,6 +211,7 @@ def main():
         student_model.config.id2label = LABEL_ITOS
         student_model.config.label2id = LABEL_STOI
     label_to_id = LABEL_STOI
+    
     # initialize the layer transformation matrix to be an identity matrix
     if additional_args.do_layer_distill:
         pass #initialize_layer_transformation(model)
@@ -231,7 +238,7 @@ def main():
                                  target_sparsity=additional_args.target_sparsity,
                                  pruning_type=additional_args.pruning_type,
                                  args=training_args,
-                                full_model_size=calculate_parameters(teacher_model)).to('cuda')
+                                full_model_size=calculate_parameters(teacher_model)).to(device)
         else:
             l0_module = L0Module(config=config,
                                  model_name=additional_args.model_name,
@@ -240,7 +247,7 @@ def main():
                                  target_sparsity=additional_args.target_sparsity,
                                  pruning_type=additional_args.pruning_type,
                                  args=training_args,
-                                full_model_size=calculate_parameters(teacher_model)).to('cuda')
+                                full_model_size=calculate_parameters(teacher_model)).to(device)
             
 
 
@@ -321,6 +328,8 @@ def main():
         l0_module=l0_module,
         teacher_model=teacher_model,
         teacher_model_dir = data_args.teacher_model_dir,
+        device=device,
+        trained_teacher=trained_teacher
     )
 
     if training_args.do_train:

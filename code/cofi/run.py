@@ -190,7 +190,7 @@ def main():
  
    
     
-    student_path = os.path.join(f"/workspace/CCE_NLI/{additional_args.model_name}/models/CoFi/Run0.25_5/student_model_finaluzd.pth")
+    student_path = os.path.join(f"/workspace/CCE_NLI/{additional_args.model_name.upper()}/models/CoFi/Run_LTHStarter/2_Pruning_Iter/student_model.pth")
     print(f'Loading student model from : {student_path}')
     
     #load an untrained student model which we need to initially finetune before pruning

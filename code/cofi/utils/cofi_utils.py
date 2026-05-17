@@ -171,6 +171,7 @@ def update_llama_params(model, zs):
 def update_bert_params(model, zs):
     bert = model.bert if hasattr(model, "bert") else model.model
 
+    print(f"pdateing bert params. Bert is on {model.device}")
     config = model.config
     hidden_dims = config.hidden_size
     num_heads = config.num_attention_heads
@@ -183,7 +184,7 @@ def update_bert_params(model, zs):
                 intermediate_z = zs["intermediate_z"][layer].cpu().squeeze().clone()
                 bert.encoder.layer[layer].output.dense.weight.data = bert.encoder.layer[layer].output.dense.weight.data.mul(intermediate_z)
                 if "mlp_z" in zs:
-                    mlp_z = zs["mlp_z"][layer]
+                    mlp_z = zs["mlp_z"][layer].cpu()
                     bert.encoder.layer[layer].output.dense.weight.data = bert.encoder.layer[layer].output.dense.weight.data.transpose(0, 1).mul(mlp_z).transpose(0, 1)
                     bert.encoder.layer[layer].output.dense.bias.data = bert.encoder.layer[layer].output.dense.bias.data.mul(mlp_z)
 
@@ -194,7 +195,7 @@ def update_bert_params(model, zs):
                 bert.encoder.layer[layer].attention.self.value.weight.data = bert.encoder.layer[layer].attention.self.value.weight.transpose(0, 1).data.mul(head_z).transpose(0, 1)
                 bert.encoder.layer[layer].attention.self.value.bias.data = bert.encoder.layer[layer].attention.self.value.bias.data.mul(head_z)
                 if "head_layer_z" in zs:
-                    head_layer_z = zs["head_layer_z"][layer]
+                    head_layer_z = zs["head_layer_z"][layer].cpu()
                     bert.encoder.layer[layer].attention.output.dense.weight.data = bert.encoder.layer[
                         layer].attention.output.dense.weight.transpose(0, 1).data.mul(head_layer_z).transpose(0, 1)
                     bert.encoder.layer[layer].attention.output.dense.bias.data = bert.encoder.layer[
@@ -242,7 +243,7 @@ def prune_model_with_z(zs, model):
         for layer in range(len(head_z)):
             head_z_layer = head_z[layer].cpu().squeeze().clone()
             if head_layer_z is not None:
-                head_z_layer *= head_layer_z[layer]
+                head_z_layer *= head_layer_z[layer].cpu()
             index = torch.where(head_z_layer == 0)[0].tolist()
             prune_heads[layer] = index
         
@@ -258,7 +259,7 @@ def prune_model_with_z(zs, model):
     if "intermediate_z" in zs:
         kept_intermediate_dims = {}
         intermediate_zs = zs["intermediate_z"]
-        mlp_z = zs.get("mlp_z", None)
+        mlp_z = zs.get("mlp_z", None).cpu()
         for layer in range(len(intermediate_zs)):
             intermediate_z_layer = intermediate_zs[layer].squeeze()
             intermediate_z_layer = intermediate_z_layer.cpu().clone()

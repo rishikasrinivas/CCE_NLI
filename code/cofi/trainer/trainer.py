@@ -34,7 +34,7 @@ from cofi.utils.utils import *
 import torch.nn as nn
 import torch.optim as optim
 import train_utils
-#import wandb
+
 
 from transformers.utils import logging
 import util
@@ -54,6 +54,10 @@ glue_tasks = {"cola": "matthews_correlation",
               "mrpc_aug": "accuracy",
               "qnli_aug": "accuracy",
               "stsb_aug": "corr",}
+
+
+
+        
 from torch.nn.utils.rnn import pad_sequence
 import torch
 SAVE_EVERY=10000
@@ -180,6 +184,8 @@ class CoFiTrainer(Trainer):
         self.model=model
         
         
+        
+        
         self.dataset=dataset
         self.additional_args = additional_args
         self.finetuned_teacher = trained_teacher
@@ -201,6 +207,7 @@ class CoFiTrainer(Trainer):
         self.start_saving_best = True if self.additional_args.pruning_type is None else False
         self.model_name = model_name
         self.pruned_sparsity = 0.0
+        self.expected_sparsity= 1.0 #make sure the expected-pruned check doesn't say > epsilon 
 
         self.teacher_model = teacher_model
         if self.teacher_model is not None:
@@ -216,17 +223,11 @@ class CoFiTrainer(Trainer):
         
         self.full_train_dataloader = self.full_train_data
         
-        self.eval_dataloader = self.subset_val_data
-        print(self.model_name)
-        
-        self.train_dataloader = self.subset_train_data
-        print("LEn subset", len(self.train_dataloader))
-        
-        #train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, pruning_method='CoFi', max_data=1500, debug=True)
-        self.train_initial_learning =self.full_train_data # dl['train']
         
         
         self.device=device
+    
+
 
     def create_optimizer_and_scheduler(self, num_training_steps: int, build_l0_optimizer:bool=True, student=True):
         def log_params(param_groups, des):
@@ -305,14 +306,16 @@ class CoFiTrainer(Trainer):
                 self.lr_scheduler = None
         print("created optimizer")
                 
-
+    def ready_to_save(self):
+        return (self.pruned_sparsity >= self.additional_args.target_sparsity or abs(self.expected_sparsity - self.pruned_sparsity) <= self.additional_args.sparsity_epsilon)
     
     def train(self, using_trained_student=True):
         
         
-        self.train_initial_learning = self.train_initial_learning if not using_trained_student else self.train_dataloader
+        
+       
         num_update_steps_per_epoch = len(
-            self.train_initial_learning) // self.args.gradient_accumulation_steps
+            self.full_train_dataloader) // self.args.gradient_accumulation_steps
         num_update_steps_per_epoch = max(num_update_steps_per_epoch, 1) #! 12272
         
         #self.prepruning_finetune_steps=
@@ -343,8 +346,7 @@ class CoFiTrainer(Trainer):
 
         logger.info("***** Running training *****")
 
-        logger.info("  Num examples general training/pruning = %d", self.num_examples(self.train_dataloader))
-        logger.info("  Num examples initial training (student) = %d", self.num_examples(self.train_initial_learning))
+        logger.info("  Num examples general training/pruning = %d", self.num_examples(self.full_train_dataloader))
         logger.info("  Num Epochs = %d", num_train_epochs)
         logger.info("  Instantaneous batch size per device = %d",
                     self.args.per_device_train_batch_size)
@@ -391,23 +393,16 @@ class CoFiTrainer(Trainer):
         self.evaluate()
         # training
         print(f"Training for {num_train_epochs} epochs")
+        resumed = False
         for epoch in range(epochs_trained, int(np.ceil(num_train_epochs))): #! 20 epoch
-            
-            
             print(f"Starting epoch {epoch}")
             epoch_start = time.time()
 
-            
-            if not using_trained_student:
-                epoch_iterator = self.train_initial_learning
-                if isinstance(self.train_initial_learning, DataLoader) and isinstance(self.train_initial_learning.sampler, DistributedSampler):
-                    self.train_initial_learning.sampler.set_epoch(epoch)
-                print("Using 150,000 sample dl to intially train student")
-            else:
-                epoch_iterator = self.train_dataloader
-                if isinstance(self.train_dataloader, DataLoader) and isinstance(self.train_dataloader.sampler, DistributedSampler):
-                    self.train_dataloader.sampler.set_epoch(epoch)
-                print("Switching to subset'd dataloaders")
+
+            epoch_iterator = self.full_train_dataloader
+            if isinstance(self.full_train_dataloader, DataLoader) and isinstance(self.full_train_dataloader.sampler, DistributedSampler):
+                self.full_train_dataloader.sampler.set_epoch(epoch)
+           
 
             # Reset the past mems state at the beginning of each epoch if necessary.
             if self.args.past_index >= 0:
@@ -417,29 +412,29 @@ class CoFiTrainer(Trainer):
                               disable=disable_tqdm)
             self.eval_counter.clear()
             
-                
             
             for step, inputs in enumerate(epoch_iterator):
                 #print(f"Can only start pruning at {self.global_step} == {self.prepruning_finetune_steps}")
                 #print(f"right now, glboal step = {self.global_step} and self.prepruning_finetune_steps = {self.prepruning_finetune_steps}" )
               
-                if using_trained_student and not self.start_prune: #elf.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps: #! before pruning, run 12272 steps
-                    self.global_step = self.prepruning_finetune_steps
-                    #logger.warning("started pruning")
+                if  using_trained_student and not self.start_prune: #elf.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps: #! before pruning, run 12272 steps
+                    #use the momentum from the previously saved student (if those states are saved, else load an optimizer from scracth)
+                    #resumed = self.resume_from()
+                    #if not resumed:
                     self.start_prune = True
+                    self.global_step = self.prepruning_finetune_steps
                     self.student_optimizer = None
                     self.lr_scheduler = None
                     lr_steps = self.t_total - self.global_step
 
                     # reset the optimizer
-
                     self.create_optimizer_and_scheduler(lr_steps, self.start_prune)
+                    
                     logger.info("Starting l0 regularization!")
             
                 
                 if self.start_prune:
                     zs = self.l0_module.forward(training=True) #! get the zs
-                    
                     self.fill_inputs_with_zs(zs, inputs) #! use the zs
               
  
@@ -519,15 +514,20 @@ class CoFiTrainer(Trainer):
                     if self.global_step % self.args.eval_steps == 0:
                         logger.warning("evaluating")
                         self.evaluate()
+                    #ckpt-ing
+                    if self.global_step % SAVE_EVERY == 0:
+                        self.save_model(model, student=False)
                         
 
                 epoch_pbar.update(1)
-
-                if using_trained_student and self.pruned_sparsity >= self.additional_args.target_sparsity:
-                    print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity}")
+          
+                if using_trained_student and self.ready_to_save():
+                    print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity} with expected at {self.expected_sparsity}")
                     self.save_model(model, student=False)
                 
                     break
+                #else:
+                    #print(f"Not ready to save because target sparsity =  {self.additional_args.target_sparsity}: and we're at at {self.pruned_sparsity} with expected at {self.expected_sparsity} and {abs(self.expected_sparsity - self.pruned_sparsity)} is not less than {self.additional_args.sparsity_epsilon}")
 
             epoch_end = time.time()
             # wandb.log({'epoch':epoch})
@@ -540,12 +540,12 @@ class CoFiTrainer(Trainer):
                 print("Trained student to starting point. Saving now")
                 self.save_model(model, student=True)
                 using_trained_student = True
-
-            if self.pruned_sparsity >= self.additional_args.target_sparsity:
-                print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity}")
+                wandb.finish()
+            #logging step
+            if self.ready_to_save():
+                print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity} with expected at {self.expected_sparsity}")
                 break
-            if self.global_step % SAVE_EVERY == 0:
-                self.save_model(model, student=False)
+            
 
         train_pbar.close()
 
@@ -555,7 +555,7 @@ class CoFiTrainer(Trainer):
             
 
         # wandb.log({'global_step':self.global_step,'training_loss':tr_loss.item() / self.global_step})
-        if self.pruned_sparsity >= self.additional_args.target_sparsity:
+        if self.ready_to_save():
             self.evaluate()
         return TrainOutput(self.global_step, tr_loss.item() / self.global_step, None)
     from accelerate.utils import tqdm
@@ -695,7 +695,7 @@ class CoFiTrainer(Trainer):
 
         logger.warning("EVALUATING")
         output = self.prediction_loop(
-            self.eval_dataloader, description="Evaluation")
+            self.full_eval_dataloader, description="Evaluation")
         
 
         self.log(output.metrics)
@@ -717,62 +717,95 @@ class CoFiTrainer(Trainer):
                     break
         print("Eval score is ", eval_score)
         print(output.metrics)
+        
 
         # logger.info(f"starting saving best: {self.global_step} {self.start_saving_best}")
     
         if self.start_saving_best:
             self.pruned_sparsity= output.metrics['pruned_model_sparsity']
-            print(f"======{self.pruned_sparsity >= self.additional_args.target_sparsity}========")
-            if self.pruned_sparsity >= self.additional_args.target_sparsity:
+            self.expected_sparsity = output.metrics['expected_sparsity']
+            print(f"======{self.ready_to_save()}========")
+            if self.ready_to_save():
                 
                 best_so_far = self.eval_counter.update(self.epoch, self.global_step, eval_score)
                 print(f"Best so far: {best_so_far}, eval: {eval_score}")
                 if best_so_far:
                     print("SAVING MODEL")
-
-                    
                     logger.warning(f"Saving the best model so far: [Epoch {int(self.epoch)} | Step: {self.global_step} | Model size: {output.metrics['remaining_params'] if 'remaining_params' in output.metrics else 'Full' } | Score: {round(eval_score, 5)}]")
                     self.save_model(model = self.model, output_dir=self.args.output_dir)
         return output.metrics
 
-    def save_model(self, model, student=False, output_dir: Optional[str] = None):
-        print("SAVING MODEL")
+    def resume_from(self, checkpoint_dir=None):
+        checkpoint_dir = checkpoint_dir if checkpoint_dir is not None else self.args.output_dir
+        state_path = os.path.join(checkpoint_dir, 'training_state.pth')
+        if not os.path.exists(state_path):
+            print(f"No training state found at {checkpoint_dir}, starting fresh")
+            return False
+      
+        
+        state = torch.load(state_path, map_location=self.device)
+
+        self.global_step = state['global_step']
+        self.epoch = state['epoch']
+        self.start_prune = state['start_prune']
+        self.prepruning_finetune_steps = state['prepruning_finetune_steps']
+
+        # Recreate optimizers first, then load state
+        self.create_optimizer_and_scheduler(
+            self.t_total - self.global_step,
+            build_l0_optimizer=self.start_prune
+        )
+
+        if state['student_optimizer']:
+            self.student_optimizer.load_state_dict(state['student_optimizer'])
+        if state['lr_scheduler']:
+            self.lr_scheduler.load_state_dict(state['lr_scheduler'])
+        if state['l0_optimizer'] and self.l0_optimizer:
+            self.l0_optimizer.load_state_dict(state['l0_optimizer'])
+        if state['lagrangian_optimizer'] and self.lagrangian_optimizer:
+            self.lagrangian_optimizer.load_state_dict(state['lagrangian_optimizer'])
+
+        # Reload l0 module
+        l0_path = os.path.join(checkpoint_dir, 'l0_module.pt')
+        if os.path.exists(l0_path):
+            self.l0_module = torch.load(l0_path, map_location=self.device)
+
+        return True
+       
+    def save_model(self, model, student=False, output_dir=None):
         output_dir = output_dir if output_dir is not None else self.args.output_dir
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        os.makedirs(output_dir, exist_ok=True)
 
-        #torch.save(self.l0_module, os.path.join(output_dir, f"l0_module.pt"))
-
-        #zs = self.l0_module.forward(training=False)
-        #torch.save(zs, os.path.join(output_dir, f"zs.pt"))
-
-        #self.model.save_pretrained(output_dir)
-        if self.l0_module is not None:
-            zs = self.l0_module.forward(training=False)
-            torch.save(zs, os.path.join(output_dir, f"zs.pt"))
-            torch.save(self.l0_module, os.path.join(
-                output_dir, f"l0_module.pt"))
-        if self.config:
-            self.config.save_pretrained(os.path.join(output_dir))
-
-        if student:
-            is_best=False
-            filename='student_model.pth'
-        else:
-            is_best=True
-            filename=f'model_best.pth'
-        # Assuming 'model' is your PyTorch or Hugging Face model
+        # Save model weights
         util.save_checkpoint(
             train_utils.serialize(model, self.model_name, self.dataset),
-            is_best=is_best,
+            is_best=not student,
             exp_dir=output_dir,
-            filename=filename
+            filename='student_model.pth' if student else 'model_best.pth'
         )
-       
+
+        # Save full training state
+        training_state = {
+            'global_step': self.global_step,
+            'epoch': self.epoch,
+            'student_optimizer': self.student_optimizer.state_dict() if self.student_optimizer else None,
+            'lr_scheduler': self.lr_scheduler.state_dict() if self.lr_scheduler else None,
+            'l0_optimizer': self.l0_optimizer.state_dict() if self.l0_optimizer else None,
+            'lagrangian_optimizer': self.lagrangian_optimizer.state_dict() if self.lagrangian_optimizer else None,
+            'start_prune': self.start_prune,
+            'prepruning_finetune_steps': self.prepruning_finetune_steps,
+        }
+        torch.save(training_state, os.path.join(output_dir, 'training_state.pth'))
+
+        # Save l0 module
+        if self.l0_module is not None:
+            torch.save(self.l0_module, os.path.join(output_dir, 'l0_module.pt'))
+            zs = self.l0_module.forward(training=False)
+            torch.save(zs, os.path.join(output_dir, 'zs.pt'))
 
     def calculate_layer_distillation_loss(self, teacher_outputs, student_outputs, zs):
-        #def normalize(rep):
-        #    return F.layer_norm(rep, rep.shape[-1:])
+        def normalize(rep):
+            return F.layer_norm(rep, rep.shape[-1:])
         #print(f"In calculate_layer_distillation_loss in trainer.py\nteacher_outputs: {teacher_outputs}\nstudent_outputs: {student_outputs}")
         layer_loss=0
         mse_loss = torch.nn.MSELoss(reduction="mean")
@@ -815,22 +848,20 @@ class CoFiTrainer(Trainer):
             if self.additional_args.layer_distill_version == 2 or self.model_name=='bowman':
                 for layer_num, (t_layer_o, s_layer_o) in enumerate(zip(teacher_pre_layer_output, student_pre_layer_output)):
                     s_layer_o = self.model.layer_transformation(s_layer_o)
-                    #l = mse_loss(normalize(t_layer_o), normalize(s_layer_o))
-                    l = mse_loss(t_layer_o, s_layer_o)
-                    if l==0:
-                        print("Sam outputs")
+                    l = mse_loss(normalize(t_layer_o), normalize(s_layer_o))
+                    #l = mse_loss(t_layer_o, s_layer_o)
                     #if mlp_z is None or mlp_z[layer_num] > 0:
                     layer_loss += l
                 for layer_num, (t_layer_o, s_layer_o) in enumerate(zip(teacher_hyp_layer_output, student_hyp_layer_output)):
                     s_layer_o = self.model.layer_transformation(s_layer_o)
-                    #l = mse_loss(normalize(t_layer_o), normalize(s_layer_o))
-                    l = mse_loss(t_layer_o, s_layer_o)
+                    l = mse_loss(normalize(t_layer_o), normalize(s_layer_o))
+                    #l = mse_loss(t_layer_o, s_layer_o)
                     #if mlp_z is None or mlp_z[layer_num] > 0:
                     layer_loss += l
           
             # distilling layers with a minimal distance
             elif self.additional_args.layer_distill_version > 2:
-                l = []
+           
                 if self.additional_args.layer_distill_version > 4:
                     specified_teacher_layers = [i for i in range(12)]
                     if self.additional_args.layer_distill_version ==5:
@@ -871,21 +902,19 @@ class CoFiTrainer(Trainer):
                         #change to [(layer1 pre, layer1 hyp), (layer2 pre, layer2 hyp), etc...]
 
                 device = transformed_s_layer_o_hyp[0].device
-       
-                for t_pre_layer_o, t_hyp_layer_o in zip(specified_teacher_layer_reps_pre,specified_teacher_layer_reps_hyp) :
-                    
-                    for s_pre_layer_o, s_hyp_layer_o in zip(transformed_s_layer_o_pre, transformed_s_layer_o_hyp): #! student: 12x[32,113,768]
-                        '''l.append(
-                            mse_loss(normalize(t_pre_layer_o), normalize(s_pre_layer_o)) + 
-                            mse_loss(normalize(t_hyp_layer_o), normalize(s_hyp_layer_o))
-                        )#mse(t_layer_pre, s_layer_pre), mse(t_layer_hyp, s_layer_hyp) #cant u add them since its just yhe loss'''
-                        l.append(mse_loss(t_pre_layer_o, s_pre_layer_o)+ mse_loss(t_hyp_layer_o, s_hyp_layer_o))
                 
-                #now dp lloss for mlp
-                
-                layerwiseloss = torch.stack(l).reshape(
-                    len(specified_teacher_layer_reps_pre), len(student_pre_layer_output)) #! [4,12] cannot do w list of tuples
-                
+                l_pre = []
+                l_hyp = []
+                for t_pre_layer_o, t_hyp_layer_o in zip(specified_teacher_layer_reps_pre, specified_teacher_layer_reps_hyp):
+                    for s_pre_layer_o, s_hyp_layer_o in zip(transformed_s_layer_o_pre, transformed_s_layer_o_hyp):
+                        l_pre.append(mse_loss(normalize(t_pre_layer_o), normalize(s_pre_layer_o)))
+                        l_hyp.append(mse_loss(normalize(t_hyp_layer_o), normalize(s_hyp_layer_o)))
+
+                layerwiseloss_pre = torch.stack(l_pre).reshape(len(specified_teacher_layer_reps_pre), len(student_pre_layer_output))
+                layerwiseloss_hyp = torch.stack(l_hyp).reshape(len(specified_teacher_layer_reps_hyp), len(student_hyp_layer_output))
+
+                # Average both streams for alignment finding
+                layerwiseloss = (layerwiseloss_pre + layerwiseloss_hyp)
      
 
                 existing_layers = None
@@ -893,8 +922,9 @@ class CoFiTrainer(Trainer):
                     existing_layers = head_layer_z != 0
                     existing_layers = existing_layers.to(layerwiseloss.device)
 
-                #layer_loss = mse_loss(normalize(student_pre_final_layer_reps), normalize(teacher_pre_final_layer_reps)) + mse_loss(normalize(student_final_layer_reps), normalize(teacher_final_layer_reps))
-                layer_loss = mse_loss(student_pre_final_layer_reps, teacher_pre_final_layer_reps) + mse_loss(student_final_layer_reps, teacher_final_layer_reps)
+                #for the final mlp
+                layer_loss = mse_loss(normalize(student_pre_final_layer_reps), normalize(teacher_pre_final_layer_reps)) + mse_loss(normalize(student_final_layer_reps), normalize(teacher_final_layer_reps))
+                #layer_loss = mse_loss(student_pre_final_layer_reps, teacher_pre_final_layer_reps) + mse_loss(student_final_layer_reps, teacher_final_layer_reps)
                 #! no ordering restriction specified
                 if self.additional_args.layer_distill_version == 3:
                     alignment = torch.argmin(layerwiseloss, dim=1)
@@ -924,7 +954,8 @@ class CoFiTrainer(Trainer):
                     sys.exit()
 
                 layerwise = torch.arange(len(specified_teacher_layers)).to(device)
-                layer_loss += layerwiseloss[layerwise, alignment].sum() #! layerwise: teacher (specified layers) / alignment: student (min loss layers) / layerwiseloss: [4,12]
+                layer_loss += layerwiseloss_pre[layerwise, alignment].sum()
+                layer_loss += layerwiseloss_hyp[layerwise, alignment].sum()
                 if self.global_step % 100 == 0:
                     logger.info(f"v{self.additional_args.layer_distill_version} Global step: {self.global_step}, Alignment: " + str(alignment))
             return layer_loss
@@ -1111,6 +1142,10 @@ class CoFiTrainer(Trainer):
         # Check gradient norms
         if self.global_step % 50 == 0:
             total_norm = 0
+            #norm = self.model.bert.encoder.layer[9].output.LayerNorm
+            #if self.start_prune and norm.weight.grad is not None:
+                #print(f"BERT Layer 0 norm weight grad - mean: {norm.weight.grad.abs().mean():.6f} zeros: {norm.weight.grad.eq(0).sum().item()}/{norm.weight.grad.numel()}")
+    
             for name, param in self.model.named_parameters():
                 if param.grad is not None:
                     param_norm = param.grad.data.norm(2)
