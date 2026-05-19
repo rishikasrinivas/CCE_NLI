@@ -227,7 +227,7 @@ class CoFiTrainer(Trainer):
         # Initialize wandb at the start of training
         wandb.init(
             project="cofi-llama-distillation",
-            name=f"run_train_student_no-normalzation-onMLP-version-{self.additional_args.layer_distill_version}",
+            name=f"run_prune_student_no-normalzation-onMLP-version-{self.additional_args.layer_distill_version}",
             config={
                 "layer_distill_version": self.additional_args.layer_distill_version,
                 "learning_rate": self.args.learning_rate,

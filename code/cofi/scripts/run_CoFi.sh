@@ -72,9 +72,9 @@ if [[ " ${glue_low[*]} " =~ ${task_name} ]]; then
 fi
 
 if [[ " ${glue_high[*]} " =~ ${task_name} ]]; then
-    eval_steps=50
+    eval_steps=500
     prepruning_finetune_epochs=1
-    lagrangian_warmup_epochs=10 #2
+    lagrangian_warmup_epochs=2 #2
 fi
 
 pretrained_pruned_model=None
