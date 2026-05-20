@@ -372,7 +372,7 @@ class CoFiLlamaBiModel(LlamaBiModel):
             inputs_embeds = self.embed_tokens(input_ids)
         
         if use_cache and past_key_values is None:
-            past_key_values = DynamicCache(config=self.config)
+            past_key_values = DynamicCache()
             
         # apply hidden mask to embeddings
         if hidden_z is not None:
@@ -384,7 +384,6 @@ class CoFiLlamaBiModel(LlamaBiModel):
             past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
             position_ids = torch.arange(inputs_embeds.shape[1], device=inputs_embeds.device) + past_seen_tokens
             position_ids = position_ids.unsqueeze(0)
-        
         
         
         # Prepare attention mask (bidirectional, so no causal mask needed)

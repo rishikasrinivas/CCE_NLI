@@ -22,24 +22,6 @@ from transformers.modeling_utils import (apply_chunking_to_forward,
 logger = logging.getLogger(__name__)
 
 
-
-'''class CoFiLlamaRMSNorm(LlamaRMSNorm):
-    def __init__(self, hidden_size, eps: float = 1e-6) -> None:
-        super().__init__(hidden_size)
-        self.weight = nn.Parameter(torch.ones(hidden_size))
-        self.eps = eps
-
-    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
-      
-        input_dtype = hidden_states.dtype
-        # Standard path (no pruning)
-        hidden_states =hidden_states.to(torch.float32)
-        variance = hidden_states.pow(2).mean(-1, keepdim=True)
-        hidden_states = hidden_states * torch.rsqrt(variance + self.eps)
-        
-        return (self.weight * hidden_states).to(input_dtype)'''
-
-
 class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
     def __init__(self, config, layer_idx):
         super().__init__(config, layer_idx)
@@ -372,7 +354,7 @@ class CoFiLlamaBiModel(LlamaBiModel):
             inputs_embeds = self.embed_tokens(input_ids)
         
         if use_cache and past_key_values is None:
-            past_key_values = DynamicCache(config=self.config)
+            past_key_values = DynamicCache()
             
         # apply hidden mask to embeddings
         if hidden_z is not None:
@@ -384,7 +366,6 @@ class CoFiLlamaBiModel(LlamaBiModel):
             past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
             position_ids = torch.arange(inputs_embeds.shape[1], device=inputs_embeds.device) + past_seen_tokens
             position_ids = position_ids.unsqueeze(0)
-        
         
         
         # Prepare attention mask (bidirectional, so no causal mask needed)
