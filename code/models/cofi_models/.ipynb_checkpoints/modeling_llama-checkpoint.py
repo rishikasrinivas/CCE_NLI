@@ -444,18 +444,20 @@ class CoFiLlamaBiModel(LlamaBiModel):
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
         
+        if output_hidden_states:
+            all_hidden_states = all_hidden_states + (hidden_states,)
+        
         # Process through layers
         for idx, decoder_layer in enumerate(self.layers):
-            if output_hidden_states:
-                all_hidden_states = all_hidden_states + (hidden_states,)
             
             # Get layer-specific masks
             layer_head_z = head_z[idx] if head_z is not None else None
             layer_head_layer_z = head_layer_z[idx] if head_layer_z is not None else None
             layer_intermediate_z = intermediate_z[idx] if intermediate_z is not None else None
             layer_mlp_z = mlp_z[idx] if mlp_z is not None else None
-            #if hidden_z is not None:
-               # print(f"Passing through decoder layer {idx}")
+            
+            #Pass non-normalized hidden state through decoder
+           
             layer_outputs = decoder_layer(
                 hidden_states,
                 attention_mask=attention_mask,
@@ -472,10 +474,13 @@ class CoFiLlamaBiModel(LlamaBiModel):
                 hidden_z=hidden_z,
             )
             
+            #Save the output of the decoder as is
             hidden_states = layer_outputs[0]
+            
+            #Save the non-normalized one
             if output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_states,)
-            
+        
             if output_attentions:
                 all_self_attns = all_self_attns + (layer_outputs[1],)
         
