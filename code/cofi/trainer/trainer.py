@@ -226,14 +226,15 @@ class CoFiTrainer(Trainer):
 
         # Initialize wandb at the start of training
         wandb.init(
-            project="devnull",
-            name=f"run_train_student_no-normalzation-onMLP-version-{self.additional_args.layer_distill_version}(not-distilling-inputembeds)",
+            project="cofi-llama-distillation",
+            name=f"run_prune_student_25",
             config={
                 "layer_distill_version": self.additional_args.layer_distill_version,
                 "learning_rate": self.args.learning_rate,
                 "batch_size": self.args.per_device_train_batch_size,
                 "num_layers": 22,
                 "DISTILL_LAYER_LOSS_ALPHA": 0.1,
+                'student_baseline': '0.1alpha-version4'
             }
         )
         
@@ -654,12 +655,12 @@ class CoFiTrainer(Trainer):
             
             all_preds = logits if all_preds is None else nested_concat(
                 all_preds, logits, padding_index=-100)
-            print(all_preds.shape)
+            
         if labels_host is not None:
             labels = nested_numpify(labels_host)
             all_labels = labels if all_labels is None else nested_concat(
                 all_labels, labels, padding_index=-100)
-            print("all labels ", all_labels.shape)
+           
             
   
         if self.compute_metrics is not None and all_preds is not None and all_labels is not None:
@@ -717,6 +718,7 @@ class CoFiTrainer(Trainer):
                     eval_score = output.metrics[na]
                     break
 
+        print(output.metrics)
         if self.start_saving_best:
             self.pruned_sparsity= output.metrics['pruned_model_sparsity']
             self.expected_sparsity = output.metrics['expected_sparsity']
