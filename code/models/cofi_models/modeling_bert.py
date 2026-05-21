@@ -455,7 +455,7 @@ class CoFiBertModel(BertModel):
             input_ids=input_ids, position_ids=position_ids, token_type_ids=token_type_ids, inputs_embeds=inputs_embeds, hidden_z=hidden_z
         )
         
-       
+
         
         
         encoder_outputs = self.encoder(

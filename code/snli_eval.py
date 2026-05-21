@@ -120,10 +120,12 @@ def main(args):
                 if folder == '0_Pruning_Iter':
                     zs=None
                     continue
+                elif folder != '2_Pruning_Iter': continue
                 else:
                     zs=torch.load(os.path.join(args.root_dir, folder,"zs.pt"))
 
-                pruned_model = load_model(os.path.join(args.root_dir, folder), model, zs,tokenizer, train_data=train, ckpt=os.path.join(args.root_dir, folder, 'model_best.pth'))
+                print("LOADING MODEL")
+                pruned_model = load_model(os.path.join(args.root_dir, folder), model, zs,tokenizer, device='cuda', train_data=train, ckpt=os.path.join(args.root_dir, folder, 'model_best.pth'))
                 pruned_model.eval()
 
                 if settings.CUDA:
@@ -247,3 +249,4 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     main(args)
+    

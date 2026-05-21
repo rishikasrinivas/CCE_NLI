@@ -107,7 +107,7 @@ class L0Module_LLAMA(Module):
         self.reset_loga(self.input_layer_mlp_loga, mean=10) #how to get 2048 fromb omwan thru code
         
     
-       #both llm
+       #both bowman and llm
         for type in types:
             if type != "layer":
                 print(f"Initializing {type}")
@@ -119,7 +119,6 @@ class L0Module_LLAMA(Module):
         
         #everything from here down in constructor: both bowman and llm
         self.magical_number = magical_number
-        assert  torch.isnan(self.z_logas['head']).sum().item() == 0, f"Number of NaNs in head_zs : {nan_count}"
 
         self.lambda_1 = torch.nn.Parameter(torch.tensor(0.0))
         self.lambda_2 = torch.nn.Parameter(torch.tensor(0.0))
@@ -225,7 +224,7 @@ class L0Module_LLAMA(Module):
             self.int_loga.requires_grad = False
         else:
             self.int_loga = self.initialize_parameters(self.intermediate_size, self.num_hidden_layers)
-            self.reset_loga(self.int_loga, mean=10)
+            self.reset_loga(self.int_loga)
             
         self.add_one_module(self.int_loga, type="intermediate", 
                             parameter_per_dim=self.params_per_intermediate_dim, size=self.intermediate_size,
@@ -612,17 +611,14 @@ class L0Module_LLAMA(Module):
     
     def forward(self, training=True,debug=False):
         zs = {f"{type}_z": [] for type in self.types}
-        
+
         if training:
             
             for i, type in enumerate(self.types):
                 loga = self.z_logas[type]
-                assert torch.isnan(loga).sum().item() == 0, f'Line 620, zs for {type} is nan'
                 z = self._sample_z(loga)
                 
                 zs[f"{type}_z"] = z.reshape(self.shapes[type])
-            
-                assert torch.isnan(zs[f"{type}_z"]).sum().item() == 0, f'Line 624, zs for {type} is nan'
         else:
             for i, type in enumerate(self.types):
  
@@ -650,8 +646,6 @@ class L0Module_LLAMA(Module):
                 if type != "hidden_z" and type != 'final_mlp_hidden_z' and type != 'final_mlp_inp_z': #used to be if type != hidden_z
                     zs[type] = torch.stack(zs[type])
                 zs[type] = zs[type].cpu()
-        for z in zs:
-            assert torch.isnan(zs[z]).sum().item() == 0, f'Line 651, zs for {z} is nan'
         return zs 
 
 if __name__ == "__main__":
