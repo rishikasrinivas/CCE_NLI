@@ -227,14 +227,12 @@ class CoFiTrainer(Trainer):
         # Initialize wandb at the start of training
         wandb.init(
             project="cofi-llama-distillation",
-            name=f"run_prune_student_25",
+            name=f"run_train-student-withdynacache-alpha0.1-{self.additional_args.layer_distill_version}",
             config={
                 "layer_distill_version": self.additional_args.layer_distill_version,
                 "learning_rate": self.args.learning_rate,
                 "batch_size": self.args.per_device_train_batch_size,
                 "num_layers": 22,
-                "DISTILL_LAYER_LOSS_ALPHA": 0.1,
-                'student_baseline': '0.1alpha-version4'
             }
         )
         
@@ -326,6 +324,10 @@ class CoFiTrainer(Trainer):
         return (self.pruned_sparsity >= self.additional_args.target_sparsity or abs(self.expected_sparsity - self.pruned_sparsity) <= self.additional_args.sparsity_epsilon)
     
     def train(self, using_trained_student=True):
+        
+        
+        
+       
         num_update_steps_per_epoch = len(
             self.full_train_dataloader) // self.args.gradient_accumulation_steps
         num_update_steps_per_epoch = max(num_update_steps_per_epoch, 1) #! 12272
@@ -353,6 +355,7 @@ class CoFiTrainer(Trainer):
 
         model = self.model
         
+                                
         total_train_batch_size = 1
 
         logger.info("***** Running training *****")
@@ -400,7 +403,6 @@ class CoFiTrainer(Trainer):
         if not self.finetuned_teacher:
             self.teacher_model = self.finetune_teacher(self.teacher_model)
             self.finetuned_teacher = True
-            
         self.store_results(self.teacher_model)
         self.evaluate()
         # training
@@ -409,6 +411,7 @@ class CoFiTrainer(Trainer):
         for epoch in range(epochs_trained, int(np.ceil(num_train_epochs))): #! 20 epoch
             print(f"Starting epoch {epoch}")
             epoch_start = time.time()
+
 
             epoch_iterator = self.full_train_dataloader
             if isinstance(self.full_train_dataloader, DataLoader) and isinstance(self.full_train_dataloader.sampler, DistributedSampler):
@@ -537,9 +540,12 @@ class CoFiTrainer(Trainer):
                 if using_trained_student and self.ready_to_save():
                     print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity} with expected at {self.expected_sparsity}")
                     self.save_model(model, student=False)
-                    wandb.finish()
+                    #wandb.finish()
                 
                     break
+                #else:
+                    #print(f"Not ready to save because target sparsity =  {self.additional_args.target_sparsity}: and we're at at {self.pruned_sparsity} with expected at {self.expected_sparsity} and {abs(self.expected_sparsity - self.pruned_sparsity)} is not less than {self.additional_args.sparsity_epsilon}")
+
             epoch_end = time.time()
             # wandb.log({'epoch':epoch})
             logger.info(
@@ -557,11 +563,15 @@ class CoFiTrainer(Trainer):
                 print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity} with expected at {self.expected_sparsity}")
                 break
             
+
         train_pbar.close()
+
         if self.args.past_index and hasattr(self, "_past"):
             # Clean the state at the end of training
             delattr(self, "_past")
             
+
+        # wandb.log({'global_step':self.global_step,'training_loss':tr_loss.item() / self.global_step})
         if self.ready_to_save():
             self.evaluate()
         return TrainOutput(self.global_step, tr_loss.item() / self.global_step, None)
@@ -571,6 +581,10 @@ class CoFiTrainer(Trainer):
         prediction_loss_only = (
             prediction_loss_only if prediction_loss_only is not None else self.args.prediction_loss_only
         )
+        
+        
+        
+        print("Is iterable:", hasattr(dataloader, '__iter__'))
         # disable output hidden states and attention during evaluation
         if self.model_name != 'bowman':
             self.model.config.output_hidden_states = False
@@ -655,12 +669,12 @@ class CoFiTrainer(Trainer):
             
             all_preds = logits if all_preds is None else nested_concat(
                 all_preds, logits, padding_index=-100)
-            
+            print(all_preds.shape)
         if labels_host is not None:
             labels = nested_numpify(labels_host)
             all_labels = labels if all_labels is None else nested_concat(
                 all_labels, labels, padding_index=-100)
-           
+            print("all labels ", all_labels.shape)
             
   
         if self.compute_metrics is not None and all_preds is not None and all_labels is not None:
@@ -709,6 +723,7 @@ class CoFiTrainer(Trainer):
         eval_score = 0
         
         name = glue_tasks['snli']
+        print("Name is ", name)
         if isinstance(name, str):
             if name in output.metrics:
                 eval_score = output.metrics[name]
@@ -717,14 +732,22 @@ class CoFiTrainer(Trainer):
                 if na in output.metrics:
                     eval_score = output.metrics[na]
                     break
-
+        print("Eval score is ", eval_score)
         print(output.metrics)
+        
+
+        # logger.info(f"starting saving best: {self.global_step} {self.start_saving_best}")
+    
         if self.start_saving_best:
             self.pruned_sparsity= output.metrics['pruned_model_sparsity']
             self.expected_sparsity = output.metrics['expected_sparsity']
+            print(f"======{self.ready_to_save()}========")
             if self.ready_to_save():
+                
                 best_so_far = self.eval_counter.update(self.epoch, self.global_step, eval_score)
+                print(f"Best so far: {best_so_far}, eval: {eval_score}")
                 if best_so_far:
+                    print("SAVING MODEL")
                     logger.warning(f"Saving the best model so far: [Epoch {int(self.epoch)} | Step: {self.global_step} | Model size: {output.metrics['remaining_params'] if 'remaining_params' in output.metrics else 'Full' } | Score: {round(eval_score, 5)}]")
                     self.save_model(model = self.model, output_dir=self.args.output_dir)
         
@@ -808,51 +831,64 @@ class CoFiTrainer(Trainer):
     def calculate_layer_distillation_loss(self, teacher_outputs, student_outputs, zs):
         def normalize(rep):
             return F.normalize(rep, p=2, dim=-1)
-        
+        #print(f"In calculate_layer_distillation_loss in trainer.py\nteacher_outputs: {teacher_outputs}\nstudent_outputs: {student_outputs}")
         layer_loss=0
         mse_loss = torch.nn.MSELoss(reduction="mean")
         if self.additional_args.do_layer_distill: #! only do layer distill
+            mlp_z = None
             head_layer_z = None
+            # logger.info(f"zs={zs}")
+            if "mlp_z" in zs:
+                mlp_z = zs["mlp_z"]
             if "head_layer_z" in zs:
                 head_layer_z = zs["head_layer_z"]
 
-
-            teacher_pnu_final_layer_reps, teacher_final_layer_reps = teacher_outputs.logits[0], teacher_outputs.logits[1]
+            
+            
+            teacher_pre_final_layer_reps, teacher_final_layer_reps = teacher_outputs.logits[0], teacher_outputs.logits[1]
             if self.model_name!='bowman':
-                #skipping 0th position cuz its the input embeds which would be the similar between student and teacher anyway
-                teacher_premise_layer_output = teacher_outputs.hidden_states[0][1:] #! hidden states, with a length of 12. Every has a shape of [32, 65, 768] for pre and hyp
+                teacher_pre_layer_output = teacher_outputs.hidden_states[0][1:] #! hidden states, with a length of 12. Every has a shape of [32, 65, 768] for pre and hyp
                 teacher_hyp_layer_output = teacher_outputs.hidden_states[1][1:] #! hidden states, with a length of 12. Every has a shape of [32, 65, 768] for pre and hyp
 
-                student_premise_layer_output = student_outputs.hidden_states[0][1:]  #first item in list in inputs embeddings
+                student_pre_layer_output = student_outputs.hidden_states[0][1:] 
                 student_hyp_layer_output = student_outputs.hidden_states[1][1:] 
-                
-                student_pnu_final_layer_reps, student_final_layer_reps = student_outputs.logits[0], student_outputs.logits[1]
+
+                student_pre_final_layer_reps, student_final_layer_reps = student_outputs.logits[0], student_outputs.logits[1]
                 
             else:
-                teacher_premise_layer_output = teacher_outputs.hidden_states[0] #! hidden states, with a length of 12. Every has a shape of [32, 65, 768] for pre and hyp
+                teacher_pre_layer_output = teacher_outputs.hidden_states[0] #! hidden states, with a length of 12. Every has a shape of [32, 65, 768] for pre and hyp
                 teacher_hyp_layer_output = teacher_outputs.hidden_states[1]#! hidden states, with a length of 12. Every has a shape of [32, 65, 768] for pre and hyp
-                student_premise_layer_output = student_outputs.hidden_states[0]
-                student_hyp_layer_output = student_outputs.hidden_states[1]
-                
 
-                student_pnu_final_layer_reps, student_final_layer_reps = student_outputs.logits[0], student_outputs.logits[1]
-                
+
+                student_pre_final_layer_reps, student_final_layer_reps = student_outputs.logits[0], student_outputs.logits[1]
+                student_pre_layer_output = student_outputs.hidden_states[0]
+                student_hyp_layer_output = student_outputs.hidden_states[1]
+
+            
+            # distilliting existing layers
+            
+            #orig: a single pre + hyp concatentation passed into bert and each layers hidden state given
+            #ours: 2 inputs so outputs are hidden state pre hidden state hyp so for each layer msle lossfor pres and hyps
             if self.additional_args.layer_distill_version == 2 or self.model_name=='bowman':
-                for layer_num, (t_layer_o, s_layer_o) in enumerate(zip(teacher_premise_layer_output, student_premise_layer_output)):
+                for layer_num, (t_layer_o, s_layer_o) in enumerate(zip(teacher_pre_layer_output, student_pre_layer_output)):
                     s_layer_o = self.model.layer_transformation(s_layer_o)
+                    #apply the attn masks if its llama 
                     if self.model_name == 'llama':
+                        #print("ATTN MASK SHAPE ", t_layer_o.shape, len(teacher_premise_attn_masks), teacher_premise_attn_masks[0].shape, student_premise_attn_masks[0].shape )
+
                         l = mse_loss(normalize(t_layer_o), normalize(s_layer_o))
                     else:
                         l = mse_loss(t_layer_o, s_layer_o)
+                    #if mlp_z is None or mlp_z[layer_num] > 0:
                     layer_loss += l
-                    
                 for layer_num, (t_layer_o, s_layer_o) in enumerate(zip(teacher_hyp_layer_output, student_hyp_layer_output)):
                     s_layer_o = self.model.layer_transformation(s_layer_o)
-                   
+                    #apply the attn masks if its llama 
                     if self.model_name == 'llama':
                         l = mse_loss(normalize(t_layer_o), normalize(s_layer_o))
                     else:
                         l = mse_loss(t_layer_o, s_layer_o)
+                    #if mlp_z is None or mlp_z[layer_num] > 0:
                     layer_loss += l
           
             # distilling layers with a minimal distance
@@ -873,39 +909,47 @@ class CoFiTrainer(Trainer):
                     if hasattr(self.model, 'bert'): #bert
                         specified_teacher_layers = [2, 5, 8, 11]
                     elif hasattr(self.model, 'model'): #llama
+                        
                         specified_teacher_layers = [2,5,8,11]
                         
-                transformed_s_layer_o_premise = [self.model.layer_transformation(
-                s_pre_layer_o) for s_pre_layer_o in student_premise_layer_output]
+                #logger.warning(f"sampled teacher layers: {specified_teacher_layers}")
+                
+                
+                #here not yet accounting for mlp. pulling teaacher output for 2,5,8,11 in bert layers 
+                transformed_s_layer_o_pre = [self.model.layer_transformation(
+                s_pre_layer_o) for s_pre_layer_o in student_pre_layer_output]
                 
                 transformed_s_layer_o_hyp = [self.model.layer_transformation(
                 s_hyp_layer_o) for s_hyp_layer_o in student_hyp_layer_output]
+                    #rn its [layer1 out, layer2 out, etc]
+                        #change to [(layer1 pre, layer1 hyp), (layer2 pre, layer2 hyp), etc...]
                 
-                specified_teacher_layer_reps_premise = [
-                    teacher_premise_layer_output[i] for i in specified_teacher_layers] #! teacher: 4x[32,113,768]
+                specified_teacher_layer_reps_pre = [
+                    teacher_pre_layer_output[i] for i in specified_teacher_layers] #! teacher: 4x[32,113,768]
                 
                 
                 specified_teacher_layer_reps_hyp = [
                     teacher_hyp_layer_output[i] for i in specified_teacher_layers]
+                        #rn its [layer1 out, layer2 out, etc]
+                        #change to [(layer1 pre, layer1 hyp), (layer2 pre, layer2 hyp), etc...]
 
                 device = transformed_s_layer_o_hyp[0].device
                 
                 l=[]
-                for t_pre_layer_o, t_hyp_layer_o in zip(specified_teacher_layer_reps_premise,specified_teacher_layer_reps_hyp) :
+                for t_pre_layer_o, t_hyp_layer_o in zip(specified_teacher_layer_reps_pre,specified_teacher_layer_reps_hyp) :
 
-                    for s_pre_layer_o, s_hyp_layer_o in zip(transformed_s_layer_o_premise, transformed_s_layer_o_hyp): #! student: 12x[32,113,768]
-                        if self.model_name == 'llama':
-                            l.append(
-                                mse_loss(normalize(t_pre_layer_o), normalize(s_pre_layer_o)) + 
-                                mse_loss(normalize(t_hyp_layer_o), normalize(s_hyp_layer_o))
-                            )
-                        else:
-                            l.append(
-                                mse_loss(t_pre_layer_o, s_pre_layer_o) + mse_loss(t_hyp_layer_o, s_hyp_layer_o)
-                            ) 
-                        
+                    for s_pre_layer_o, s_hyp_layer_o in zip(transformed_s_layer_o_pre, transformed_s_layer_o_hyp): #! student: 12x[32,113,768]
+                        l.append(
+                            mse_loss(normalize(t_pre_layer_o), normalize(s_pre_layer_o)) + 
+                            mse_loss(normalize(t_hyp_layer_o), normalize(s_hyp_layer_o))
+                        )#mse(t_layer_pre, s_layer_pre), mse(t_layer_hyp, s_layer_hyp) #cant u add them since its just yhe loss'''
+                        #l.append(mse_loss(t_pre_layer_o, s_pre_layer_o)+ mse_loss(t_hyp_layer_o, s_hyp_layer_o))
+
+                #now dp lloss for mlp
+
                 layerwiseloss = torch.stack(l).reshape(
-                    len(specified_teacher_layer_reps_premise), len(student_premise_layer_output)) #! [4,12] cannot do w list of tuples
+                    len(specified_teacher_layer_reps_pre), len(student_pre_layer_output)) #! [4,12] cannot do w list of tuples
+
 
 
                 existing_layers = None
@@ -913,20 +957,18 @@ class CoFiTrainer(Trainer):
                     existing_layers = head_layer_z != 0
                     existing_layers = existing_layers.to(layerwiseloss.device)
 
-                    
-                #MLP LAYER LOSS
-                layer_loss = mse_loss(student_pnu_final_layer_reps, teacher_pnu_final_layer_reps) + mse_loss(student_final_layer_reps, teacher_final_layer_reps)
-      
+                #WORST CASE FOR LLMA DONT DISTILL MLP
+                #layer_loss = mse_loss(normalize(student_pre_final_layer_reps), normalize(teacher_pre_final_layer_reps)) + mse_loss(normalize(student_final_layer_reps), normalize(teacher_final_layer_reps))
+                layer_loss = mse_loss(student_pre_final_layer_reps, teacher_pre_final_layer_reps) + mse_loss(student_final_layer_reps, teacher_final_layer_reps)
+                #! no ordering restriction specified
                 if self.additional_args.layer_distill_version == 3:
                     alignment = torch.argmin(layerwiseloss, dim=1)
+                #! added the ordering restriction -> to choose the min loss in 4 student layers
                 elif self.additional_args.layer_distill_version in (3, 4, 5, 6):
-        
                     last_aligned_layer = 12 if self.model_name=='bert' else 22
                     alignment = []
                     for search_index in range(len(specified_teacher_layers)-1, -1, -1):
                         indexes = layerwiseloss[search_index].sort()[1]
-                        
-                        
                         if existing_layers is not None:
                             align = indexes[(
                                 indexes < last_aligned_layer) & existing_layers]
@@ -947,6 +989,8 @@ class CoFiTrainer(Trainer):
                     sys.exit()
 
                 layerwise = torch.arange(len(specified_teacher_layers)).to(device)
+                #print(f"MLP LAYER LOSS: {layer_loss}")
+                #WORST CASE FOR LLAMA JUST DO THIS DONT DISTILL MLP
                 layer_loss += layerwiseloss[layerwise, alignment].sum() #! layerwise: teacher (specified layers) / alignment: student (min loss layers) / layerwiseloss: [4,12]
                 if self.global_step % 100 == 0:
                     logger.info(f"v{self.additional_args.layer_distill_version} Global step: {self.global_step}, Alignment: " + str(alignment))
@@ -985,7 +1029,10 @@ class CoFiTrainer(Trainer):
             self.model_name: initial_acc
             
         }
-        
+
+        # Write to JSON file
+
+        # Step 1: Load existing data
         if os.path.exists(file_path):
             with open(file_path, "r") as f:
                 try:
@@ -1022,7 +1069,12 @@ class CoFiTrainer(Trainer):
     def finetune_teacher(self,teacher):
         save_teacher_dir= f'0_Pruning_Iter'
         teacher_model_path=os.path.join(self.teacher_model_dir, save_teacher_dir)
-   
+        #Load from safensors (not uniform for all pruning iters though)
+        '''if save_teacher_dir in os.listdir(self.teacher_model_dir) and 'model.safetensors' in os.listdir(teacher_model_path):
+            print(f"Reloading Finetuning SNLI teacher model ")
+            state_dict = load_file(os.path.join(teacher_model_path,'model.safetensors'))
+            self.teacher_model.load_state_dict(state_dict)'''
+            
         # Load rfrm pth (deal)
         if os.path.exists(teacher_model_path) and 'model_best.pth' in  os.listdir(teacher_model_path):
             print(f"Reloading Finetuning SNLI teacher model ")
@@ -1036,15 +1088,18 @@ class CoFiTrainer(Trainer):
               
             self.store_results(self.teacher_model)
             
+           
 
             return self.teacher_model
         
         os.makedirs(teacher_model_path , exist_ok=True)
-
+        #use full data just for training teacher model
         dataloaders = {
             'train': self.full_train_dataloader,
             'val':self.full_eval_dataloader,
         }
+        print(f"training using full loaders", len(self.full_train_dataloader.dataset))
+       
         criterion = nn.CrossEntropyLoss()
         
         self.teacher_model = train_utils.finetune_pruned_model(model=teacher,model_type=self.model_name, optimizer=self.teacher_optimizer, pruning_method='CoFi', criterion=criterion, dataloaders = dataloaders, finetune_epochs=5, prune_metrics_dir=teacher_model_path,device = self.device)
@@ -1090,7 +1145,7 @@ class CoFiTrainer(Trainer):
            
             student_outputs = self.model(**inputs)
 
-
+            # CRITICAL DEBUG
             if self.global_step % 50 == 0:
                 labels = inputs['labels']
                 teacher_logits = teacher_outputs[1][2]  # Adjust index if needed

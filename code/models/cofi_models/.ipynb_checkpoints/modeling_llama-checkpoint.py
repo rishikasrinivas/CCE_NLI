@@ -21,25 +21,9 @@ from transformers.modeling_utils import (apply_chunking_to_forward,
 
 logger = logging.getLogger(__name__)
 
+#replaced the rms norm and moved logits to gpu
 
-
-'''class CoFiLlamaRMSNorm(LlamaRMSNorm):
-    def __init__(self, hidden_size, eps: float = 1e-6) -> None:
-        super().__init__(hidden_size)
-        self.weight = nn.Parameter(torch.ones(hidden_size))
-        self.eps = eps
-
-    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
-      
-        input_dtype = hidden_states.dtype
-        # Standard path (no pruning)
-        hidden_states =hidden_states.to(torch.float32)
-        variance = hidden_states.pow(2).mean(-1, keepdim=True)
-        hidden_states = hidden_states * torch.rsqrt(variance + self.eps)
-        
-        return (self.weight * hidden_states).to(input_dtype)'''
-
-
+import matplotlib.pyplot as plt
 class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
     def __init__(self, config, layer_idx):
         super().__init__(config, layer_idx)
@@ -77,6 +61,12 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         hidden_z=None,  # Prune hidden dimensions
         **kwargs,
     ):
+        '''input_shape = hidden_states.shape[:-1]
+        hidden_shape = (*input_shape, -1, self.head_dim)'''
+        #if hidden_z is not None:
+            #print("HIDDEN STATES SHAPE IN ATTN ", hidden_states.shape)
+        #print("HIDDEN STATES SHAPE IN ATTN ", hhidden_shape)
+        # Check if entire attention layer is pruned
         if self.v_proj is None: #only return none if the final proj is pruned out, othewise just apply the mask and see for youself
            
             return (None, None) if output_attentions else (None, None)
@@ -135,7 +125,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
             attn_output = attn_output * head_z_expanded.view(1, -1, 1, 1)
     
         attn_output = attn_output.transpose(1, 2).contiguous()
-        attn_output = attn_output.reshape(bsz, q_len, -1).contiguous()
+        attn_output = attn_output.reshape(bsz, q_len, -1)
       
             
         # Output projection
@@ -224,6 +214,11 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         
         # Replace attention with CoFi-enabled version
         self.self_attn = CoFiModifiedLlamaAttention(config, layer_idx)
+        
+        # Use CoFi-enabled RMSNorm
+        self.input_layernorm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.post_attention_layernorm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        
         # We'll also need CoFi MLP - let's create it
         self.mlp = CoFiModifiedLlamaMLP(config)
     
@@ -319,17 +314,40 @@ class CoFiModifiedLlamaMLP(nn.Module):
         self.act_fn = nn.SiLU()
     
     def forward(self, x, intermediate_z=None, mlp_z=None):
+    
+        
+        # Apply intermediate_z to prune neurons (mask input to gate/up projections)
+       
+        # Forward through MLP
         gate = self.gate_proj(x)
         
         up = self.up_proj(x)
-    
+        
+        
+        
         x = self.act_fn(gate) * up
+        #print(f"After up,gate, actfn = {x.shape}")
         if intermediate_z is not None:
             x = x * intermediate_z
+        #print(f"After intermediate mask applied = {x.shape}")
+        
+            
         x = self.down_proj(x)
+        #print(f"After down proj = {x.shape}")
+        
+        
+        # Apply mlp_z to gate entire block
         if mlp_z is not None:
             x = x * mlp_z
-
+        #print(f"After mlpz = {x.shape}")
+        
+            
+        #NO APPYL HIDDEN AGAIN BECAUE UR NOT LAYERNORMING AFTER THISSS
+        #if hidden_z is not None:
+            #print("X should be 2038 dims since it was downproj'd already")
+            #x=x * hidden_z #apply hidden bfore resdual aplied in Layer
+            
+        
         return x
 
 
@@ -341,8 +359,10 @@ class CoFiLlamaBiModel(LlamaBiModel):
         self.layers = nn.ModuleList(
             [CoFiModifiedLlamaDecoderLayer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
         )
-        self.config=config
         
+        # Replace norm with CoFi-enabled version
+        self.norm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+    
     def forward(
         self,
         input_ids=None,
@@ -370,21 +390,23 @@ class CoFiLlamaBiModel(LlamaBiModel):
         # Input embedding
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
-        
-        if use_cache and past_key_values is None:
-            past_key_values = DynamicCache()
             
         # apply hidden mask to embeddings
         if hidden_z is not None:
             inputs_embeds *= hidden_z
             #print(f"Input embeds shape = {inputs_embeds.shape}")
         
-        # Position embeddings
+        
+        #added this way of posit encs (not apply  in prune run done w f.layernorm)
+        '''if use_cache and past_key_values is None:
+            past_key_values = DynamicCache()
+
         if position_ids is None:
-            past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
+            past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0'''
             position_ids = torch.arange(inputs_embeds.shape[1], device=inputs_embeds.device) + past_seen_tokens
             position_ids = position_ids.unsqueeze(0)
         
+        position_embeddings = self.rotary_emb(inputs_embeds, position_ids)
         
         # Prepare attention mask (bidirectional, so no causal mask needed)
         if cache_position is None:
@@ -405,24 +427,23 @@ class CoFiLlamaBiModel(LlamaBiModel):
         )
         
         hidden_states = inputs_embeds
-        position_embeddings = self.rotary_emb(inputs_embeds, position_ids)
+        
         
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
         
-        if output_hidden_states:
-            all_hidden_states = all_hidden_states + (hidden_states,)
-        
         # Process through layers
         for idx, decoder_layer in enumerate(self.layers):
+            if output_hidden_states:
+                all_hidden_states = all_hidden_states + (hidden_states,)
             
             # Get layer-specific masks
             layer_head_z = head_z[idx] if head_z is not None else None
             layer_head_layer_z = head_layer_z[idx] if head_layer_z is not None else None
             layer_intermediate_z = intermediate_z[idx] if intermediate_z is not None else None
             layer_mlp_z = mlp_z[idx] if mlp_z is not None else None
-            
-            #Pass non-normalized hidden state through decoder
+            #if hidden_z is not None:
+               # print(f"Passing through decoder layer {idx}")
             layer_outputs = decoder_layer(
                 hidden_states,
                 attention_mask=attention_mask,
@@ -439,22 +460,21 @@ class CoFiLlamaBiModel(LlamaBiModel):
                 hidden_z=hidden_z,
             )
             
-            #Save the output of the decoder as is
             hidden_states = layer_outputs[0]
             
-            #Save the non-normalized one
-            if output_hidden_states:
-                all_hidden_states = all_hidden_states + (hidden_states,)
-        
             if output_attentions:
                 all_self_attns = all_self_attns + (layer_outputs[1],)
         
         # Final norm
+        if output_hidden_states:
+            all_hidden_states = all_hidden_states + (hidden_states,)
+            
         
         hidden_states = self.norm(hidden_states)
         
         
         if not return_dict:
+            print("retunr dict isfalse")
             return tuple(v for v in [hidden_states, None, all_hidden_states, all_self_attns] if v is not None)
         
         return BaseModelOutput(
@@ -657,10 +677,6 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             final_mlp_hidden_z=None,
             final_mlp_inp_z=None,
     ):
-  
-        #pre_input_ids = pre_input_ids.unsqueeze(0)  # Shape becomes [1, 46]
-        #pre_attention_mask = pre_attention_mask.unsqueeze(0)
-        
 
         
         outputs_pre = self.model (
@@ -695,26 +711,27 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             mlp_z=mlp_z,
             hidden_z=hidden_z
         )
-        '''if mlp_z is not None:
-            print("PREMISED OUTPUTS ", outputs_pre[0])
-            print("HYPED OUTPUTS ", outputs_hyp[0])'''
-
-
-        
-        '''sentence_lengths = pre_attention_mask.sum(dim=1)
-        last_word_indices = sentence_lengths - 1
-        batch_indices = torch.arange(outputs_pre.last_hidden_state.size(0))
-        pre_out = outputs_pre.last_hidden_state[batch_indices, last_word_indices, :]'''
         
         pre_out=outputs_pre.last_hidden_state.mean(dim=1)  #self.encode_sentence(outputs_pre, hyp_attention_mask)
         
         hyp_out =outputs_hyp.last_hidden_state.mean(dim=1)  #self.encode_sentence(outputs_hyp, hyp_attention_mask)
-        '''sentence_lengths = hyp_attention_mask.sum(dim=1)
-        last_word_indices = sentence_lengths - 1
-        batch_indices = torch.arange(outputs_hyp.last_hidden_state.size(0))
-        hyp_out = outputs_hyp.last_hidden_state[batch_indices, last_word_indices, :]'''
-
         
+        '''if outputs_pre.attentions is not None:
+            #print(outputs_pre.attentions[0].shape)
+            attention_matrix = outputs_pre.attentions[0][0][0].detach().cpu().numpy()
+            # 4. Generate and save the visualization
+            plt.figure(figsize=(6, 5))
+            plt.imshow(attention_matrix, cmap='viridis', interpolation='nearest')
+            plt.title("Attention Matrix (Check for Upper Triangle Zeroes)")
+            plt.xlabel("Key Position (Tokens Attended To)")
+            plt.ylabel("Query Position (Current Tokens)")
+            plt.colorbar(label="Attention Weight")
+
+            # Save directly to file path
+            output_filename = "attention_matrix.png"
+            plt.savefig(output_filename, bbox_inches='tight', dpi=300)
+            plt.close()'''
+    
         diffs = pre_out - hyp_out
         prods = pre_out * hyp_out
         
@@ -776,10 +793,8 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         if labels is not None:
             loss_fct = CrossEntropyLoss()
             loss = loss_fct(
-                pooled_logits.view(-1, self.num_labels).float().cpu(),
-                labels.view(-1).long().cpu()
+                    pooled_logits.view(-1, self.num_labels), labels.view(-1)
             )
-
             
 
         return SequenceClassifierOutputWithPast(
@@ -830,8 +845,9 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
     
    
 
-        hyp_out = outputs_hyp.last_hidden_state[:,0,:]
-        pre_out = outputs_pre.last_hidden_state[:,0,:]
+        pre_out=outputs_pre.last_hidden_state.mean(dim=1)  #self.encode_sentence(outputs_pre, hyp_attention_mask)
+        
+        hyp_out =outputs_hyp.last_hidden_state.mean(dim=1)
         diffs = pre_out - hyp_out
         prods = pre_out * hyp_out
         
@@ -844,4 +860,3 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         
         return rep
     
-

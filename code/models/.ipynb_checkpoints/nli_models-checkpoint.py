@@ -269,7 +269,6 @@ class LLAMAEntailmentClassifier(BaseModel):
             )
         
         self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
-        print("TOKENIZER PADDING ", self.tokenizer.padding_side)  # 'left' or 'right'
         self.tokenizer.model_max_length = 512
         self.model_name='llama'
         
@@ -296,35 +295,12 @@ class LLAMAEntailmentClassifier(BaseModel):
         self.output_dim = 3
         self.initialize(device)
 
-    def check_for_nans(self, tensor, name="tensor", raise_error=True):
-        """Check if a tensor contains NaN or Inf values"""
-        if torch.is_tensor(tensor):
-            if torch.isnan(tensor).any():
-                print(f"❌ NaN detected in {name}!")
-                if raise_error:
-                    raise ValueError(f"NaN found in {name}")
-                return True
-            if torch.isinf(tensor).any():
-                print(f"❌ Inf detected in {name}!")
-                if raise_error:
-                    raise ValueError(f"Inf found in {name}")
-                return True
-        return False
     def forward(self, s1_batch, s2_batch):
-        s1enc = self.encode_sentence_mean_pool(s1_batch)
-        #s1enc_mask = self.encode_sentence_masked_pool(s1_batch) #masked vers
-        s2enc = self.encode_sentence_mean_pool(s2_batch)
-        #s2enc_mask = self.encode_sentence_masked_pool(s2_batch) #masked vers
-        
-        #diff = (s1enc_mean - s1enc).abs().mean()
-        #print("MASKED PREMISE ENC: ", s1enc[10])
-        #print("MEAN PREMISE ENC: ", s1enc_mean[10])
-        #print("DIFF ", diff) 
-        
+        s1enc = self.encode_sentence(s1_batch)
+        s2enc = self.encode_sentence(s2_batch)
         
         diffs = s1enc - s2enc
         prods = s1enc * s2enc
-        
         
         mlp_input = torch.cat([s1enc, s2enc, diffs, prods], 1)
         mlp_input = self.bn(mlp_input)
@@ -334,17 +310,8 @@ class LLAMAEntailmentClassifier(BaseModel):
         return preds
 
     def get_final_reprs(self, s1_batch, s2_batch):
-        s1enc = self.encode_sentence_mean_pool(s1_batch)
-        #s1enc_mask = self.encode_sentence_masked_pool(s1_batch) #masked vers
-        s2enc = self.encode_sentence_mean_pool(s2_batch)
-        #s2enc_mask = self.encode_sentence_masked_pool(s2_batch) #masked vers
-        
-        #diff = (s1enc_mean - s1enc).abs().mean()
-        #print("MASKED PREMISE ENC: ", s1enc[10])
-        #print("MEAN PREMISE ENC: ", s1enc_mean[10])
-        #print("DIFF ", diff) 
-        
-      
+        s1enc = self.encode_sentence(s1_batch)
+        s2enc = self.encode_sentence(s2_batch)
         
         diffs = s1enc - s2enc
         prods = s1enc * s2enc
@@ -360,25 +327,25 @@ class LLAMAEntailmentClassifier(BaseModel):
         preds = self.mlp[-1:](rep)
         return preds
 
-    def encode_sentence_masked_pool(self,tokens):
+    def encode_sentence(self, tokens):
+       
         outputs = self.model(**tokens)
-        hidden = outputs.last_hidden_state  # (batch, seqlen, hidden_dim)
+        hidden = outputs.last_hidden_state  # (B, T, H)
 
-        attention_mask = tokens["attention_mask"]  # (batch, seqlen)
-        seq_lengths = attention_mask.sum(dim=-1)   # (batch,)
+        attention_mask = tokens["attention_mask"]  # (B, T)
+        seq_lengths = attention_mask.sum(dim=-1)   # (B,)
 
         reps = []
+
         for i, length in enumerate(seq_lengths):
             length = length.item()
-            token_reprs = hidden[i, :length, :]  
-            reps.append(token_reprs.mean(dim=0))  # (hidden_dim,)
 
-        return torch.stack(reps, dim=0)  # (batch, hidden_dim)
+            # take ONLY real tokens (assumes padding is on left OR mask-aligned)
+            token_reprs = hidden[i, -length:, :]  # (length, H)
 
-    def encode_sentence_mean_pool(self, tokens):
-        outputs = self.model(**tokens).last_hidden_state.mean(dim=1) 
-        return outputs
+            reps.append(token_reprs.mean(dim=0))  # (H,)
 
+        return torch.stack(reps, dim=0)  # (B, H)
 
     def to(self, device):
         self.model = self.model.to(device)

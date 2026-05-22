@@ -107,7 +107,7 @@ class L0Module_LLAMA(Module):
         self.reset_loga(self.input_layer_mlp_loga, mean=10) #how to get 2048 fromb omwan thru code
         
     
-       #both bowman and llm
+       #both llm
         for type in types:
             if type != "layer":
                 print(f"Initializing {type}")
@@ -119,6 +119,7 @@ class L0Module_LLAMA(Module):
         
         #everything from here down in constructor: both bowman and llm
         self.magical_number = magical_number
+        assert  torch.isnan(self.z_logas['head']).sum().item() == 0, f"Number of NaNs in head_zs : {nan_count}"
 
         self.lambda_1 = torch.nn.Parameter(torch.tensor(0.0))
         self.lambda_2 = torch.nn.Parameter(torch.tensor(0.0))
@@ -224,7 +225,7 @@ class L0Module_LLAMA(Module):
             self.int_loga.requires_grad = False
         else:
             self.int_loga = self.initialize_parameters(self.intermediate_size, self.num_hidden_layers)
-            self.reset_loga(self.int_loga)
+            self.reset_loga(self.int_loga, mean=10)
             
         self.add_one_module(self.int_loga, type="intermediate", 
                             parameter_per_dim=self.params_per_intermediate_dim, size=self.intermediate_size,
@@ -578,8 +579,7 @@ class L0Module_LLAMA(Module):
 
         # For results, still track classifier dimensions (even though not counted in sparsity)
         
-        #[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 'mlp_layers': [1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1], 'hidden_dims': 2044, 'intermediate_dims': [5552, 5527, 5532, 5549, 5550, 5551, 5549, 5558, 5570, 5566, 5570, 5576, 5579, 5586, 5589, 5590, 5596, 5604, 5604, 5600, 5599, 5595], 'head_nums': [4, 4, 4, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4], 'mlp_input_8192': 8192.0, 'mlp_input_1024': 1022,
-        80, 105, 100, 83, 82, 81, 83, 74, 62, 66, 62, 56, 53, 46, 43, 42, 36, 28, 28, 32, 33, 37
+        #[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 'mlp_layers': [1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1], 'hidden_dims': 2044, 'intermediate_dims': [5552, 5527, 5532, 5549, 5550, 5551, 5549, 5558, 5570, 5566, 5570, 580, 105, 100, 83, 82, 81, 83, 74, 62, 66, 62, 56, 53, 46, 43, 42, 36, 28, 28, 32, 33, 37
         
         results = {}
         results["head_layers"] = head_layer_z.reshape(-1).astype(int).tolist()
@@ -611,14 +611,17 @@ class L0Module_LLAMA(Module):
     
     def forward(self, training=True,debug=False):
         zs = {f"{type}_z": [] for type in self.types}
-
+        
         if training:
             
             for i, type in enumerate(self.types):
                 loga = self.z_logas[type]
+                assert torch.isnan(loga).sum().item() == 0, f'Line 620, zs for {type} is nan'
                 z = self._sample_z(loga)
                 
                 zs[f"{type}_z"] = z.reshape(self.shapes[type])
+            
+                assert torch.isnan(zs[f"{type}_z"]).sum().item() == 0, f'Line 624, zs for {type} is nan'
         else:
             for i, type in enumerate(self.types):
  
@@ -646,6 +649,8 @@ class L0Module_LLAMA(Module):
                 if type != "hidden_z" and type != 'final_mlp_hidden_z' and type != 'final_mlp_inp_z': #used to be if type != hidden_z
                     zs[type] = torch.stack(zs[type])
                 zs[type] = zs[type].cpu()
+        for z in zs:
+            assert torch.isnan(zs[z]).sum().item() == 0, f'Line 651, zs for {z} is nan'
         return zs 
 
 if __name__ == "__main__":
