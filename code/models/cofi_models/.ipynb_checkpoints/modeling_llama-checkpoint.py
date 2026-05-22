@@ -397,12 +397,12 @@ class CoFiLlamaBiModel(LlamaBiModel):
             #print(f"Input embeds shape = {inputs_embeds.shape}")
         
         
-        #added this way of posit encs (not apply  in prune run done w f.layernorm)
-        '''if use_cache and past_key_values is None:
+        #added this way of posit encs if it fails it means its the dynacache thats failing
+        if use_cache and past_key_values is None:
             past_key_values = DynamicCache()
 
         if position_ids is None:
-            past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0'''
+            past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
             position_ids = torch.arange(inputs_embeds.shape[1], device=inputs_embeds.device) + past_seen_tokens
             position_ids = position_ids.unsqueeze(0)
         
