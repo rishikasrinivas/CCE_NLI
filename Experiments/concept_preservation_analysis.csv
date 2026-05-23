@@ -1,0 +1,5 @@
+Model,Experiment,Method,Pruning_Percentage,Total_Concepts,Preserved_Concepts,Preservation_Rate_%
+BERT,exp,lottery_ticket,0.0%Pruned,505,310,61.386138613861384
+BERT,exp,lottery_ticket,25.0%Pruned,507,310,61.1439842209073
+BERT,exp,lottery_ticket,43.75%Pruned,513,310,60.42884990253411
+BERT,exp,lottery_ticket,57.812%Pruned,508,310,61.023622047244096

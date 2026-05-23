@@ -6,6 +6,7 @@ from __future__ import unicode_literals
 #comment
 import multiprocessing as mp
 import os
+
 from collections import Counter, defaultdict
 import metrics
 import numpy as np
@@ -31,6 +32,7 @@ import data.analysis
 from activation_utils import compute_activ_ranges, create_clusters, build_act_mask, active_neurons, build_masks
 from data.DataLoading import load_masks
 import snli_eval
+
 import activation
 GLOBALS = {}
 
@@ -374,6 +376,8 @@ def compute_best_sentence_iou(args):
 
 def pad_collate(batch, sort=True):
     src, src_feats, src_multifeats, src_len, idx = zip(*batch)
+   
+    
     idx = torch.tensor(idx)
     src_len = torch.tensor(src_len)
     src_pad = pad_sequence(src, padding_value=data.analysis.PAD_IDX)
@@ -414,12 +418,14 @@ def extract_features(
     device,
     save_activations_dir,
     validation,
+    is_cofi,
+    train,
 ):
-    model.eval()
+    if model: model.eval()
     loader = DataLoader(
         dataset,
         shuffle=False,
-        batch_size=32,
+        batch_size=8,
         collate_fn=lambda batch: pad_collate(batch, sort=False),
     )
 
@@ -458,18 +464,21 @@ def extract_features(
             print(f"Loading activations from {save_activations_dir}/final_layer_activations.pkl")
             all_states = pickle.load(file)
     except:
+        assert model, f"Must define a model"
         all_states = activation.save_features(
-            model.cuda(),
+            model.to(device),
             model_name,
             loader,
             save_activations_dir,
+            is_cofi,
+            train,
         )
         model.cpu()
         
     return all_srcs, all_states, all_feats, all_idxs
 
 
-def search_feats(acts, states, feats, weights, dataset, cluster, save_dir=None, debug=True):
+def search_feats(acts, states, feats, dataset, cluster, weights=None, save_dir=None, debug=True):
     if save_dir is None:
         return "Invalid save_dir"
     print(f"saving to {save_dir}")
@@ -540,9 +549,9 @@ def search_feats(acts, states, feats, weights, dataset, cluster, save_dir=None, 
             best_cat_fine =  best_lab.to_str(cat_namer_fine, sort=True)
                     
             
-            entail_weight = weights[unit, 0]
-            neutral_weight = weights[unit, 1]
-            contra_weight = weights[unit, 2]
+            #entail_weight = weights[unit, 0]
+            #neutral_weight = weights[unit, 1]
+            #contra_weight = weights[unit, 2]
 
             if best_iou > 0:
                 formula_masks[unit] = res["best_mask"].tolist()
@@ -567,9 +576,9 @@ def search_feats(acts, states, feats, weights, dataset, cluster, save_dir=None, 
                     "category_fine": best_cat_fine,
                     "iou": best_iou,
                     "feature_length": len(best_lab),
-                    "w_entail": entail_weight,
-                    "w_neutral": neutral_weight,
-                    "w_contra": contra_weight,
+                    #"w_entail": entail_weight,
+                    #"w_neutral": neutral_weight,
+                    #"w_contra": contra_weight,
                 }
                 records.append(r)
             pbar.update()
@@ -775,6 +784,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
     
         activs = build_masks(activations, activation_ranges, settings.NUM_CLUSTERS, save_masks_dir) #how many ones per mask
         
+        
     for cluster_num in range(1,settings.NUM_CLUSTERS+1): 
         if masks_saved:
             print(f"{cluster_num} found : {f'Cluster{cluster_num}masks.pt' in os.listdir(save_masks_dir)}")
@@ -789,16 +799,16 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
         
         #assert type(states)==list and len(states)==10000 and len(states[0]) == 1024 #should be list 100000 ittems ach of len 1024
      
-        #assert(acts.shape[0] == 10000 and acts.shape[1]==1024), acts.shape
-        formula_mask = search_feats(acts, states, (tok_feats, tok_feats_vocab), weights, dataset, cluster=cluster_num, save_dir=save_exp_dir, debug=debug)
-        print("========UPDATING FORMULA MASK!=============")
+        assert(acts.shape[0] == 10000), acts.shape
+        formula_mask = search_feats(acts, states, (tok_feats, tok_feats_vocab), dataset, cluster=cluster_num, weights=weights, save_dir=save_exp_dir, debug=debug)
+        
         formula_masks[cluster_num] = formula_mask
         print("ALL MASKS ", formula_masks.keys(), "\nFOR CLUSTER ", cluster_num, ": ", formula_mask.keys())
     return formula_masks
 
             
 
-def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved, device, model_=None, model_type=None,dataset=None,debug=False, validation=None):
+def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved, device, train, model_=None, model_type=None,dataset=None,debug=False, validation=None,is_cofi=False):
     os.makedirs(save_masks_dir, exist_ok=True)
     os.makedirs(save_exp_dir, exist_ok=True)
     
@@ -807,23 +817,24 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
         model, dataset = data.snli.load_for_analysis(
             path,
             settings.DATA,
-            model_type=settings.MODEL_TYPE,
+            model_type=model_type,
             cuda=settings.CUDA
             
-        )
+        ) #at the dataset level create the abstraction using neighbors so go to all concepts in the dataset, call neighbors, and create the group. then save the groups [{...,...,..},{...,...}] then map each one in the NEWfile to the group (that way there's more abstraction like ur saying group1 isntead pf [dog, cat,fish])
     else:
         model= model_
         dataset =dataset
-        model=model.to(device)
-            
-
- 
-    # Last model weight
-    if settings.MODEL_TYPE == "minimal":
-        classification_weights = model.mlp.weight.t().detach().cpu().numpy()
+        if model: model=model.to(device)
+     
+    if model:
+        # Last model weight
+        if model_type == "minimal":
+            classification_weights = model.mlp.weight.t().detach().cpu().numpy()
+        else:
+            classification_weights = model.mlp[-1].weight.t().detach().cpu().numpy()
+            final_weights = model.mlp[0].weight.detach().cpu().numpy()
     else:
-        classification_weights = model.mlp[-1].weight.t().detach().cpu().numpy()
-        final_weights = model.mlp[0].weight.detach().cpu().numpy()
+         classification_weights=None
 
     print("Extracting features, ", activations_dir)
     
@@ -833,9 +844,10 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
         dataset,
         device,
         activations_dir,
-        validation=validation
+        validation=validation,
+        is_cofi=is_cofi,
+        train=train,
     )
-
     
     
     with open(f"{save_masks_dir}/OrigActivations.pkl",'wb') as f:
@@ -853,10 +865,9 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
         print("Mask search")
         print(acts.shape)
         assert type(states)==list and len(states)==10000 and len(states[0]) == 1024
-        search_feats(acts, states, (tok_feats, tok_feats_vocab), classification_weights, dataset, cluster=None, save_dir=save_exp_dir, formula_masks=formula_masks)
+        return search_feats(acts, states, (tok_feats, tok_feats_vocab), dataset, cluster=None, save_dir=save_exp_dir, debug=debug)
    
     else:
-        print("Verfieid pruning % ", torch.where(torch.tensor(final_weights)==0,1,0).sum()/(1024*2048))
         formula_masks = clustered_NLI(tok_feats, 
                              tok_feats_vocab,
                              states,
@@ -872,6 +883,84 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
     return formula_masks
     
 from data.snli import SNLI
+
+def oldmain():
+    from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+    import train_utils
+    from data import analysis
+    parser = ArgumentParser(
+        description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument("--directory", default="bert")
+    parser.add_argument("--model_type", default="bert", choices=["bowman", "llama", "bert"])
+    parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "CoFi"])
+    parser.add_argument("--filename", default = 'withoutclustering')
+    
+    
+    
+    
+    args = parser.parse_args()
+
+
+    
+    path_to_activations = os.path.join(args.directory, args.pruning_method, args.filename, "activations")
+    path_to_formula_masks = os.path.join(args.directory, args.pruning_method, args.filename, "formula_masks")
+    path_to_vocab = os.path.join(args.directory, args.pruning_method, args.filename, "vocab")
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    
+    os.makedirs(path_to_activations, exist_ok=True)
+    os.makedirs(path_to_formula_masks, exist_ok=True)
+    os.makedirs(path_to_vocab, exist_ok=True)
+        
+      
+    import json
+    with open(os.path.join(path_to_vocab,"vocab.json"),"r", encoding="utf-8") as f:
+        vocab = json.load(f)
+    
+    
+
+    with open(settings.DATA, "r") as f:
+        lines = f.readlines()
+    
+    dataset = analysis.AnalysisDataset(lines, vocab)
+    dataset.itos={int(i):s for i,s in dataset.itos.items()}
+    dataset.stoi={s:int(i) for s,i in dataset.stoi.items()}
+    root = os.path.join(args.model_type.upper(),args.pruning_method, f"{args.filename}")
+    for p_i in os.listdir(path_to_activations):
+        if 'Pruning_Iter' not in p_i: continue
+        print(f"On p_i: {p_i}")
+        save_exp_dir  = os.path.join(args.directory, args.pruning_method, args.filename, "Expls", p_i)
+        save_masks_dir = os.path.join(args.directory, args.pruning_method, args.filename, "Masks", p_i)
+        specified_path_to_activations = os.path.join(path_to_activations, p_i)
+        specified_path_to_formula_masks = os.path.join(path_to_formula_masks, p_i)
+        device = 'cuda' if settings.CUDA else 'cpu' 
+
+        masks_saved = os.path.exists(save_masks_dir)
+        assert masks_saved, f"Cannot find masks in {save_masks_dir}"
+
+        formula_masks = initiate_exp_run(
+            model_type=args.model_type, 
+            save_exp_dir = save_exp_dir,  
+            save_masks_dir= save_masks_dir, 
+            masks_saved=masks_saved,
+            model_=None, 
+            dataset=dataset, 
+            train=None,
+            activations_dir = specified_path_to_activations, 
+            device='cpu', 
+            validation=None, #dataloaders['val'],
+            is_cofi=True if args.pruning_method=='CoFi' else False
+        )
+        os.makedirs(specified_path_to_formula_masks, exist_ok=True)
+        with open(os.path.join(specified_path_to_formula_masks, "formula_masks.json"), "w") as f:
+            json.dump(formula_masks, f)
+    #alignment.calculate_alignment(formula_masks, f"{args.model_type.upper()}/overlap/{args.filename}_formulalen2") 
+    
+    
+
+    
+
+    
 def main():
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     import train_utils
@@ -880,74 +969,62 @@ def main():
         description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("--model_type", default="bert", choices=["bowman", "llama", "bert"])
-    parser.add_argument("--filename", default="Pretrained")
-    parser.add_argument("--ckpt", default="/workspace/CCE_NLI/BERT/models/pretrained/bert_pretrained_inits.pth")
-    parser.add_argument("--untrained_model", action="store_true", default=False)  # If `--untrained_model` is used, set to True 
+    parser.add_argument("--filename", default="singlecuster_withmask")
     
     
     
     args = parser.parse_args()
 
-    
-    path_to_activations = os.path.join(args.model_type.upper(), "activations", f"{args.filename}_formulalen2")
-    path_to_formula_masks = os.path.join(args.model_type.upper(), "formula_masks",  f"{args.filename}_formulalen2")
+    root = os.path.join(args.model_type.upper(), "models", f"{args.filename}")
+    path_to_activations = os.path.join(args.model_type.upper(), "activations", f"{args.filename}")
+    path_to_formula_masks = os.path.join(args.model_type.upper(), "formula_masks",  f"{args.filename}")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     os.makedirs(path_to_activations, exist_ok=True)
     os.makedirs(path_to_formula_masks, exist_ok=True)
     
-    if args.untrained_model:
-        use_pretrained_weights = False
-    else:
-        use_pretrained_weights = True
-        
-    
+
       
-    train,val ,dataloaders=train_utils.create_dataloaders(model_type=args.model_type, max_data=None)
-    model,ckpt = train_utils.load_model(model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=args.ckpt, device=device)
+    train,val ,dataloaders=train_utils.create_dataloaders(model_type=args.model_type, max_data=None, pruning_method='wanda')
+    zs=None
     
+    
+    path_to_model='/workspace/CCE_NLI/BERT/models/lottery_ticket/Run0.25_5/0_Pruning_Iter/model_best.pth'
+    model,_ = train_utils.load_model(model_type=args.model_type, pruning_method='wanda', use_pretrained_weights = True, train=train, ckpt=path_to_model, device=device, zs=zs)
+
     # ==== BUILD VOCAB ====
-    print(f"Loading weights from {ckpt}")
-    base_ckpt=torch.load(ckpt) #trained bowman/bert 
-    vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
+    vocab = {"itos": train.itos, "stoi": train.stoi}
 
     with open(settings.DATA, "r") as f:
         lines = f.readlines()
-    
+
     dataset = analysis.AnalysisDataset(lines, vocab)
-    
-    device = 'cuda' if settings.CUDA else 'cpu'    
-    formula_masks = initiate_exp_run(model_type=args.model_type, save_exp_dir = f"./{args.model_type.upper()}/exp/lottery_ticket/{args.filename}_formulalen2/Expls/",  save_masks_dir= f"./{args.model_type.upper()}/exp/lottery_ticket/{args.filename}_formulalen2/Masks/", masks_saved=False,model_=model, dataset=dataset, activations_dir = f"./{args.model_type.upper()}/activations/{args.filename}_formulalen2", device='cpu', validation=dataloaders['val'])
+    save_exp_dir = f"./{args.model_type.upper()}/exp/{args.filename}/Expls/"
+    save_masks_dir= f"./{args.model_type.upper()}/exp/{args.filename}/Masks/"
+    activations_dir = f"./{args.model_type.upper()}/activations/{args.filename}"
+    device = 'cuda' if settings.CUDA else 'cpu' 
+
+    masks_saved = os.path.exists(save_masks_dir)
+
+    formula_masks = initiate_exp_run(
+        model_type=args.model_type, 
+        save_exp_dir = save_exp_dir,  
+        save_masks_dir= save_masks_dir, 
+        masks_saved=masks_saved,
+        model_=model, 
+        dataset=dataset, 
+        train=train,
+        activations_dir = activations_dir, 
+        device='cpu', 
+        validation=dataloaders['val'],
+        is_cofi=False
+    )
 
     with open(os.path.join(path_to_formula_masks, "formula_masks.json"), "w") as f:
         json.dump(formula_masks, f)
-    alignment.calculate_alignment(formula_masks, f"{args.model_type.upper()}/overlap/{args.filename}_formulalen2") 
+    #alignment.calculate_alignment(formula_masks, f"{args.model_type.upper()}/overlap/{args.filename}_formulalen2") 
     
-    print("Load predictions")
-    mbase = os.path.splitext(os.path.basename(settings.MODEL))[0]
-    dbase = os.path.splitext(os.path.basename(settings.DATA))[0]
-    predf = f"data/analysis/preds/{mbase}_{dbase}.csv"
-    # Add the feature activations so we can do correlation
-    preds = pd.read_csv(predf)
-
-    save_with_acts(preds, acts, os.path.join(settings.RESULT, "preds_acts.csv"))
-
-    print("Visualizing features")
-    from vis import sentence_report
-
-    sentence_report.make_html(
-        records,
-        # Features
-        toks,
-        states,
-        (tok_feats, tok_feats_vocab),
-        idxs,
-        preds,
-        # General stuff
-        weights,
-        dataset,
-        settings.RESULT,
-    )
+    
 
     
 

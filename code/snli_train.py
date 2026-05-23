@@ -18,7 +18,7 @@ from torch.cuda.amp import autocast, GradScaler
 
 from transformers import BertTokenizer, BertModel, AdamW, get_linear_schedule_with_warmup
 import train_utils
-import models
+import models.nli_models as models
 import util
 
 

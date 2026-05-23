@@ -17,7 +17,7 @@ from tqdm import tqdm
 import numpy as np
 from analyze import initiate_exp_run 
 import settings
-import models
+import models.nli_models as models
 import util
 from data import analysis
 import importlib.util
@@ -27,13 +27,15 @@ import sys
 sys.path.append("CCE_NLI/Analysis/")
 #import ..Analysis as Analysis
 #import alignment
+import logging
+logger = logging.getLogger(__name__)
 def main(args):
     if args.debug:
         max_data = 1000
     else:
         max_data = None
   
-        
+    logging.basicConfig(filename='explanatiom.log', level=logging.INFO)
     if args.cuda:
         device = 'cuda'
     else:
@@ -48,22 +50,35 @@ def main(args):
     path_to_overlap = os.path.join(args.model_type.upper(), "overlap", args.pruning_method, args.filename)
     
       
-    train,val,dataloaders=train_utils.create_dataloaders(model_type=args.model_type, max_data=max_data, debug=args.debug)
-    ckpt = os.path.join(args.model_type.upper(), "models", 'lottery_ticket', args.filename, '0_Pruning_Iter/model_best.pth')
+    train,val,dataloaders=train_utils.create_dataloaders(model_type=args.model_type,pruning_method=args.pruning_method, max_data=max_data, debug=args.debug)
     
-    model,ckpt = train_utils.load_model( model_type=args.model_type, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=ckpt, device=device)
+    
+    if args.pruning_method in ['lottery_ticket', 'wanda']:
+        ckpt = os.path.join(args.model_type.upper(), "models", 'lottery_ticket', args.filename, '0_Pruning_Iter/model_best.pth')
+    else:
+        ckpt = os.path.join(args.model_type.upper(), "models", args.pruning_method, args.filename, '0_Pruning_Iter')
+    
+    
+    zs=None
+    '''if args.pruning_method == 'cofi':
+        logger.info(f"Loading zs for {args.pruning_method}")
+        zs_path= os.path.join(args.model_type.upper(), "models", args.pruning_method, args.filename, '0_Pruning_Iter/zs.pt')
+        zs = torch.load(zs_path)'''
+    model,ckpt = train_utils.load_model(model_type=args.model_type, pruning_method=args.pruning_method, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=ckpt, device=device, zs=zs)
     
     # ==== BUILD VOCAB ====
+    logger.info(f"Using {ckpt} for vocab (one-time)")
     base_ckpt=torch.load(ckpt, map_location = torch.device(device)) #trained bowman/bert 
         
-    vocab = {"itos": base_ckpt["itos"], "stoi": base_ckpt["stoi"]}
+    vocab = {"itos": train.itos, "stoi": train.stoi}
 
     with open(settings.DATA, "r") as f:
         lines = f.readlines()
     
     dataset = analysis.AnalysisDataset(lines, vocab)
     
-    all_fm_masks = prune_utils.run_expls(args, model,dataset, dataloaders,device, args.debug)
+    logger.info(f"Starting explanations")
+    all_fm_masks = prune_utils.run_expls(args, model,dataset, dataloaders,device, train=train,debug=args.debug, logger=logger)
     
     #alignment.calculate_alignment(all_fm_masks, path_to_overlap)  
     return all_fm_masks
@@ -86,7 +101,7 @@ def parse_args():
     
     parser.add_argument("--untrained_model", action="store_true", default=False)  # If `--untrained_model` is used, set to True 
     
-    parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "osscar"])
+    parser.add_argument("--pruning_method", default="lottery_ticket", choices=["lottery_ticket", "wanda", "CoFi"])
     parser.add_argument("--save_every", default=1, type=int)
     parser.add_argument("--max_thresh", default=99, type=float)
     

@@ -7,7 +7,7 @@ import os,random
 CUDA = True
 ALPHA = None  # Use "None" to use ReLU threshold (i.e., > 0)
 BEAM_SIZE = 10
-MAX_FORMULA_LENGTH = 2
+MAX_FORMULA_LENGTH = 5
 COMPLEXITY_PENALTY = 1.00
 TOPN = 5
 DEBUG = False
@@ -37,7 +37,8 @@ PRUNE_AMT=0.2
 MAX_OPEN_FEATS = 5
 # Minimum number of activations to analyze a neuron
 SPARSITY_RATIOS = [0.25, 0.4375,0.578125, 0.68359375, 0.7626953125]
-BATCH_SIZE=8
+
+BATCH_SIZE=16 #32 for lthwanda 16 for cofi
 
 MODEL_TYPE = "bowman"  # choices: bowman, minimal, imdbData, bert
 MODEL = f"models/snli/{MODEL_TYPE}_random_inits.pth"

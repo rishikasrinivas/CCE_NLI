@@ -25,6 +25,7 @@ def build_act_mask(states, activ_ranges, cluster_num):
 
 def active_neurons(activations): #activs should be 10,000x1024
     active_neurons = []
+    
     activations = activations.transpose()
     for i,activs in enumerate(activations):
         if len(np.where(activs==1)[0])  > 0:
@@ -48,10 +49,10 @@ def create_clusters(activations, num_clusters):
         activations=activations.detach()
     # ensure activations is the right shape 
 
-    if activations.shape[1] == 1024:
+    if activations.shape[1] in range(1025):
         activations=activations.t()
-    print(activations.shape)
-    
+    print("activs shape ", activations.shape)
+    assert activations.shape[0] in range(1025)
     #clustering
     activation_ranges=[]
     dead_neurons=[]
@@ -77,7 +78,7 @@ def create_clusters(activations, num_clusters):
   
         clusters = scikit_cluster.KMeans(n_clusters= num_clusters_, random_state=0, n_init='auto').fit(neurons_acts)
         cluster_lst = clusters.labels_
-        if i %100 == 0: print(i)
+
         activation_range = compute_activ_ranges(neurons_acts, cluster_lst, num_clusters_)
         if num_clusters_<num_clusters:
             diff = num_clusters-num_clusters_
@@ -105,16 +106,18 @@ def build_masks(activations, activation_ranges, num_clusters, save_dir):
     
             
     saved_masks=[]
+    print(f"Activations os {activations.shape}\nlen(activation_ranges)={len(activation_ranges)}")
+    
     for cluster_num in range(1,num_clusters+1):
         act_masks=[]
         for i, activ_for_neuron in enumerate(activations):
-
             mask=build_act_mask(activ_for_neuron.squeeze(),activation_ranges[i], cluster_num)
             act_masks.append(mask)
 
         masks = torch.stack(act_masks)
         saved_masks.append(masks)
         act_tens=torch.save(masks, f"{save_dir}/Cluster{cluster_num}masks.pt")
+    saved_masks = [s.cpu().numpy() for s in saved_masks]
     return np.array(saved_masks)
         
     
