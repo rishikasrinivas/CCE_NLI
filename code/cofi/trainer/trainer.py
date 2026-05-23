@@ -227,7 +227,7 @@ class CoFiTrainer(Trainer):
         # Initialize wandb at the start of training
         wandb.init(
             project="cofi-llama-distillation",
-            name=f"run_train_student_no-normalzation-onMLP-version-{self.additional_args.layer_distill_version}",
+            name=f"run_train-student-withdynacache-alpha0.1-{self.additional_args.layer_distill_version}",
             config={
                 "layer_distill_version": self.additional_args.layer_distill_version,
                 "learning_rate": self.args.learning_rate,
@@ -847,22 +847,11 @@ class CoFiTrainer(Trainer):
             
             teacher_pre_final_layer_reps, teacher_final_layer_reps = teacher_outputs.logits[0], teacher_outputs.logits[1]
             if self.model_name!='bowman':
-                if self.model_name=='llama':
-                    #0th index is a valid token
-                
-                    teacher_pre_layer_output = teacher_outputs.hidden_states[0] #! hidden states, with a length of 12. Every has a shape of [32, 65, 768] for pre and hyp
-                    teacher_hyp_layer_output = teacher_outputs.hidden_states[1] #! hidden states, with a length of 12. Every has a shape of [32, 65, 768] for pre and hyp
+                teacher_pre_layer_output = teacher_outputs.hidden_states[0][1:] #! hidden states, with a length of 12. Every has a shape of [32, 65, 768] for pre and hyp
+                teacher_hyp_layer_output = teacher_outputs.hidden_states[1][1:] #! hidden states, with a length of 12. Every has a shape of [32, 65, 768] for pre and hyp
 
-                    student_pre_layer_output = student_outputs.hidden_states[0]
-                    student_hyp_layer_output = student_outputs.hidden_states[1]
-                    
-                elif self.model_name=='bert':
-                    #0th index is cls
-                    teacher_pre_layer_output = teacher_outputs.hidden_states[0][1:] #! hidden states, with a length of 12. Every has a shape of [32, 65, 768] for pre and hyp
-                    teacher_hyp_layer_output = teacher_outputs.hidden_states[1][1:] #! hidden states, with a length of 12. Every has a shape of [32, 65, 768] for pre and hyp
-
-                    student_pre_layer_output = student_outputs.hidden_states[0][1:] 
-                    student_hyp_layer_output = student_outputs.hidden_states[1][1:] 
+                student_pre_layer_output = student_outputs.hidden_states[0][1:] 
+                student_hyp_layer_output = student_outputs.hidden_states[1][1:] 
 
                 student_pre_final_layer_reps, student_final_layer_reps = student_outputs.logits[0], student_outputs.logits[1]
                 
