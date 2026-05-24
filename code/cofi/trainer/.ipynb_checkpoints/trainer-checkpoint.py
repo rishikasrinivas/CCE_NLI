@@ -577,7 +577,7 @@ class CoFiTrainer(Trainer):
         return TrainOutput(self.global_step, tr_loss.item() / self.global_step, None)
     from accelerate.utils import tqdm
     import torch.nn as nn
-    def prediction_loop(self, dataloader: DataLoader, description: str, prediction_loss_only: Optional[bool] = None) -> PredictionOutput:
+    def prediction_loop(self, dataloader: DataLoader, description: str, prediction_loss_only: Optional[bool] = None, training: bool= False) -> PredictionOutput:
         prediction_loss_only = (
             prediction_loss_only if prediction_loss_only is not None else self.args.prediction_loss_only
         )
@@ -686,20 +686,24 @@ class CoFiTrainer(Trainer):
             metrics = {}
 
         if all_losses is not None and len(all_losses) > 0:
-            metrics["eval_loss"] = np.mean(all_losses)
+            if not training:
+                metrics["eval_loss"] = np.mean(all_losses)
+            else:
+                metrics["train_loss"] = np.mean(all_losses)
+                
+        if not training:
+            if zs is not None:
+                lag_loss, expected_sparsity, target_sparsity = self.l0_module.lagrangian_regularization(
+                    self.global_step - self.prepruning_finetune_steps)
 
-        if zs is not None:
-            lag_loss, expected_sparsity, target_sparsity = self.l0_module.lagrangian_regularization(
-                self.global_step - self.prepruning_finetune_steps)
+                expected_sparsity = round(expected_sparsity.item(), 5)
+                metrics.update(pruned_model_size_info)
+                metrics["expected_sparsity"] = expected_sparsity
+                metrics["target_sparsity"] = target_sparsity
 
-            expected_sparsity = round(expected_sparsity.item(), 5)
-            metrics.update(pruned_model_size_info)
-            metrics["expected_sparsity"] = expected_sparsity
-            metrics["target_sparsity"] = target_sparsity
-
-            if (not self.start_saving_best) and (target_sparsity - self.additional_args.target_sparsity >= -self.additional_args.sparsity_epsilon):
-                self.start_saving_best = True
-                logger.info(f"Starting saving the best from epoch {int(self.epoch)} and step {self.global_step}")
+                if (not self.start_saving_best) and (target_sparsity - self.additional_args.target_sparsity >= -self.additional_args.sparsity_epsilon):
+                    self.start_saving_best = True
+                    logger.info(f"Starting saving the best from epoch {int(self.epoch)} and step {self.global_step}")
         #only fro llm
         if self.model_name != 'bowman':
             model.config.output_hidden_states = True
@@ -711,36 +715,37 @@ class CoFiTrainer(Trainer):
         
 
         logger.warning("EVALUATING")
-        output = self.prediction_loop(
-            self.full_eval_dataloader, description="Evaluation")
-        
+        eval_output = self.prediction_loop(
+            self.full_eval_dataloader, description="Evaluation", training=False)
+        train_output = self.prediction_loop(
+            self.full_train_dataloader, description="Evaluation", training=True)
 
-        self.log(output.metrics)
+        self.log(eval_output.metrics)
         # wandb.log(output.metrics)
-        output.metrics["step"] = self.global_step
-        logger.info(f"Evaluating: {output.metrics}")
+        eval_output.metrics["step"] = self.global_step
+        logger.info(f"Evaluating: {eval_output.metrics}")
   
         eval_score = 0
         
         name = glue_tasks['snli']
         print("Name is ", name)
         if isinstance(name, str):
-            if name in output.metrics:
-                eval_score = output.metrics[name]
+            if name in eval_output.metrics:
+                eval_score = eval_output.metrics[name]
         else:
             for na in name:
-                if na in output.metrics:
-                    eval_score = output.metrics[na]
+                if na in eval_output.metrics:
+                    eval_score = eval_output.metrics[na]
                     break
         print("Eval score is ", eval_score)
-        print(output.metrics)
+        print(eval_output.metrics)
         
 
         # logger.info(f"starting saving best: {self.global_step} {self.start_saving_best}")
     
         if self.start_saving_best:
-            self.pruned_sparsity= output.metrics['pruned_model_sparsity']
-            self.expected_sparsity = output.metrics['expected_sparsity']
+            self.pruned_sparsity= eval_output.metrics['pruned_model_sparsity']
+            self.expected_sparsity = eval_output.metrics['expected_sparsity']
             print(f"======{self.ready_to_save()}========")
             if self.ready_to_save():
                 
@@ -748,17 +753,21 @@ class CoFiTrainer(Trainer):
                 print(f"Best so far: {best_so_far}, eval: {eval_score}")
                 if best_so_far:
                     print("SAVING MODEL")
-                    logger.warning(f"Saving the best model so far: [Epoch {int(self.epoch)} | Step: {self.global_step} | Model size: {output.metrics['remaining_params'] if 'remaining_params' in output.metrics else 'Full' } | Score: {round(eval_score, 5)}]")
+                    logger.warning(f"Saving the best model so far: [Epoch {int(self.epoch)} | Step: {self.global_step} | Model size: {eval_output.metrics['remaining_params'] if 'remaining_params' in eval_output.metrics else 'Full' } | Score: {round(eval_score, 5)}]")
                     self.save_model(model = self.model, output_dir=self.args.output_dir)
         
+   
         wandb.log({
             # Your existing metrics
-            "eval/accuracy": output.metrics.get("accuracy",0.0),
-            "eval/loss": output.metrics.get("eval_loss", 0.0),
+            "eval/accuracy": eval_output.metrics.get("accuracy",0.0),
+            "eval/loss": eval_output.metrics.get("eval_loss", 0.0),
             "eval/step": self.global_step,
+            "eval/true_sparsity": eval_output.metrics.get("pruned_model_sparsity", 0.0),
+            "eval/expected_sparsity": eval_output.metrics.get("expected_sparsity", 0.0),
+            "train/acc": train_output.metrics.get("accuracy",0.0),
             
         })
-        return output.metrics
+        return eval_output.metrics
 
     def resume_from(self, checkpoint_dir=None):
         checkpoint_dir = checkpoint_dir if checkpoint_dir is not None else self.args.output_dir
@@ -829,8 +838,44 @@ class CoFiTrainer(Trainer):
             torch.save(zs, os.path.join(output_dir, 'zs.pt'))
 
     def calculate_layer_distillation_loss(self, teacher_outputs, student_outputs, zs):
-        def normalize(rep):
-            return F.normalize(rep, p=2, dim=-1)
+
+
+        def normalize(rep, eps=1e-5):
+            """
+            Normalizes ONLY the active (non-zero) part of an already-masked tensor 
+            by dynamically slicing the non-zero indices and calling F.layer_norm.
+
+            rep: A tensor already masked by CoFi (shape: batch, seq_len, hidden_dim)
+            """
+            orig_dtype = rep.dtype
+            # Cast to float32 for metric calculation stability
+            x = rep.to(torch.float32)
+
+            with torch.no_grad():
+                # Find exactly which channels are alive (non-zero across batch and sequence)
+                # Summing absolute values creates a 1D tensor of shape (hidden_dim,)
+                channel_activity = x.abs().sum(dim=(0, 1))
+                remaining_index = torch.where(channel_activity > 1e-6)[0]
+
+            # If the entire tensor is zeroed out for some reason, return it as-is
+            if len(remaining_index) == 0:
+                return rep
+
+            # 1. Slice out ONLY the active channels (removes the structural zeros)
+            compressed_input = torch.index_select(x, dim=-1, index=remaining_index)
+
+            # 2. Call F.layer_norm on just the active dimensions
+            # Because there are no zeros here, the mean and variance are perfectly accurate
+            normalized_shape = [compressed_input.size(-1)]
+            normed_compressed = F.layer_norm(compressed_input, normalized_shape, eps=eps)
+
+            # 3. Create a clean tensor of zeros and place the normalized values back into their active slots
+            output = torch.zeros_like(x)
+            output[..., remaining_index] = normed_compressed
+
+            # Return in the original precision (e.g., bfloat16)
+            return output.to(orig_dtype)
+
         #print(f"In calculate_layer_distillation_loss in trainer.py\nteacher_outputs: {teacher_outputs}\nstudent_outputs: {student_outputs}")
         layer_loss=0
         mse_loss = torch.nn.MSELoss(reduction="mean")
@@ -873,21 +918,13 @@ class CoFiTrainer(Trainer):
                 for layer_num, (t_layer_o, s_layer_o) in enumerate(zip(teacher_pre_layer_output, student_pre_layer_output)):
                     s_layer_o = self.model.layer_transformation(s_layer_o)
                     #apply the attn masks if its llama 
-                    if self.model_name == 'llama':
-                        #print("ATTN MASK SHAPE ", t_layer_o.shape, len(teacher_premise_attn_masks), teacher_premise_attn_masks[0].shape, student_premise_attn_masks[0].shape )
-
-                        l = mse_loss(normalize(t_layer_o), normalize(s_layer_o))
-                    else:
-                        l = mse_loss(t_layer_o, s_layer_o)
+                    l = mse_loss(normalize(t_layer_o), normalize(s_layer_o))
                     #if mlp_z is None or mlp_z[layer_num] > 0:
                     layer_loss += l
                 for layer_num, (t_layer_o, s_layer_o) in enumerate(zip(teacher_hyp_layer_output, student_hyp_layer_output)):
                     s_layer_o = self.model.layer_transformation(s_layer_o)
                     #apply the attn masks if its llama 
-                    if self.model_name == 'llama':
-                        l = mse_loss(normalize(t_layer_o), normalize(s_layer_o))
-                    else:
-                        l = mse_loss(t_layer_o, s_layer_o)
+                    l = mse_loss(normalize(t_layer_o),normalize(s_layer_o))
                     #if mlp_z is None or mlp_z[layer_num] > 0:
                     layer_loss += l
           
@@ -939,11 +976,7 @@ class CoFiTrainer(Trainer):
                 for t_pre_layer_o, t_hyp_layer_o in zip(specified_teacher_layer_reps_pre,specified_teacher_layer_reps_hyp) :
 
                     for s_pre_layer_o, s_hyp_layer_o in zip(transformed_s_layer_o_pre, transformed_s_layer_o_hyp): #! student: 12x[32,113,768]
-                        l.append(
-                            mse_loss(normalize(t_pre_layer_o), normalize(s_pre_layer_o)) + 
-                            mse_loss(normalize(t_hyp_layer_o), normalize(s_hyp_layer_o))
-                        )#mse(t_layer_pre, s_layer_pre), mse(t_layer_hyp, s_layer_hyp) #cant u add them since its just yhe loss'''
-                        #l.append(mse_loss(t_pre_layer_o, s_pre_layer_o)+ mse_loss(t_hyp_layer_o, s_hyp_layer_o))
+                        l.append(mse_loss(normalize(t_pre_layer_o), normalize(s_pre_layer_o))+ mse_loss(normalize(t_hyp_layer_o), normalize(s_hyp_layer_o)))
 
                 #now dp lloss for mlp
 
@@ -1197,7 +1230,7 @@ class CoFiTrainer(Trainer):
                 "train/distill_ce_loss": distill_ce_loss.item(),
                 "train/total_distill_loss": loss.item(),
                 "train/gradient_norm": total_norm,
-                "train/learning_rate": self.args.learning_rate,
+                "train/learning_rate": self.student_optimizer.param_groups[0]['lr'],
                 "train/step": self.global_step,
 
             })

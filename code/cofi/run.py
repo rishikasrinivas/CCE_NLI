@@ -190,7 +190,7 @@ def main():
  
    
     
-    student_path = "/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/alpha0.1-v4-dynacache/student_model.pth"
+    student_path = "/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
    
     print(f'Loading student model from : {student_path}')
     

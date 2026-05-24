@@ -318,70 +318,102 @@ class L0Module_LLAMA(Module):
     #both bowman and llm
     def get_num_parameters_and_constraint_for_hidden(self):
         """
-        Calculate expected parameters using z-scores ONLY.
-        Must match the actual architecture exactly.
+        Calculate expected number of parameters that remain after pruning.
+        Uses expected values (probabilities), not binary masks.
         """
-        num_parameters = 0
+        total_expected_params = 0
 
-        # ---------------------
-        # Scores from z variables
-        # ---------------------
-        all_head_score, head_score = self.transform_scores_for_head()
-        hidden_score = 1 - self.cdf_qz(0, self.hidden_loga)  # (H_pruned,) = (2044,)
+        # =============================================================
+        # STEP 1: Get expected keep probabilities from L0 module
+        # =============================================================
 
-        if all_head_score is not None:
-            layer_score = all_head_score.reshape(-1)  # (L,)
-            head_score = (all_head_score * head_score).reshape(-1)  # (L * n_kv,)
+        # Get attention pruning scores
+        layer_keep_prob, head_keep_prob = self.transform_scores_for_head()
+
+        # hidden_keep_prob: probability each of the 2048 hidden dimensions is kept
+        # Shape: (2048,)
+        hidden_keep_prob = 1 - self.cdf_qz(0, self.hidden_loga)
+
+        # Expected number of hidden dimensions that survive pruning
+        expected_hidden_dims = torch.sum(hidden_keep_prob)  # e.g., 1847.3
+
+        # Combine layer + head pruning: probability BOTH layer AND head survive
+        if layer_keep_prob is not None:
+            # head_keep_prob shape: (22 layers, 4 KV heads)
+            # layer_keep_prob shape: (22, 1, 1)
+            # Combined: probability layer exists AND head exists
+            head_survival_prob = (layer_keep_prob * head_keep_prob).reshape(-1)  # (L * n_kv,)
         else:
-            layer_score = torch.ones(self.num_layers, device=hidden_score.device)
-            head_score = head_score.reshape(-1)
+            head_survival_prob = head_keep_prob.reshape(-1)  # (L * n_kv,)
 
-        H_orig = self.hidden_size  # 2048 (original)
-        D = self.dim_per_head  # 64
+        # Expected number of KV heads that survive across all layers
+        expected_kv_heads_total = torch.sum(head_survival_prob) 
 
-        # =====================
-        # ATTENTION PARAMETERS
-        # =====================
-        # Architecture shows:
-        # Q: (H_pruned, H_orig) = (2044, 2048)
-        # K: (H_pruned, 256) = (2044, n_heads_pruned * D)
-        # V: (H_pruned, 256) = (2044, n_heads_pruned * D)
-        # O: (H_orig, H_pruned) = (2048, 2044)
+        # =============================================================
+        # STEP 2: Constants from model architecture
+        # =============================================================
 
-        # Q projection: sum(hidden_score) × H_orig per layer
-        # O projection: H_orig × sum(hidden_score) per layer
-        # Combined Q + O: 2 × sum(hidden_score) × H_orig per layer
-        # Q+O: hidden_dim  (same for all layers) * total_active kv heads * 512 
-            #say 2 layers if hidden = 2044 and lauer1 has 1 kv head pruned and layer 2 has 2 ie 3 in first, 2 in second:
-                #2 * 2044 * (2048 - (64x8(4-3))) + 2 * 2044 * (2048 - (64x8(4-2)))  ----> 2*2044*64x8x3 + 2*2044*64*8*2 --> 2*hidden*512*(total kv heads saved)
-        num_parameters +=  2 * torch.sum(hidden_score) * torch.sum(head_score) * D*8
+        HIDDEN_SIZE = self.hidden_size  # 2048
+        HEAD_DIM = self.dim_per_head    # 64
+        KV_HEADS_PER_LAYER = 4 #self.num_key_value_heads  # 4
+        Q_HEADS_PER_KV = self.num_attention_heads // KV_HEADS_PER_LAYER  # 32/4 = 8
 
-        # K + V projections: sum(hidden_score) × D per head × 2 (K and V)
-        num_parameters += torch.sum(head_score) * torch.sum(hidden_score) * D * 2
+        # Output dimensions contributed by each KV head in Q/O projections
+        QO_OUTPUT_DIM_PER_KV_HEAD = HEAD_DIM * Q_HEADS_PER_KV  # 64 * 8 = 512
 
-        # =====================
-        # MLP PARAMETERS
-        # =====================
-        intlayer_score = 1 - self.cdf_qz(0, self.intlayer_loga)  # (L,)
-        int_score = 1 - self.cdf_qz(0, self.int_loga)  # (L, I)
-        int_score = (intlayer_score.unsqueeze(-1) * int_score).reshape(-1)  # (L*I,)
+        # =============================================================
+        # STEP 3: ATTENTION PARAMETERS (Q, K, V, O projections)
+        # =============================================================
 
-        # gate_proj: (H_pruned, I_layer)
-        # up_proj: (H_pruned, I_layer)
-        # down_proj: (I_layer, H_pruned)
-        # All 3 have same parameter count: H_pruned × I_layer
-        num_parameters += torch.sum(torch.outer(hidden_score, int_score)) * 3
+        # --- Q and O projections (grouped query attention) ---
+        # Q weight: (expected_hidden_dims, expected_kv_heads * 512)
+        # O weight: (expected_kv_heads * 512, expected_hidden_dims)
+        # The 2x accounts for both Q and O projections
+        qo_expected_params = (
+            2 * expected_hidden_dims * expected_kv_heads_total * QO_OUTPUT_DIM_PER_KV_HEAD
+        ) # 2 bc 1 for Q  for O
 
-        # =====================
-        # LAYER NORMS
-        # =====================
-        # Each layer has 2 RMSNorms, final layer has 1 RMSNorm
-        # Each RMSNorm has H_pruned parameters (weight only, no bias)
-        #num_layernorms = 2 * 22 + 1  # 2 per layer + 1 final
-        #num_parameters += num_layernorms * torch.sum(hidden_score)
+        # --- K and V projections ---
+        # K weight: (expected_hidden_dims, expected_kv_heads * HEAD_DIM)
+        # V weight: same as K
+        # The 2x accounts for both K and V projections
+        kv_expected_params = (
+            2 * expected_hidden_dims * expected_kv_heads_total * HEAD_DIM
+        )
 
-        return num_parameters
+        attention_expected_params = qo_expected_params + kv_expected_params
 
+        # =============================================================
+        # STEP 4: MLP PARAMETERS (gate, up, down projections)
+        # =============================================================
+
+        # Probability each MLP layer survives
+        mlp_layer_keep_prob = 1 - self.cdf_qz(0, self.intlayer_loga)  # (22,)
+
+        # Probability each intermediate dimension survives (per layer)
+        intermediate_keep_prob = 1 - self.cdf_qz(0, self.int_loga)  # (22, 5632)
+
+        # Combine: probability MLP layer AND intermediate dim both survive
+        combined_mlp_survival = (mlp_layer_keep_prob.unsqueeze(-1) * intermediate_keep_prob).reshape(-1)  # (22*5632,)
+
+        # Expected number of (layer, intermediate_dim) pairs that survive
+        expected_intermediate_pairs = torch.sum(combined_mlp_survival)
+
+        # Each surviving (hidden_dim, intermediate_dim) pair appears in 3 projections:
+        # - gate_proj: (hidden, intermediate)
+        # - up_proj:   (hidden, intermediate)
+        # - down_proj: (intermediate, hidden)
+        # So multiply by 3
+        mlp_expected_params = 3 * expected_hidden_dims * expected_intermediate_pairs
+
+        # =============================================================
+        # STEP 5: TOTAL
+        # =============================================================
+
+        total_expected_params = attention_expected_params + mlp_expected_params
+
+
+        return total_expected_params
 
     def get_num_parameters_for_mlp(self):
         """
@@ -440,6 +472,8 @@ class L0Module_LLAMA(Module):
    
         expected_sparsity = 1 - (expected_size / self.prunable_model_size)
         
+        assert self.lagrangian_warmup > 0, f'lagrangian_warmup is {self.lagrangian_warmup}'
+   
         if self.lagrangian_warmup > 0:
             target_sparsity = self.get_target_sparsity(pruned_steps)
         
