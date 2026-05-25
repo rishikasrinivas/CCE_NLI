@@ -37,41 +37,31 @@ class L0Module_LLAMA(Module):
         #both bowman and llm
         self.final_mlp_hidden = 1024
         self.out_params = 3
-        
-
-        '''for llama ill need 
-        
-        headlayer_z: which layers are pruned 
-        kvhead_z: which kv heads are pruned? 4 kv heads (instead of head_z) 
-            
-        mlp_z: which mlp blocks are pruned 
-            int_z: which neurons in the mlp blocks are pruned
-                hidden_z: to prune the 2048 hidden dims (but i would not apply this to k,v) so just q inp and o output'''
-                            
+   
                             
         self.all_types = ["hidden_z", "intermediate_z", "mlp_z", "head_layer_z", "head_z", 'final_mlp_hidden_z'] #reove inp_z, #load zs_llm hidden_z and do nn.Param(hidden_z copied 4 times).req_grad=False
         
         self.hidden_size = config.hidden_size
         self.intermediate_size = config.intermediate_size 
-        print("Intermediate size: ", self.intermediate_size)
         self.num_attention_heads = config.num_attention_heads
+        self.num_key_value_heads = config.num_key_value_heads
         self.mlp_num_per_layer = 1
         self.dim_per_head = self.hidden_size // self.num_attention_heads
         self.num_hidden_layers = config.num_hidden_layers
         self.vocab_size = config.vocab_size
 
         self.params_per_head_layer = 2048*2048*2 + (2048*256*2) #self.hidden_size * self.hidden_size * 4 + self.hidden_size * 4
-        self.params_per_head =  self.params_per_head_layer // self.num_attention_heads
+        self.params_per_head =  self.params_per_head_layer // self.num_key_value_heads
 
 
         self.params_per_mlp_layer = (self.hidden_size * self.intermediate_size * 2) + (self.intermediate_size * self.hidden_size)
         self.params_per_intermediate_dim = self.params_per_mlp_layer // self.intermediate_size
 
 
-        self.params_finalmlp_layer = (self.hidden_size * 4 * self.final_mlp_hidden) + (self.final_mlp_hidden* self.out_params) + self.final_mlp_hidden #weights &bias
+        self.params_finalmlp_layer = (self.hidden_size * 4 * self.final_mlp_hidden) + (self.final_mlp_hidden* self.out_params)  #weights &bias
         self.params_per_hidden_dim_final_mlp = self.params_finalmlp_layer // self.final_mlp_hidden
 
-        self.hidden_loga = None
+      
 
         
 
@@ -140,7 +130,7 @@ class L0Module_LLAMA(Module):
 
         
     def full_model_size(self):
-        prunable_model_size = self.params_per_head * self.num_hidden_layers * self.num_attention_heads + (self.params_per_mlp_layer * self.num_hidden_layers) #this changes for bomwna
+        prunable_model_size = self.params_per_head * self.num_hidden_layers * self.num_key_value_heads + (self.params_per_mlp_layer * self.num_hidden_layers) #this changes for bomwna
         self.llm_size = prunable_model_size
         prunable_model_size  += self.params_finalmlp_layer 
         print(f"Prunable model size: {prunable_model_size}")
@@ -187,7 +177,13 @@ class L0Module_LLAMA(Module):
         self.input_layer_mlp_loga = Parameter(torch.cat([self.hidden_loga for i in range(4)]))
         self.input_layer_mlp_loga.requires_grad=False  
         self.add_one_module(self.hidden_loga, type="hidden", 
-                            parameter_per_dim=self.hidden_size * 4 + self.hidden_size * 4 * 2,
+                            parameter_per_dim= (
+                                self.hidden_size      # q input
+                                + 256                 # k input
+                                + 256                 # v input
+                                + self.hidden_size    # o output
+                                + 3 * self.intermediate_size
+                            ),
                             size=self.hidden_size, shape=[self.hidden_size])
         
         logger.info(f"Initialized hidden loga! Prunable_model_size = {self.prunable_model_size}")
@@ -214,7 +210,7 @@ class L0Module_LLAMA(Module):
             self.headlayer_loga = self.initialize_parameters(n_layer)
             self.reset_loga(self.headlayer_loga, mean=10)
         self.add_one_module(self.headlayer_loga, type="head_layer", 
-                            parameter_per_dim=self.params_per_head * self.num_attention_heads, size=1,
+                            parameter_per_dim=self.params_per_head * self.num_key_value_heads, size=1,
                             shape=[n_layer])
         logger.info(f"Initialized layerwise structured heads! Prunable_model_size = {self.prunable_model_size}")
 
@@ -258,7 +254,7 @@ class L0Module_LLAMA(Module):
             self.hidden_layer_mlp_loga = self.initialize_parameters(self.final_mlp_hidden) #3072,1024 this will prune the 1024
             self.reset_loga(self.hidden_layer_mlp_loga, mean=10)
         self.add_one_module(self.hidden_layer_mlp_loga, type="final_mlp_hidden", 
-                            parameter_per_dim=self.out_params, size=self.final_mlp_hidden,
+                            parameter_per_dim=self.params_per_hidden_dim_final_mlp, size=self.final_mlp_hidden,
                             shape=[self.final_mlp_hidden])
        
         logger.info(f"Initialized final layer hidden mlp! Prunable_model_size = {self.prunable_model_size}")
