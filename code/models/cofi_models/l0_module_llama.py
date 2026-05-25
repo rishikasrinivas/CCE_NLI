@@ -225,7 +225,7 @@ class L0Module_LLAMA(Module):
             self.int_loga.requires_grad = False
         else:
             self.int_loga = self.initialize_parameters(self.intermediate_size, self.num_hidden_layers)
-            self.reset_loga(self.int_loga, mean=10)
+            self.reset_loga(self.int_loga)
             
         self.add_one_module(self.int_loga, type="intermediate", 
                             parameter_per_dim=self.params_per_intermediate_dim, size=self.intermediate_size,
@@ -582,11 +582,6 @@ class L0Module_LLAMA(Module):
         # gate, up, down: 3 * H_pruned * I_pruned
         intermediate_nums = np.outer((intermediate_z * mlp_z).reshape(-1), hidden_z).sum().item()
         mlp_params = intermediate_nums * 3
-
-        # 3. LAYER NORMS
-        # 2 per layer + 1 final = (2 * L + 1) * H_pruned
-        num_layernorms = 2 * L + 1
-        layernorm_params = num_layernorms * remaining_hidden_dims
 
         # TOTAL (backbone only, no classifier, no embeddings, no layer_transformation)
         

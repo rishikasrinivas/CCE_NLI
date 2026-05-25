@@ -144,7 +144,7 @@ def main():
         )
         
         if not os.path.exists(os.path.join(data_args.teacher_model_dir, 'config.json')):
-            #config.save_pretrained(os.path.join(training_args.output_dir, 'config.json'))
+            config.save_pretrained(os.path.join(training_args.output_dir, 'config.json'))
             print(f"Saved config to ", os.path.join(data_args.teacher_model_dir, 'config.json'))
         
         tokenizer = AutoTokenizer.from_pretrained(
@@ -190,8 +190,9 @@ def main():
  
    
     
+
     student_path = "/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
-   
+
     print(f'Loading student model from : {student_path}')
     
     #load an untrained student model which we need to initially finetune before pruning

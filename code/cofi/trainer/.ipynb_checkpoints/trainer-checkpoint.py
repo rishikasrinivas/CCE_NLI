@@ -262,7 +262,7 @@ class CoFiTrainer(Trainer):
                     },
                 ]
                 if self.model_name != 'bowman':
-                    self.student_optimizer = AdamW(self.model.parameters(), lr=2e-5, eps=1e-8)  # AdamW optimizer is recommended for BERTAdamW(
+                    self.student_optimizer = AdamW(self.model.parameters(), lr=self.args.learning_rate, eps=1e-8)  # AdamW optimizer is recommended for BERTAdamW(
                 else:
                     self.student_optimizer = optim.Adam(self.model.parameters())
                 log_params(student_main_model_params, "student main params")
@@ -608,6 +608,9 @@ class CoFiTrainer(Trainer):
         all_labels = None
         model.eval()
 
+
+
+
         if self.args.past_index >= 0:
             self._past = None
 
@@ -617,6 +620,10 @@ class CoFiTrainer(Trainer):
         if self.start_prune:
             self.l0_module.eval()
             zs = self.l0_module.forward(training=False)
+            for k, v in zs.items():
+                
+                print(f"{k}, min: {v.min().item()} max: {v.max().item()} mean: {v.mean().item()}, std: {v.std().item()}, <0.5: {(v < 0.5).float().mean().item()}")
+            #zs['intermediate_z']=torch.ones_like(zs['intermediate_z'])
         
         if zs is not None:
             pruned_model_size_info = self.l0_module.calculate_model_size(zs)
@@ -717,8 +724,8 @@ class CoFiTrainer(Trainer):
         logger.warning("EVALUATING")
         eval_output = self.prediction_loop(
             self.full_eval_dataloader, description="Evaluation", training=False)
-        train_output = self.prediction_loop(
-            self.full_train_dataloader, description="Evaluation", training=True)
+        #train_output = self.prediction_loop(
+            #self.full_train_dataloader, description="Evaluation", training=True)
 
         self.log(eval_output.metrics)
         # wandb.log(output.metrics)
@@ -764,7 +771,7 @@ class CoFiTrainer(Trainer):
             "eval/step": self.global_step,
             "eval/true_sparsity": eval_output.metrics.get("pruned_model_sparsity", 0.0),
             "eval/expected_sparsity": eval_output.metrics.get("expected_sparsity", 0.0),
-            "train/acc": train_output.metrics.get("accuracy",0.0),
+            #"train/acc": train_output.metrics.get("accuracy",0.0),
             
         })
         return eval_output.metrics
@@ -839,7 +846,6 @@ class CoFiTrainer(Trainer):
 
     def calculate_layer_distillation_loss(self, teacher_outputs, student_outputs, zs):
 
-
         def normalize(rep, eps=1e-5):
             """
             Normalizes ONLY the active (non-zero) part of an already-masked tensor 
@@ -855,7 +861,7 @@ class CoFiTrainer(Trainer):
                 # Find exactly which channels are alive (non-zero across batch and sequence)
                 # Summing absolute values creates a 1D tensor of shape (hidden_dim,)
                 channel_activity = x.abs().sum(dim=(0, 1))
-                remaining_index = torch.where(channel_activity > 1e-6)[0]
+                remaining_index = torch.where(channel_activity != 0)[0]
 
             # If the entire tensor is zeroed out for some reason, return it as-is
             if len(remaining_index) == 0:
@@ -875,10 +881,12 @@ class CoFiTrainer(Trainer):
 
             # Return in the original precision (e.g., bfloat16)
             return output.to(orig_dtype)
+       
 
         #print(f"In calculate_layer_distillation_loss in trainer.py\nteacher_outputs: {teacher_outputs}\nstudent_outputs: {student_outputs}")
         layer_loss=0
         mse_loss = torch.nn.MSELoss(reduction="mean")
+        cosine_loss_fn = nn.CosineEmbeddingLoss()
         if self.additional_args.do_layer_distill: #! only do layer distill
             mlp_z = None
             head_layer_z = None
@@ -897,6 +905,11 @@ class CoFiTrainer(Trainer):
 
                 student_pre_layer_output = student_outputs.hidden_states[0][1:] 
                 student_hyp_layer_output = student_outputs.hidden_states[1][1:] 
+                
+                teacher_pre_layer_attentions = teacher_outputs.attentions[0]
+                teacher_hyp_layer_attentions = teacher_outputs.attentions[1]
+                student_pre_layer_attentions = student_outputs.attentions[0] 
+                student_hyp_layer_attentions = student_outputs.attentions[1]
 
                 student_pre_final_layer_reps, student_final_layer_reps = student_outputs.logits[0], student_outputs.logits[1]
                 
@@ -972,16 +985,99 @@ class CoFiTrainer(Trainer):
 
                 device = transformed_s_layer_o_hyp[0].device
                 
+                
+                
+                
+                # Pre-allocate contiguous tensor matrix directly on GPU to prevent tracking loop errors
+                '''l = [] 
+
+                # Cross-evaluate loss between every possible Teacher <-> Student layer configuration
+                for t_idx, (t_pre_layer_o, t_hyp_layer_o) in enumerate(zip(specified_teacher_layer_reps_pre, specified_teacher_layer_reps_hyp)):
+                    for s_idx, (s_pre_layer_o, s_hyp_layer_o) in enumerate(zip(transformed_s_layer_o_pre, transformed_s_layer_o_hyp)):
+
+                        if self.model_name == 'llama':
+                            # Extract the raw attention tensors
+                            t_att_pre = teacher_pre_layer_attentions[t_idx]
+                            t_att_hyp = teacher_hyp_layer_attentions[t_idx]
+
+                            # 1. Squash multi-dimensional attention matrix down to [Batch, SeqLen]
+                            # If tensor is 4D or 5D, compress dimensions between Batch (dim 0) and SeqLen (dim -2 or -3)
+                            if t_att_pre.dim() > 2:
+                                # Safely maps any high-dim attention layout down to [Batch, SeqLen]
+                                mask_pre_base = (t_att_pre == 1).any(dim=-1)
+                                while mask_pre_base.dim() > 2:
+                                    mask_pre_base = mask_pre_base.any(dim=1)
+
+                                mask_hyp_base = (t_att_hyp == 1).any(dim=-1)
+                                while mask_hyp_base.dim() > 2:
+                                    mask_hyp_base = mask_hyp_base.any(dim=1)
+                            else:
+                                mask_pre_base = (t_att_pre == 1).bool()
+                                mask_hyp_base = (t_att_hyp == 1).bool()
+
+                            # Match the exact sequence length dimension of the hidden states to prevent mismatch
+                            seq_len_pre = t_pre_layer_o.size(1)
+                            seq_len_hyp = t_hyp_layer_o.size(1)
+                            mask_pre_base = mask_pre_base[:, :seq_len_pre]
+                            mask_hyp_base = mask_hyp_base[:, :seq_len_hyp]
+
+                            # 2. Expand mask to cover the hidden dimension: [Batch, SeqLen, HiddenDim]
+                            mask_pre = mask_pre_base.unsqueeze(-1).expand_as(t_pre_layer_o)
+                            mask_hyp = mask_hyp_base.unsqueeze(-1).expand_as(t_hyp_layer_o)
+
+                            # 3. Extract tokens and reshape into proper 2D feature matrices: [ValidTokens, HiddenDim]
+                            t_pre = torch.masked_select(t_pre_layer_o, mask_pre).view(-1, t_pre_layer_o.size(-1))
+                            s_pre = torch.masked_select(s_pre_layer_o, mask_pre).view(-1, s_pre_layer_o.size(-1))
+                            t_hyp = torch.masked_select(t_hyp_layer_o, mask_hyp).view(-1, t_hyp_layer_o.size(-1))
+                            s_hyp = torch.masked_select(s_hyp_layer_o, mask_hyp).view(-1, s_hyp_layer_o.size(-1))
+
+                            # Safety Check: Fallback if sequence masks leave zero valid active tokens
+                            if t_pre.size(0) == 0 or t_hyp.size(0) == 0:
+                                t_pre = t_pre_layer_o.reshape(-1, t_pre_layer_o.size(-1))
+                                s_pre = s_pre_layer_o.reshape(-1, s_pre_layer_o.size(-1))
+                                t_hyp = t_hyp_layer_o.reshape(-1, t_hyp_layer_o.size(-1))
+                                s_hyp = s_hyp_layer_o.reshape(-1, s_hyp_layer_o.size(-1))
+
+                            # Cosine target vectors (1 means perfectly aligned directions)
+                            target_pre = torch.ones(t_pre.size(0), device=t_pre.device, dtype=t_pre.dtype)
+                            target_hyp = torch.ones(t_hyp.size(0), device=t_hyp.device, dtype=t_hyp.dtype)
+
+                            loss = cosine_loss_fn(s_pre, t_pre, target_pre) + cosine_loss_fn(s_hyp, t_hyp, target_hyp)
+
+                        else:
+                            # Fallback configuration for non-llama variants using standard MSE
+                            loss = mse_loss(t_pre_layer_o, s_pre_layer_o) + mse_loss(t_hyp_layer_o, s_hyp_layer_o)
+
+                        l.append(loss)
+
+                # Reconstruct matrix cleanly matching loop iteration dimensions to avoid Reshape crashes
+                layerwiseloss = torch.stack(l).reshape(
+                    len(specified_teacher_layer_reps_pre), 
+                    len(transformed_s_layer_o_pre)
+                )'''
+
+
+
                 l=[]
                 for t_pre_layer_o, t_hyp_layer_o in zip(specified_teacher_layer_reps_pre,specified_teacher_layer_reps_hyp) :
 
                     for s_pre_layer_o, s_hyp_layer_o in zip(transformed_s_layer_o_pre, transformed_s_layer_o_hyp): #! student: 12x[32,113,768]
-                        l.append(mse_loss(normalize(t_pre_layer_o), normalize(s_pre_layer_o))+ mse_loss(normalize(t_hyp_layer_o), normalize(s_hyp_layer_o)))
+                        if self.model_name=='llama':
+                           
+
+                            loss = (
+                                mse_loss(normalize(s_pre_layer_o), normalize(t_pre_layer_o))
+                                +   mse_loss(normalize(s_hyp_layer_o), normalize(t_hyp_layer_o))
+                            )
+
+                            l.append(loss)
+                        else:
+                            l.append(mse_loss(t_pre_layer_o, s_pre_layer_o)+ mse_loss(t_hyp_layer_o,s_hyp_layer_o))
 
                 #now dp lloss for mlp
 
                 layerwiseloss = torch.stack(l).reshape(
-                    len(specified_teacher_layer_reps_pre), len(student_pre_layer_output)) #! [4,12] cannot do w list of tuples
+                    len(specified_teacher_layer_reps_pre), len(student_pre_layer_output)) #! [4,12] cannot do w list of tuples'''
 
 
 

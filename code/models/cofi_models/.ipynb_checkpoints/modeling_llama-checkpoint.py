@@ -362,6 +362,7 @@ class CoFiModifiedLlamaMLP(nn.Module):
         
         x = self.act_fn(gate) * up
         if intermediate_z is not None:
+           
             x = x * intermediate_z
             
         x = self.down_proj(x)
