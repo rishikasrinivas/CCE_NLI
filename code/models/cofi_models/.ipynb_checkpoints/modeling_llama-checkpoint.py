@@ -77,7 +77,6 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         head_z=None,  # Prune KV heads
         head_layer_z=None,  # Prune entire attention layer
-        hidden_z=None,  # Prune hidden dimensions
         **kwargs,
     ):
         if self.v_proj is None: #only return none if the final proj is pruned out, othewise just apply the mask and see for youself
@@ -295,7 +294,7 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         # -------------------------
         # PRE-NORM ATTENTION INPUT
         # -------------------------
-        attn_input = self.input_layernorm(hidden_states)
+        attn_input = self.input_layernorm(hidden_states, hidden_z)
 
         attn_out, attn_weights = self.self_attn(
             hidden_states=attn_input,
@@ -308,18 +307,20 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
             position_embeddings=position_embeddings,
             head_z=head_z,
             head_layer_z=head_layer_z,
-            hidden_z=None,   # IMPORTANT: DO NOT DOUBLE APPLY
             **kwargs,
         )
 
         # -------------------------
         # RESIDUAL ADD (ATTN)
         # -------------------------
-        hidden_states = residual + attn_out
+        if attn_out is None: #if attnout is none,  the input to the dcoder moves onto the mlp
+            hidden_states = residual
+        else:
+            hidden_states = residual + attn_out
 
-        # HARD ENFORCE MASK HERE
-        if hidden_z is not None:
-            hidden_states = hidden_states * hidden_z
+   
+            if hidden_z is not None:
+                hidden_states = hidden_states * hidden_z
 
 
         # =========================
@@ -327,19 +328,22 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         # =========================
         residual = hidden_states
 
-        mlp_input = self.post_attention_layernorm(hidden_states)
+        mlp_input = self.post_attention_layernorm(hidden_states, hidden_z)
 
         mlp_out = self.mlp(
             mlp_input,
             intermediate_z=intermediate_z,
             mlp_z=mlp_z
         )
+        if mlp_out.sum().eq(0).item():
+            hidden_states = residual
 
-        hidden_states = residual + mlp_out
+        else:
+            hidden_states = residual + mlp_out
 
-        # HARD ENFORCE MASK AGAIN
-        if hidden_z is not None:
-            hidden_states = hidden_states * hidden_z
+         
+            if hidden_z is not None:
+                hidden_states = hidden_states * hidden_z
 
         return (hidden_states, attn_weights) if output_attentions else (hidden_states,)
 

@@ -77,7 +77,6 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         head_z=None,  # Prune KV heads
         head_layer_z=None,  # Prune entire attention layer
-        hidden_z=None,  # Prune hidden dimensions
         **kwargs,
     ):
         if self.v_proj is None: #only return none if the final proj is pruned out, othewise just apply the mask and see for youself
@@ -92,11 +91,11 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
         
-        query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+        '''query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
-        value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+        value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)'''
         
-        '''
+
         actual_kv_heads = key_states.shape[-1] // self.head_dim      # e.g. 192//64 = 3
         actual_q_heads  = query_states.shape[-1] // self.head_dim    # e.g. 1536//64 = 24
         actual_kv_groups = actual_q_heads // actual_kv_heads
@@ -109,7 +108,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         assert actual_q_heads == self.num_heads, f'Calculted Q heads is {actual_q_heads} and self num heads is {self.num_heads}'
         assert actual_kv_heads == self.num_key_value_heads, f'Calculted KV heads is {actual_kv_heads} and self kv heads is {self.num_key_value_heads}'
         assert actual_kv_groups == self.num_key_value_groups, f'Calculted KV groups is {actual_kv_groups} and self num kv groups is {self.num_key_value_groups}'
-        '''
+  
         # Apply rotary embeddings
         cos, sin = position_embeddings
         query_states, key_states = self._apply_rotary_pos_emb(query_states, key_states, cos, sin)
@@ -120,11 +119,11 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
             key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
         
         # Repeat KV heads for grouped query attention
-        key_states = self._repeat_kv(key_states, self.num_key_value_groups)
-        value_states = self._repeat_kv(value_states, self.num_key_value_groups)
+        '''key_states = self._repeat_kv(key_states, self.num_key_value_groups)
+        value_states = self._repeat_kv(value_states, self.num_key_value_groups)'''
         
-        '''key_states = self._repeat_kv(key_states, actual_kv_groups)
-        value_states = self._repeat_kv(value_states, actual_kv_groups)'''
+        key_states = self._repeat_kv(key_states, actual_kv_groups)
+        value_states = self._repeat_kv(value_states, actual_kv_groups)
         
         # Compute attention scores
         attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
@@ -295,7 +294,7 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         # -------------------------
         # PRE-NORM ATTENTION INPUT
         # -------------------------
-        attn_input = self.input_layernorm(hidden_states)
+        attn_input = self.input_layernorm(hidden_states, hidden_z)
 
         attn_out, attn_weights = self.self_attn(
             hidden_states=attn_input,
@@ -308,18 +307,20 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
             position_embeddings=position_embeddings,
             head_z=head_z,
             head_layer_z=head_layer_z,
-            hidden_z=None,   # IMPORTANT: DO NOT DOUBLE APPLY
             **kwargs,
         )
 
         # -------------------------
         # RESIDUAL ADD (ATTN)
         # -------------------------
-        hidden_states = residual + attn_out
+        if attn_out is None: #if attnout is none,  the input to the dcoder moves onto the mlp
+            hidden_states = residual
+        else:
+            hidden_states = residual + attn_out
 
-        # HARD ENFORCE MASK HERE
-        if hidden_z is not None:
-            hidden_states = hidden_states * hidden_z
+   
+            if hidden_z is not None:
+                hidden_states = hidden_states * hidden_z
 
 
         # =========================
@@ -327,19 +328,22 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         # =========================
         residual = hidden_states
 
-        mlp_input = self.post_attention_layernorm(hidden_states)
+        mlp_input = self.post_attention_layernorm(hidden_states, hidden_z)
 
         mlp_out = self.mlp(
             mlp_input,
             intermediate_z=intermediate_z,
             mlp_z=mlp_z
         )
+        if mlp_out.sum().eq(0).item():
+            hidden_states = residual
 
-        hidden_states = residual + mlp_out
+        else:
+            hidden_states = residual + mlp_out
 
-        # HARD ENFORCE MASK AGAIN
-        if hidden_z is not None:
-            hidden_states = hidden_states * hidden_z
+         
+            if hidden_z is not None:
+                hidden_states = hidden_states * hidden_z
 
         return (hidden_states, attn_weights) if output_attentions else (hidden_states,)
 
