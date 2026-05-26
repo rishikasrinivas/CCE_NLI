@@ -105,7 +105,7 @@ def main():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     max_data = None if data_args.data_debug > 0 else None
     train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, pruning_method='CoFi', max_data=None, debug=False)
-    train_subset,val_subset,dls = train_utils.create_dataloaders(model_type=additional_args.model_name, pruning_method='CoFi', max_data=150000, debug=True)
+    #train_subset,val_subset,dls = train_utils.create_dataloaders(model_type=additional_args.model_name, pruning_method='CoFi', max_data=150000, debug=True)
     label_list = list(set(train.labels))
     vocab= {'stoi': train.stoi, 'itos': train.itos}
 
@@ -216,7 +216,7 @@ def main():
     
     # initialize the layer transformation matrix to be an identity matrix
     if additional_args.do_layer_distill:
-        pass #initialize_layer_transformation(model)
+        initialize_layer_transformation(student_model)
 
     #logger.info(model)
     logger.info(f"Model size: {calculate_parameters(student_model)}")
@@ -322,8 +322,6 @@ def main():
         additional_args=additional_args,
         full_train_dataset=dl['train'] if training_args.do_train else None,
         full_eval_dataset=dl['val'] if training_args.do_eval else None,
-        subset_train_dataset=dls['train'] if training_args.do_train else None,
-        subset_val_dataset=  dls['val'] if training_args.do_eval else None,
         compute_metrics=compute_metrics,
         tokenizer=tokenizer,
         data_collator=data_collator,

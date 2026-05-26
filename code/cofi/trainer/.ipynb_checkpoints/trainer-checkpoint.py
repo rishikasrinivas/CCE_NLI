@@ -167,8 +167,6 @@ class CoFiTrainer(Trainer):
             
             full_train_dataset: Optional[Dataset] = None,
             full_eval_dataset: Optional[Dataset] = None,
-            subset_train_dataset: Optional[Dataset] = None,
-            subset_val_dataset: Optional[Dataset] = None,
             tokenizer: Optional[PreTrainedTokenizerBase] = None,
             model_init: Callable[[], PreTrainedModel] = None,
             compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
@@ -179,7 +177,7 @@ class CoFiTrainer(Trainer):
             **kwargs,
     ):
 
-        Trainer.__init__(self, model, args, data_collator, subset_train_dataset , subset_val_dataset, tokenizer, model_init, compute_metrics=compute_metrics, **kwargs)
+        Trainer.__init__(self, model, args, data_collator, full_train_dataset , full_eval_dataset, tokenizer, model_init, compute_metrics=compute_metrics, **kwargs)
         self.num_workers = 4
         self.model=model
         
@@ -194,11 +192,6 @@ class CoFiTrainer(Trainer):
         self.start_prune = False
         self.teacher_model_dir=teacher_model_dir
         self.config=config
-        self.full_train_data=full_train_dataset
-        self.full_val_data=full_eval_dataset
-        self.subset_train_data=subset_train_dataset
-        self.subset_val_data=subset_val_dataset
-        
         self.student_optimizer=None
         self.teacher_optimizer=None
         self.l0_optimizer = None
@@ -218,10 +211,10 @@ class CoFiTrainer(Trainer):
         logging.set_verbosity(log_level)
         logger.setLevel(log_level)
         
-        self.full_eval_dataloader = self.full_val_data
+        self.full_eval_dataloader = full_eval_dataset
         print(self.model_name)
         
-        self.full_train_dataloader = self.full_train_data
+        self.full_train_dataloader =full_train_dataset
         import wandb
 
         # Initialize wandb at the start of training
@@ -906,10 +899,6 @@ class CoFiTrainer(Trainer):
                 student_pre_layer_output = student_outputs.hidden_states[0][1:] 
                 student_hyp_layer_output = student_outputs.hidden_states[1][1:] 
                 
-                teacher_pre_layer_attentions = teacher_outputs.attentions[0]
-                teacher_hyp_layer_attentions = teacher_outputs.attentions[1]
-                student_pre_layer_attentions = student_outputs.attentions[0] 
-                student_hyp_layer_attentions = student_outputs.attentions[1]
 
                 student_pre_final_layer_reps, student_final_layer_reps = student_outputs.logits[0], student_outputs.logits[1]
                 

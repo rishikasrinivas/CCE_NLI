@@ -5,7 +5,7 @@ sparsities="0.25" # 0.4375 0.57812 0.68359 0.7627"
 model_name=llama #sllama #bert
 encoder_name=knowledgator/Llama-encoder-1.0B #knowledgator/Llama-encoder-1.0B #bert-base-uncased 
 
-pruning_iter=alpha-0.1-v4-teach
+pruning_iter=25student
 for sparsity in ${sparsities}
 do
     #./run.sh ${model_name} ${encoder_name} ${ckpt} ${sparsity} "llm" "structured_heads+structured_mlp+hidden+layer"
