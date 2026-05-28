@@ -61,8 +61,17 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         
             
         self.layer_idx = layer_idx
-        
+        self.num_key_value_groups = config.num_attention_heads // config.num_key_value_heads
+        self.scaling = self.head_dim**-0.5
+        self.attention_dropout = config.attention_dropout
+        self.is_causal = False
+
+        self.num_attention_heads = config.num_attention_heads
+        self.attention_head_size = int(
+            config.hidden_size / config.num_attention_heads)
+        self.all_head_size = self.num_attention_heads * self.attention_head_size
         self.pruned_heads = set()
+    
 
 
     def forward(
