@@ -38,7 +38,7 @@ class L0Module(Module):
         self.final_mlp_hidden = 1024
         self.out_params = 3
         
-        if self.model_name=='bert' or self.model_name=='llama':
+        if self.model_name=='bert':
             self.all_types = ["hidden_z", "intermediate_z", "mlp_z", "head_layer_z", "head_z", 'final_mlp_hidden_z'] #reove inp_z, #load zs_llm hidden_z and do nn.Param(hidden_z copied 4 times).req_grad=False
             
             self.hidden_size = config.hidden_size
@@ -49,30 +49,25 @@ class L0Module(Module):
             self.num_hidden_layers = config.num_hidden_layers
             self.vocab_size = config.vocab_size
             
+
             self.params_per_head_layer = self.hidden_size * self.hidden_size * 4 + self.hidden_size * 4
             self.params_per_head =  self.params_per_head_layer // self.num_attention_heads
 
 
             self.params_per_mlp_layer = self.hidden_size * self.intermediate_size * 2 + self.hidden_size + self.hidden_size * 4
             self.params_per_intermediate_dim = self.params_per_mlp_layer // self.intermediate_size
-            
-            
-            self.params_finalmlp_layer = (self.hidden_size * 4 * self.final_mlp_hidden) + (self.final_mlp_hidden* self.out_params) + self.final_mlp_hidden #weights &bias
-            self.params_per_hidden_dim_final_mlp = self.params_finalmlp_layer // self.final_mlp_hidden
         
+    
             self.hidden_loga = None
+            self.params_finalmlp_layer = (self.hidden_size * 4 * self.final_mlp_hidden) + (self.final_mlp_hidden* self.out_params) 
+            self.params_per_hidden_dim_final_mlp = self.params_finalmlp_layer // self.final_mlp_hidden
+            
         else:
             assert pruning_type == 'final_mlp_hidden', f"Pruning_type arg must be 'final_mlp_hidden' but is currently {pruning_type}"
             self.all_types = ['final_mlp_hidden_z']
             self.hidden_size  = 512
-            self.params_finalmlp_layer = (self.hidden_size * 4 * self.final_mlp_hidden) + (self.final_mlp_hidden* self.out_params) + self.final_mlp_hidden #weights &bias
+            self.params_finalmlp_layer = (self.hidden_size * 4 * self.final_mlp_hidden) + (self.final_mlp_hidden* self.out_params) #weights &bias
             
-        
-
-        
-
-        # we ignore the parameters in normalization layers (it takes a very small amount)
-        #self.full_model_size = (self.params_per_head_layer + self.params_per_mlp_layer) * self.num_hidden_layers
         
         self.temperature = temperature
         self.droprate_init = droprate_init if droprate_init != 0. else 0.5

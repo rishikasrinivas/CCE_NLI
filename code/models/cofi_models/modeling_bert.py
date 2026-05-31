@@ -734,7 +734,7 @@ class CoFiBertSelfOutput(BertSelfOutput):
         self.LayerNorm = CoFiLayerNorm(
             config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.config = config
+        self.config = config.l,
 
     def forward(self, hidden_states, input_tensor, head_layer_z=None, hidden_z=None, inference=False):
         if hidden_states is None:
@@ -776,7 +776,7 @@ class CoFiBertOutput(BertOutput):
             hidden_states = self.dropout(hidden_states)
             hidden_states = self.LayerNorm(
                 hidden_states + input_tensor, hidden_z)
-            
+           
             #print(f"BERT after post_attetnon_layernorm - mean: {hidden_states.mean():.4f} std: {hidden_states.std():.4f} min: {hidden_states.min():.4f} max: {hidden_states.max():.4f}")
             if hidden_z is not None:
                 hidden_states = hidden_states.mul(hidden_z)
