@@ -33,7 +33,7 @@ save_steps=0
 max_seq_length=128
 batch_size=32
 learning_rate=2e-5
-reg_learning_rate=0.003 #0.01
+reg_learning_rate=0.001 #0.01
 epochs=50
 
 # seed
@@ -91,7 +91,7 @@ fi
 
 
 mkdir -p "$output_dir"
-python3 ${code_dir}/run.py \
+CUBLAS_WORKSPACE_CONFIG=:4096:8 python3 ${code_dir}/run.py \
         --model_name ${10}\
         --using_untrained_student ${using_untrained_student} \
         --path_to_pretrained ${path_to_pretrained}\

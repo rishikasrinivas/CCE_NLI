@@ -123,7 +123,7 @@ def main(args):
                 else:
                     zs=torch.load(os.path.join(args.root_dir, folder,"zs.pt"))
 
-                pruned_model = load_model(os.path.join(args.root_dir, folder), model, zs,tokenizer, train_data=train, ckpt=os.path.join(args.root_dir, folder, 'model_best.pth'))
+                pruned_model = load_model(os.path.join(args.root_dir, folder), model, zs,tokenizer, train_data=train, ckpt=os.path.join(args.root_dir, folder, 'model_best.pth'), device='cuda')
                 pruned_model.eval()
 
                 if settings.CUDA:

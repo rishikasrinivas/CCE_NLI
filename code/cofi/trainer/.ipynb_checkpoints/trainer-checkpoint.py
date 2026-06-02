@@ -314,7 +314,7 @@ class CoFiTrainer(Trainer):
         print("created optimizer")
                 
     def ready_to_save(self):
-        return (self.pruned_sparsity >= self.additional_args.target_sparsity or abs(self.expected_sparsity - self.pruned_sparsity) <= self.additional_args.sparsity_epsilon)
+        return self.pruned_sparsity >= self.additional_args.target_sparsity or abs(self.expected_sparsity - self.additional_args.target_sparsity) <= self.additional_args.sparsity_epsilon
     
     def train(self, using_trained_student=True):
         
@@ -401,6 +401,7 @@ class CoFiTrainer(Trainer):
         # training
         print(f"Training for {num_train_epochs} epochs")
         resumed = False
+      
         for epoch in range(epochs_trained, int(np.ceil(num_train_epochs))): #! 20 epoch
             print(f"Starting epoch {epoch}")
             epoch_start = time.time()
@@ -551,6 +552,16 @@ class CoFiTrainer(Trainer):
                 self.save_model(model, student=True)
                 using_trained_student = True
                 wandb.finish()
+                wandb.init(
+                    project="cofi-llama-distillation",
+                    name=f"run_prune-student-withdynacache-alpha0.1-{self.additional_args.layer_distill_version}",
+                    config={
+                        "layer_distill_version": self.additional_args.layer_distill_version,
+                        "learning_rate": self.args.learning_rate,
+                        "batch_size": self.args.per_device_train_batch_size,
+                        "num_layers": 22,
+                    }
+                )
             #logging step
             if self.ready_to_save():
                 print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity} with expected at {self.expected_sparsity}")
@@ -613,10 +624,7 @@ class CoFiTrainer(Trainer):
         if self.start_prune:
             self.l0_module.eval()
             zs = self.l0_module.forward(training=False)
-            for k, v in zs.items():
-                
-                print(f"{k}, min: {v.min().item()} max: {v.max().item()} mean: {v.mean().item()}, std: {v.std().item()}, <0.5: {(v < 0.5).float().mean().item()}")
-            #zs['intermediate_z']=torch.ones_like(zs['intermediate_z'])
+
         
         if zs is not None:
             pruned_model_size_info = self.l0_module.calculate_model_size(zs)
@@ -627,7 +635,9 @@ class CoFiTrainer(Trainer):
             if zs is not None:
                 if ii == 0:
                     logger.info(f"Putting zs {zs.keys()} into inputs:")
-                self.fill_inputs_with_zs(zs, inputs) #! use the zd
+                self.fill_inputs_with_zs(zs, inputs) #! use the zd     
+                
+                
             
             loss, logits, labels = self.prediction_step(
                 model, inputs, prediction_loss_only) #pass instead of "inputs"
@@ -701,7 +711,7 @@ class CoFiTrainer(Trainer):
                 metrics["expected_sparsity"] = expected_sparsity
                 metrics["target_sparsity"] = target_sparsity
 
-                if (not self.start_saving_best) and (target_sparsity - self.additional_args.target_sparsity >= -self.additional_args.sparsity_epsilon):
+                if (not self.start_saving_best) and (expected_sparsity - self.additional_args.target_sparsity >= -self.additional_args.sparsity_epsilon):
                     self.start_saving_best = True
                     logger.info(f"Starting saving the best from epoch {int(self.epoch)} and step {self.global_step}")
         #only fro llm
@@ -839,42 +849,6 @@ class CoFiTrainer(Trainer):
 
     def calculate_layer_distillation_loss(self, teacher_outputs, student_outputs, zs):
 
-        def normalize(rep, eps=1e-5):
-            """
-            Normalizes ONLY the active (non-zero) part of an already-masked tensor 
-            by dynamically slicing the non-zero indices and calling F.layer_norm.
-
-            rep: A tensor already masked by CoFi (shape: batch, seq_len, hidden_dim)
-            """
-            orig_dtype = rep.dtype
-            # Cast to float32 for metric calculation stability
-            x = rep.to(torch.float32)
-
-            with torch.no_grad():
-                # Find exactly which channels are alive (non-zero across batch and sequence)
-                # Summing absolute values creates a 1D tensor of shape (hidden_dim,)
-                channel_activity = x.abs().sum(dim=(0, 1))
-                remaining_index = torch.where(channel_activity != 0)[0]
-
-            # If the entire tensor is zeroed out for some reason, return it as-is
-            if len(remaining_index) == 0:
-                return rep
-
-            # 1. Slice out ONLY the active channels (removes the structural zeros)
-            compressed_input = torch.index_select(x, dim=-1, index=remaining_index)
-
-            # 2. Call F.layer_norm on just the active dimensions
-            # Because there are no zeros here, the mean and variance are perfectly accurate
-            normalized_shape = [compressed_input.size(-1)]
-            normed_compressed = F.layer_norm(compressed_input, normalized_shape, eps=eps)
-
-            # 3. Create a clean tensor of zeros and place the normalized values back into their active slots
-            output = torch.zeros_like(x)
-            output[..., remaining_index] = normed_compressed
-
-            # Return in the original precision (e.g., bfloat16)
-            return output.to(orig_dtype)
-       
 
         #print(f"In calculate_layer_distillation_loss in trainer.py\nteacher_outputs: {teacher_outputs}\nstudent_outputs: {student_outputs}")
         layer_loss=0
@@ -920,14 +894,13 @@ class CoFiTrainer(Trainer):
                 for layer_num, (t_layer_o, s_layer_o) in enumerate(zip(teacher_pre_layer_output, student_pre_layer_output)):
                     s_layer_o = self.model.layer_transformation(s_layer_o)
                     #apply the attn masks if its llama 
-                    l = mse_loss(normalize(t_layer_o), normalize(s_layer_o))
+                    l = mse_loss(t_layer_o, s_layer_o)
+                        
                     #if mlp_z is None or mlp_z[layer_num] > 0:
                     layer_loss += l
                 for layer_num, (t_layer_o, s_layer_o) in enumerate(zip(teacher_hyp_layer_output, student_hyp_layer_output)):
                     s_layer_o = self.model.layer_transformation(s_layer_o)
-                    #apply the attn masks if its llama 
-                    l = mse_loss(normalize(t_layer_o),normalize(s_layer_o))
-                    #if mlp_z is None or mlp_z[layer_num] > 0:
+                    l = mse_loss(t_layer_o, s_layer_o)
                     layer_loss += l
           
             # distilling layers with a minimal distance
@@ -973,95 +946,12 @@ class CoFiTrainer(Trainer):
                         #change to [(layer1 pre, layer1 hyp), (layer2 pre, layer2 hyp), etc...]
 
                 device = transformed_s_layer_o_hyp[0].device
-                
-                
-                
-                
-                # Pre-allocate contiguous tensor matrix directly on GPU to prevent tracking loop errors
-                '''l = [] 
-
-                # Cross-evaluate loss between every possible Teacher <-> Student layer configuration
-                for t_idx, (t_pre_layer_o, t_hyp_layer_o) in enumerate(zip(specified_teacher_layer_reps_pre, specified_teacher_layer_reps_hyp)):
-                    for s_idx, (s_pre_layer_o, s_hyp_layer_o) in enumerate(zip(transformed_s_layer_o_pre, transformed_s_layer_o_hyp)):
-
-                        if self.model_name == 'llama':
-                            # Extract the raw attention tensors
-                            t_att_pre = teacher_pre_layer_attentions[t_idx]
-                            t_att_hyp = teacher_hyp_layer_attentions[t_idx]
-
-                            # 1. Squash multi-dimensional attention matrix down to [Batch, SeqLen]
-                            # If tensor is 4D or 5D, compress dimensions between Batch (dim 0) and SeqLen (dim -2 or -3)
-                            if t_att_pre.dim() > 2:
-                                # Safely maps any high-dim attention layout down to [Batch, SeqLen]
-                                mask_pre_base = (t_att_pre == 1).any(dim=-1)
-                                while mask_pre_base.dim() > 2:
-                                    mask_pre_base = mask_pre_base.any(dim=1)
-
-                                mask_hyp_base = (t_att_hyp == 1).any(dim=-1)
-                                while mask_hyp_base.dim() > 2:
-                                    mask_hyp_base = mask_hyp_base.any(dim=1)
-                            else:
-                                mask_pre_base = (t_att_pre == 1).bool()
-                                mask_hyp_base = (t_att_hyp == 1).bool()
-
-                            # Match the exact sequence length dimension of the hidden states to prevent mismatch
-                            seq_len_pre = t_pre_layer_o.size(1)
-                            seq_len_hyp = t_hyp_layer_o.size(1)
-                            mask_pre_base = mask_pre_base[:, :seq_len_pre]
-                            mask_hyp_base = mask_hyp_base[:, :seq_len_hyp]
-
-                            # 2. Expand mask to cover the hidden dimension: [Batch, SeqLen, HiddenDim]
-                            mask_pre = mask_pre_base.unsqueeze(-1).expand_as(t_pre_layer_o)
-                            mask_hyp = mask_hyp_base.unsqueeze(-1).expand_as(t_hyp_layer_o)
-
-                            # 3. Extract tokens and reshape into proper 2D feature matrices: [ValidTokens, HiddenDim]
-                            t_pre = torch.masked_select(t_pre_layer_o, mask_pre).view(-1, t_pre_layer_o.size(-1))
-                            s_pre = torch.masked_select(s_pre_layer_o, mask_pre).view(-1, s_pre_layer_o.size(-1))
-                            t_hyp = torch.masked_select(t_hyp_layer_o, mask_hyp).view(-1, t_hyp_layer_o.size(-1))
-                            s_hyp = torch.masked_select(s_hyp_layer_o, mask_hyp).view(-1, s_hyp_layer_o.size(-1))
-
-                            # Safety Check: Fallback if sequence masks leave zero valid active tokens
-                            if t_pre.size(0) == 0 or t_hyp.size(0) == 0:
-                                t_pre = t_pre_layer_o.reshape(-1, t_pre_layer_o.size(-1))
-                                s_pre = s_pre_layer_o.reshape(-1, s_pre_layer_o.size(-1))
-                                t_hyp = t_hyp_layer_o.reshape(-1, t_hyp_layer_o.size(-1))
-                                s_hyp = s_hyp_layer_o.reshape(-1, s_hyp_layer_o.size(-1))
-
-                            # Cosine target vectors (1 means perfectly aligned directions)
-                            target_pre = torch.ones(t_pre.size(0), device=t_pre.device, dtype=t_pre.dtype)
-                            target_hyp = torch.ones(t_hyp.size(0), device=t_hyp.device, dtype=t_hyp.dtype)
-
-                            loss = cosine_loss_fn(s_pre, t_pre, target_pre) + cosine_loss_fn(s_hyp, t_hyp, target_hyp)
-
-                        else:
-                            # Fallback configuration for non-llama variants using standard MSE
-                            loss = mse_loss(t_pre_layer_o, s_pre_layer_o) + mse_loss(t_hyp_layer_o, s_hyp_layer_o)
-
-                        l.append(loss)
-
-                # Reconstruct matrix cleanly matching loop iteration dimensions to avoid Reshape crashes
-                layerwiseloss = torch.stack(l).reshape(
-                    len(specified_teacher_layer_reps_pre), 
-                    len(transformed_s_layer_o_pre)
-                )'''
-
-
 
                 l=[]
                 for t_pre_layer_o, t_hyp_layer_o in zip(specified_teacher_layer_reps_pre,specified_teacher_layer_reps_hyp) :
 
                     for s_pre_layer_o, s_hyp_layer_o in zip(transformed_s_layer_o_pre, transformed_s_layer_o_hyp): #! student: 12x[32,113,768]
-                        if self.model_name=='llama':
-                           
-
-                            loss = (
-                                mse_loss(normalize(s_pre_layer_o), normalize(t_pre_layer_o))
-                                +   mse_loss(normalize(s_hyp_layer_o), normalize(t_hyp_layer_o))
-                            )
-
-                            l.append(loss)
-                        else:
-                            l.append(mse_loss(t_pre_layer_o, s_pre_layer_o)+ mse_loss(t_hyp_layer_o,s_hyp_layer_o))
+                        l.append(mse_loss(t_pre_layer_o, s_pre_layer_o)+ mse_loss(t_hyp_layer_o,s_hyp_layer_o))
 
                 #now dp lloss for mlp
 
@@ -1083,7 +973,7 @@ class CoFiTrainer(Trainer):
                     alignment = torch.argmin(layerwiseloss, dim=1)
                 #! added the ordering restriction -> to choose the min loss in 4 student layers
                 elif self.additional_args.layer_distill_version in (3, 4, 5, 6):
-                    last_aligned_layer = 12 if self.model_name=='bert' else 22
+                    last_aligned_layer = 22
                     alignment = []
                     for search_index in range(len(specified_teacher_layers)-1, -1, -1):
                         indexes = layerwiseloss[search_index].sort()[1]
@@ -1235,8 +1125,55 @@ class CoFiTrainer(Trainer):
         self.save_model(self.teacher_model, output_dir=teacher_model_path)
         return self.teacher_model
     
-    
-   
+    def compute_gradient_similarity(
+        self,
+        model,
+        layer_loss,
+        ce_loss,
+        layer_alpha=1.0,
+        ce_alpha=1.0,
+        tracked_modules=None,
+    ):
+        if tracked_modules is None:
+            tracked_modules = [
+                "layer_transformation",
+                "self_attn.v_proj",
+                "self_attn.o_proj",
+                "mlp.gate_proj",
+                "mlp.up_proj",
+                "mlp.down_proj",
+            ]
+
+        params = [
+            (name, p)
+            for name, p in model.named_parameters()
+            if p.requires_grad
+        ]
+
+        def grad_vec(loss, params):
+            grads = torch.autograd.grad(
+                loss,
+                params,
+                retain_graph=True,
+                allow_unused=True,
+            )
+            return torch.cat([
+                torch.zeros_like(p).flatten() if g is None else g.flatten()
+                for g, p in zip(grads, params)
+            ]).float()
+
+        params = [p for p in self.model.parameters() if p.requires_grad]
+
+        g_layer = grad_vec(layer_loss, params)
+        g_ce = grad_vec(ce_loss, params)
+
+        grad_stats = {
+            "cosine": F.cosine_similarity(g_layer, g_ce, dim=0).item(),
+            "layer_norm": g_layer.norm().item(),
+            "ce_norm": g_ce.norm().item(),
+        }
+        return grad_stats
+
 
     def training_step(self, model: torch.nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> List[torch.Tensor]:
         model.train()
@@ -1260,7 +1197,7 @@ class CoFiTrainer(Trainer):
                 teacher_outputs = self.teacher_model(**teacher_inputs)
 
             self.shortens_inputs(inputs)
-           
+               
             student_outputs = self.model(**inputs)
 
             # CRITICAL DEBUG
@@ -1271,6 +1208,9 @@ class CoFiTrainer(Trainer):
 
                
             zs = {key: inputs[key] for key in inputs if "_z" in key}
+            if zs: assert zs['hidden_z'] is not None 
+    
+           
             
             distill_loss, distill_ce_loss, loss = self.calculate_distillation_loss(
                 teacher_outputs, student_outputs, zs)
@@ -1295,7 +1235,7 @@ class CoFiTrainer(Trainer):
             loss = loss / self.args.gradient_accumulation_steps
 
         loss.backward()
-
+       
         # Check gradient norms
         if self.global_step % 50 == 0:
             total_norm = 0
@@ -1308,15 +1248,73 @@ class CoFiTrainer(Trainer):
                     param_norm = param.grad.data.norm(2)
                     total_norm += param_norm.item() ** 2
             total_norm = total_norm ** 0.5
+            
+            print("COMPUTING GRADIENT SIMILARIY")
+            '''grad_stats = self.compute_gradient_similarity(
+                model=self.model,
+                layer_loss=distill_loss,
+                ce_loss=distill_ce_loss,
+                layer_alpha=self.additional_args.distill_loss_alpha,
+                ce_alpha=self.additional_args.distill_ce_loss_alpha,
+            )
+
+            if grad_stats is not None:
+                print(
+                    f"GRAD SIM layer-vs-CE: "
+                    f"cos={grad_stats['cosine']:.4f}, "
+                    f"layer_norm={grad_stats['layer_norm']:.4f}, "
+                    f"ce_norm={grad_stats['ce_norm']:.4f}"
+                )
+        
+            def print_big_grads(model, topk=20):
+                rows = []
+
+                for name, p in model.named_parameters():
+                    if p.grad is None:
+                        continue
+
+                    g = p.grad.detach()
+                    rows.append((
+                        name,
+                        g.norm().item(),
+                        g.abs().max().item(),
+                        tuple(p.shape),
+                    ))
+
+                rows = sorted(rows, key=lambda x: x[1], reverse=True)
+
+                for name, norm, maxval, shape in rows[:topk]:
+                    print(f"{name:80s} norm={norm:.4f} max={maxval:.4f} shape={shape}")'''
+        
             print(f"Total gradient norm: {total_norm:.4f}\n")
+            #print(print_big_grads(self.model))
+    
+
+                
+            l0_stats = {}
+
+            for name, p in self.l0_module.named_parameters():
+                if p.grad is not None:
+                    l0_stats[f"l0/{name}_norm"] = p.grad.norm().item()
+                    l0_stats[f"l0/{name}_max"] = p.grad.abs().max().item()
+            
             wandb.log({
                 # Your existing metrics
+                **l0_stats,
+         
+                
                 "train/distill_layer_loss": distill_loss.item() if distill_loss is not None else float('inf'),
                 "train/distill_ce_loss": distill_ce_loss.item(),
                 "train/total_distill_loss": loss.item(),
                 "train/gradient_norm": total_norm,
                 "train/learning_rate": self.student_optimizer.param_groups[0]['lr'],
                 "train/step": self.global_step,
+                
+                #"grad/layer_kl_cosine": grad_stats["cosine"],
+                #"grad/layer_norm": grad_stats["layer_norm"],
+                #"grad/ce_norm": grad_stats["ce_norm"],
+                #"grad/layer_to_kl_ratio": grad_stats["layer_norm"] / (grad_stats["ce_norm"] + 1e-12),
+
 
             })
 
@@ -1328,3 +1326,4 @@ class CoFiTrainer(Trainer):
     def fill_inputs_with_zs(self, zs, inputs):
         for key in zs:
             inputs[key] = zs[key]
+       

@@ -1,6 +1,6 @@
 import torch
 import os
-from transformers.modeling_utils import prune_linear_layer
+from transformers.modeling_utils import prune_linear_layer, find_pruneable_heads_and_indices
 from transformers import AutoConfig, BertForSequenceClassification
 import torch
 from safetensors.torch import load_file

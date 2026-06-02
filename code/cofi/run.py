@@ -21,7 +21,7 @@ sys.path.append('code/')
 from args import AdditionalArguments, DataTrainingArguments
 from cofi.utils.cofi_utils import *
 from models.cofi_models.l0_module import L0Module
-from models.cofi_models.l0_module_llama import L0Module_LLAMA
+from models.cofi_models.shreredl0_module import L0Module_LLAMA
 from models.cofi_models.modeling_bert import CoFiBertForSequenceClassification
 from models.cofi_models.modeling_llama import CoFiLlamaForSequenceClassification
 from models.cofi_models.modeling_bowman import CoFiBowmanEntailmentClassifier, TextEncoder
@@ -104,8 +104,8 @@ def main():
  
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     max_data = None if data_args.data_debug > 0 else None
-    train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, pruning_method='CoFi', max_data=None, debug=False)
-    #train_subset,val_subset,dls = train_utils.create_dataloaders(model_type=additional_args.model_name, pruning_method='CoFi', max_data=150000, debug=True)
+    #train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, pruning_method='CoFi', max_data=None, debug=False)
+    train,val,dl = train_utils.create_dataloaders(model_type=additional_args.model_name, pruning_method='CoFi', max_data=60000, debug=True)
     label_list = list(set(train.labels))
     vocab= {'stoi': train.stoi, 'itos': train.itos}
 
@@ -191,7 +191,7 @@ def main():
    
     
 
-    student_path = "/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
+    student_path = "LLAMA/models/CoFi/Run_LTHStarter/25student/student_model.pth" #"LLAMA/models/CoFi/Run_LTHStarter/25student_cublac1/student_model_drbug.pth" #None #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
 
     print(f'Loading student model from : {student_path}')
     
@@ -248,6 +248,7 @@ def main():
                                  temperature=additional_args.temperature,
                                  target_sparsity=additional_args.target_sparsity,
                                  pruning_type=additional_args.pruning_type,
+                                
                                  args=training_args,
                                 full_model_size=calculate_parameters(teacher_model)).to(device)
             
