@@ -1206,7 +1206,7 @@ class CoFiTrainer(Trainer):
 
                
             zs = {key: inputs[key] for key in inputs if "_z" in key}
-            if zs: assert zs['hidden_z'] is not None 
+            #if zs: assert zs['hidden_z'] is not None 
     
            
             

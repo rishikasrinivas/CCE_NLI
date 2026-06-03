@@ -9,3 +9,4 @@ spacy==3.7.5
 pyparsing==2.4.2
 peft==0.13.0 
 tokenizers==0.20.3
+click

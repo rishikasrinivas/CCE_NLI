@@ -57,7 +57,8 @@ class Mask(nn.Module):
                  mask_output_shape: List, 
                  
                  device: str,
-                 target_mask_size: int) -> None:
+                 target_mask_size: int,
+                eval_target_model: bool=True) -> None:
         super().__init__()
         self.name = name
         self.num_params_per_mask = num_params_per_mask
@@ -72,6 +73,7 @@ class Mask(nn.Module):
         self.z_loga = self.initialize_mask(mask_shape) 
         self.mask_size = self.z_loga.shape[-1] # the full size of each unit
         self.target_mask_size = target_mask_size
+        self.eval_target_model=eval_target_model
         
         
     def get_size(self):
@@ -122,12 +124,14 @@ class Mask(nn.Module):
     
     def _deterministic_z(self, z_loga):
         # Following https://github.com/asappresearch/flop/blob/e80e47155de83abbe7d90190e00d30bfb85c18d5/flop/hardconcrete.py#L8 line 103
-        if self.target_mask_size is not None:
+        if True: #self.target_mask_size is None or not self.eval_target_model:
             expected_score = 1 - self.cdf_qz(z_loga)
             expected_num_nonzeros = expected_score.sum()
-            expected_num_zeros = self.target_mask_size - expected_num_nonzeros.item()
-        else:
-            assert False, "targrt mask size not defined"
+            expected_num_zeros = z_loga.nelement() - expected_num_nonzeros.item()
+        else: pass
+            #print("mask_size ",self.mask_size, "target_mask_size  ", self.target_mask_size )
+            #expected_num_zeros = self.mask_size - self.target_mask_size 
+        
         try:
             num_zeros = round(expected_num_zeros)
         except:
@@ -202,7 +206,8 @@ class L0Module_LLAMA(nn.Module):
         self.num_attention_heads = config.num_attention_heads
         self.num_key_value_heads = config.num_key_value_heads
         self.mlp_num_per_layer = 1
-        self.dim_per_head = self.hidden_size // self.num_attention_heads #changed this from num attn heads to num kv heads 
+        self.dim_per_head = self.hidden_size // self.num_attention_heads #should be 64 neurons in 1 q head
+            
         self.num_hidden_layers = config.num_hidden_layers
         
         self.vocab_size = config.vocab_size
@@ -216,10 +221,13 @@ class L0Module_LLAMA(nn.Module):
             + self.hidden_size * self.hidden_size    # o_proj
         )
         
+        
         self.params_per_mlp_layer = self.hidden_size * self.intermediate_size * 3
         
         
-        self.params_per_head =  self.params_per_head_layer // self.num_key_value_heads
+        self.params_per_head =  self.params_per_head_layer // self.num_key_value_heads #??(2048//32) * 8 (bc 4 kv heads each one attends to 8 attn heads)
+            #1kv hesad attends to 64x8 neurons so this shouldbe (hidden/num_attn_heads) * num_attn_heads/num_kv
+            #so eaxh kv attends to 8 heads (of num_attn_heads = 32) and those 8 heads each have 64 neurons bc 2048/32 = 64 then 64 * (32/4) = 64*8
         self.params_per_intermediate_dim = self.params_per_mlp_layer // self.intermediate_size
         
         self.params_finalmlp_layer = (self.hidden_size * 4 * self.final_mlp_hidden) + (self.final_mlp_hidden* self.out_params)  
@@ -380,7 +388,7 @@ class L0Module_LLAMA(nn.Module):
         mask_shape = [self.num_hidden_layers]
         num_params_per_mask=self.params_per_head *  self.config.num_key_value_heads
         mask_output_shape = [self.num_hidden_layers] 
-        target_mask_size = 1
+        target_mask_size = self.num_hidden_layers
         
         head_layer_mask = Mask(name="head_layer",
                               mask_shape=mask_shape,
@@ -482,85 +490,73 @@ class L0Module_LLAMA(nn.Module):
             num_parameters += torch.sum(int_score) * self.masks.intermediate.num_params_per_mask
         return num_parameters'''
     
+    
     def get_expected_num_params(self, expected_scores: dict):
         """
-        Expected remaining params for TinyLlama / LLaMA GQA.
+        Expected remaining params for TinyLlama GQA.
 
-        hidden_score:       (H,)
-        head_score:         (L, KV)
-        intermediate_score: (L, I)
+        hidden_score:       (2048,)
+        head_score:         (22, 4)
+        int_score:          (22, 5632)
+        final_hidden_score: (1024,)
         """
-
         num_parameters = 0.0
 
         head_layer_score, head_score = self.transform_scores_for_head(expected_scores)
         mlp_score, int_score = self.transform_scores_for_mlp(expected_scores)
 
+        # apply layer-level gates
         if head_layer_score is not None:
-            head_score = head_layer_score * head_score  # (L, KV)
-
+            head_score = head_layer_score * head_score      # (22, 4)
         if mlp_score is not None:
-            int_score = mlp_score * int_score  # (L, I)
+            int_score = mlp_score * int_score               # (22, 5632)
+
+        # per (hidden_dim, kv_head) pair cost
+        q_per_kv = self.num_attention_heads // self.num_key_value_heads
+        attn_cost_per_pair = (
+            2 * q_per_kv * self.dim_per_head    # Q + O
+            + 2 * self.dim_per_head             # K + V
+        )
 
         if "hidden" in expected_scores:
-            hidden_score = expected_scores["hidden"]  # (H,)
+            hidden_score = expected_scores["hidden"]    # (2048,)
 
-            q_per_kv = self.num_attention_heads // self.num_key_value_heads
+            active_hidden = hidden_score.sum()          # scalar
+            active_heads  = head_score.sum()            # scalar: sum over all (layer, kv_head)
+            active_int    = int_score.sum()             # scalar: sum over all (layer, intermediate)
 
+            # --- Attention ---
+            # active_hidden * active_heads gives total (hidden, kv_head) pairs across all layers
+            num_parameters += active_hidden * active_heads * attn_cost_per_pair
 
-            attn_per_hidden_per_kv = (
-                2 * q_per_kv * self.dim_per_head
-                + 2 * self.dim_per_head
-            )
+            # --- MLP ---
+            # active_hidden * active_int gives total (hidden, intermediate) pairs across all layers
+            # factor of 3 for gate, up, down projections
+            num_parameters += active_hidden * active_int * 3
 
-
-            hidden_head_pairs = torch.sum(
-                torch.outer(hidden_score, head_score.reshape(-1))
-            )
-
-            num_parameters += hidden_head_pairs * attn_per_hidden_per_kv
-
-            # =========================
-            # LLaMA MLP params
-            # gate, up, down => 3 matrices
-            # =========================
-            hidden_int_pairs = torch.sum(
-                torch.outer(hidden_score, int_score.reshape(-1))
-            )
-
-            num_parameters += hidden_int_pairs * 3
-
-            # =========================
-            # final MLP classifier params
-            # =========================
+            # --- Final MLP classifier ---
             if "final_mlp_hidden" in expected_scores:
-                final_hidden_score = expected_scores["final_mlp_hidden"]  # (1024,)
-
-                final_input_score = torch.cat([
-                    hidden_score,
-                    hidden_score,
-                    hidden_score,
-                    hidden_score,
-                ])  # (4H,)
-
-                num_parameters += torch.sum(
-                    torch.outer(final_input_score, final_hidden_score)
-                )
-
-                num_parameters += torch.sum(final_hidden_score) * self.out_params
+                final_hidden_score = expected_scores["final_mlp_hidden"]    # (1024,)
+                active_final_hidden = final_hidden_score.sum()              # scalar
+                # input is 4 * hidden concatenated
+                active_final_input = active_hidden * 4                      # scalar
+                num_parameters += active_final_input * active_final_hidden
+                num_parameters += active_final_hidden * self.out_params
 
         else:
-            # no hidden pruning: use normal per-mask parameter counts
-            num_parameters += torch.sum(head_score) * self.masks["head"].num_params_per_mask
-            num_parameters += torch.sum(int_score) * self.masks["intermediate"].num_params_per_mask
+            # no hidden pruning
+            num_parameters += head_score.sum() * self.params_per_head
+            num_parameters += int_score.sum()  * self.params_per_intermediate_dim
 
             if "final_mlp_hidden" in expected_scores:
                 num_parameters += (
-                    torch.sum(expected_scores["final_mlp_hidden"])
+                    expected_scores["final_mlp_hidden"].sum()
                     * self.masks["final_mlp_hidden"].num_params_per_mask
                 )
 
         return num_parameters
+
+
 
     
     def get_target_sparsity(self, pruned_steps: int, full_sparsity: float = None):
@@ -602,7 +598,7 @@ class L0Module_LLAMA(nn.Module):
     
     def calculate_model_size(self, zs):
         numpified_zs = self.get_z_from_zs(zs)
-        hidden_z = numpified_zs["hidden"]
+        hidden_z = numpified_zs.get("hidden", np.ones(2048))
         intermediate_z = numpified_zs["intermediate"]
         head_z = numpified_zs.get("head", np.ones((22,4)))
         head_layer_z = numpified_zs.get("head_layer",np.ones(22,)).reshape(-1)
@@ -690,7 +686,7 @@ class L0Module_LLAMA(nn.Module):
                     
                     mask = self.masks[pruning_module]
                     z = mask.deterministic_z()
-                    zs[f"{pruning_module}_z"] = z.cpu()
+                    zs[f"{pruning_module}_z"] = z
         return zs 
     
 
