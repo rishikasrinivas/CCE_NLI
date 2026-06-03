@@ -82,7 +82,7 @@ class Mask(nn.Module):
     def param_init_fn(self, module):
         """ Initialize the parameters for masking variables. """
         mean = math.log(1 - self.droprate_init) - math.log(self.droprate_init)
-        mean = 5
+        mean = 5 if self.name != 'hidden' else 10
         if isinstance(module, nn.Parameter):
             module.data.normal_(mean, 1e-2)
         else:
@@ -526,8 +526,9 @@ class L0Module_LLAMA(nn.Module):
             active_int    = int_score.sum()             # scalar: sum over all (layer, intermediate)
 
             # --- Attention ---
-            # active_hidden * active_heads gives total (hidden, kv_head) pairs across all layers
+            # so each kv head connects to a hiden dim and the idea is how many hidden and kv connections are still active. and each of those connections affects some number of weights
             num_parameters += active_hidden * active_heads * attn_cost_per_pair
+                
 
             # --- MLP ---
             # active_hidden * active_int gives total (hidden, intermediate) pairs across all layers
