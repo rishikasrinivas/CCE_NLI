@@ -759,7 +759,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             #print("MULT BY ZS Hidden (1024->3): ", final_mlp_hidden_z.shape)
             
             #print(f"MLP input bfore {mlp_input}")
-            print(f"Applying final mask to {mlp_input.shape} of {final_mlp_hidden_z.shape}")
+            #print(f"Applying final mask to {mlp_input.shape} of {final_mlp_hidden_z.shape}")
             mlp_input *= final_mlp_hidden_z
             #print(f"MLP input after {mlp_input}")
             
