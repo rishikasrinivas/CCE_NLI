@@ -581,7 +581,7 @@ class CoFiTrainer(Trainer):
         return TrainOutput(self.global_step, tr_loss.item() / self.global_step, None)
     from accelerate.utils import tqdm
     import torch.nn as nn
-    def prediction_loop(self, dataloader: DataLoader, description: str, prediction_loss_only: Optional[bool] = None, training: bool= False) -> PredictionOutput:
+    def prediction_loop(self, dataloader: DataLoader, description: str, prediction_loss_only: Optional[bool] = None) -> PredictionOutput:
         prediction_loss_only = (
             prediction_loss_only if prediction_loss_only is not None else self.args.prediction_loss_only
         )
@@ -696,24 +696,22 @@ class CoFiTrainer(Trainer):
             metrics = {}
 
         if all_losses is not None and len(all_losses) > 0:
-            if not training:
-                metrics["eval_loss"] = np.mean(all_losses)
-            else:
-                metrics["train_loss"] = np.mean(all_losses)
+            metrics["eval_loss"] = np.mean(all_losses)
+           
                 
-        if not training:
-            if zs is not None:
-                lag_loss, expected_sparsity, target_sparsity = self.l0_module.lagrangian_regularization(
-                    self.global_step - self.prepruning_finetune_steps)
 
-                expected_sparsity = round(expected_sparsity.item(), 5)
-                metrics.update(pruned_model_size_info)
-                metrics["expected_sparsity"] = expected_sparsity
-                metrics["target_sparsity"] = target_sparsity
+        if zs is not None:
+            lag_loss, expected_sparsity, target_sparsity = self.l0_module.lagrangian_regularization(
+                self.global_step - self.prepruning_finetune_steps)
 
-                if (not self.start_saving_best) and (expected_sparsity - self.additional_args.target_sparsity >= -self.additional_args.sparsity_epsilon):
-                    self.start_saving_best = True
-                    logger.info(f"Starting saving the best from epoch {int(self.epoch)} and step {self.global_step}")
+            expected_sparsity = round(expected_sparsity.item(), 5)
+            metrics.update(pruned_model_size_info)
+            metrics["expected_sparsity"] = expected_sparsity
+            metrics["target_sparsity"] = target_sparsity
+
+            if (not self.start_saving_best) and (expected_sparsity - self.additional_args.target_sparsity >= -self.additional_args.sparsity_epsilon):
+                self.start_saving_best = True
+                logger.info(f"Starting saving the best from epoch {int(self.epoch)} and step {self.global_step}")
         #only fro llm
         if self.model_name != 'bowman':
             model.config.output_hidden_states = True
@@ -726,7 +724,7 @@ class CoFiTrainer(Trainer):
 
         logger.warning("EVALUATING")
         eval_output = self.prediction_loop(
-            self.full_eval_dataloader, description="Evaluation", training=False)
+            self.full_eval_dataloader, description="Evaluation")
         #train_output = self.prediction_loop(
             #self.full_train_dataloader, description="Evaluation", training=True)
 
