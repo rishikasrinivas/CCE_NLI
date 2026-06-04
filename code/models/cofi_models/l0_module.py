@@ -49,25 +49,30 @@ class L0Module(Module):
             self.num_hidden_layers = config.num_hidden_layers
             self.vocab_size = config.vocab_size
             
-
             self.params_per_head_layer = self.hidden_size * self.hidden_size * 4 + self.hidden_size * 4
             self.params_per_head =  self.params_per_head_layer // self.num_attention_heads
 
 
             self.params_per_mlp_layer = self.hidden_size * self.intermediate_size * 2 + self.hidden_size + self.hidden_size * 4
             self.params_per_intermediate_dim = self.params_per_mlp_layer // self.intermediate_size
-        
-    
-            self.hidden_loga = None
-            self.params_finalmlp_layer = (self.hidden_size * 4 * self.final_mlp_hidden) + (self.final_mlp_hidden* self.out_params) 
-            self.params_per_hidden_dim_final_mlp = self.params_finalmlp_layer // self.final_mlp_hidden
             
+            
+            self.params_finalmlp_layer = (self.hidden_size * 4 * self.final_mlp_hidden) + (self.final_mlp_hidden* self.out_params) + self.final_mlp_hidden #weights &bias
+            self.params_per_hidden_dim_final_mlp = self.params_finalmlp_layer // self.final_mlp_hidden
+        
+            self.hidden_loga = None
         else:
             assert pruning_type == 'final_mlp_hidden', f"Pruning_type arg must be 'final_mlp_hidden' but is currently {pruning_type}"
             self.all_types = ['final_mlp_hidden_z']
             self.hidden_size  = 512
-            self.params_finalmlp_layer = (self.hidden_size * 4 * self.final_mlp_hidden) + (self.final_mlp_hidden* self.out_params) #weights &bias
+            self.params_finalmlp_layer = (self.hidden_size * 4 * self.final_mlp_hidden) + (self.final_mlp_hidden* self.out_params) + self.final_mlp_hidden #weights &bias
             
+        
+
+        
+
+        # we ignore the parameters in normalization layers (it takes a very small amount)
+        #self.full_model_size = (self.params_per_head_layer + self.params_per_mlp_layer) * self.num_hidden_layers
         
         self.temperature = temperature
         self.droprate_init = droprate_init if droprate_init != 0. else 0.5

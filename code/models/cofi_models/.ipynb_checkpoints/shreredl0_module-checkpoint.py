@@ -49,6 +49,8 @@ For final_mlp_hidden, Score from cdf shape is torch.Size([1024])
 mlp_score SHAPE: torch.Size([22, 1]) intermediate_score SHAPE: torch.Size([22, 5632])
 
 '''
+MEAN = {'hidden':10, 'mlp': 10, 'head': 10, 'head_layer':10, 'intermediate': 0, 'final_mlp_hidden': 10}
+
 class Mask(nn.Module):
     def __init__(self, 
                  name: str,
@@ -57,7 +59,7 @@ class Mask(nn.Module):
                  mask_output_shape: List, 
                  
                  device: str,
-                 target_mask_size: int,
+                 target_mask_size: int =None,
                 eval_target_model: bool=True) -> None:
         super().__init__()
         self.name = name
@@ -81,8 +83,11 @@ class Mask(nn.Module):
     
     def param_init_fn(self, module):
         """ Initialize the parameters for masking variables. """
-        mean = math.log(1 - self.droprate_init) - math.log(self.droprate_init)
-        mean = 5 if self.name != 'hidden' else 10
+        
+        mean = MEAN[self.name]
+        if mean == 0:
+            mean = math.log(1 - self.droprate_init) - math.log(self.droprate_init)
+            
         if isinstance(module, nn.Parameter):
             module.data.normal_(mean, 1e-2)
         else:
@@ -124,13 +129,13 @@ class Mask(nn.Module):
     
     def _deterministic_z(self, z_loga):
         # Following https://github.com/asappresearch/flop/blob/e80e47155de83abbe7d90190e00d30bfb85c18d5/flop/hardconcrete.py#L8 line 103
-        if True: #self.target_mask_size is None or not self.eval_target_model:
+        if self.target_mask_size is None:
             expected_score = 1 - self.cdf_qz(z_loga)
             expected_num_nonzeros = expected_score.sum()
             expected_num_zeros = z_loga.nelement() - expected_num_nonzeros.item()
-        else: pass
-            #print("mask_size ",self.mask_size, "target_mask_size  ", self.target_mask_size )
-            #expected_num_zeros = self.mask_size - self.target_mask_size 
+        else: 
+            print("mask_size ",self.mask_size, "target_mask_size  ", self.target_mask_size )
+            expected_num_zeros = self.mask_size - self.target_mask_size 
         
         try:
             num_zeros = round(expected_num_zeros)
@@ -170,8 +175,8 @@ class Mask(nn.Module):
     def calculate_expected_score_sparsity(self):
         score = 1 - self.cdf_qz()
         #print(f"For {self.name}, Score from cdf shape is {score.shape}")
-        sparsity = 1 - score.sum(-1) / self.target_mask_size
-        return score, sparsity
+        #sparsity = 1 - score.sum(-1) / self.target_mask_size
+        return score
     
  
 class L0Module_LLAMA(nn.Module):
@@ -225,7 +230,7 @@ class L0Module_LLAMA(nn.Module):
         self.params_per_mlp_layer = self.hidden_size * self.intermediate_size * 3
         
         
-        self.params_per_head =  self.params_per_head_layer // self.num_key_value_heads #??(2048//32) * 8 (bc 4 kv heads each one attends to 8 attn heads)
+        self.params_per_head =  self.params_per_head_layer // self.num_attention_heads #??(2048//32) * 8 (bc 4 kv heads each one attends to 8 attn heads)
             #1kv hesad attends to 64x8 neurons so this shouldbe (hidden/num_attn_heads) * num_attn_heads/num_kv
             #so eaxh kv attends to 8 heads (of num_attn_heads = 32) and those 8 heads each have 64 neurons bc 2048/32 = 64 then 64 * (32/4) = 64*8
         self.params_per_intermediate_dim = self.params_per_mlp_layer // self.intermediate_size
@@ -295,28 +300,35 @@ class L0Module_LLAMA(nn.Module):
         prunable_mlp_size = self.params_per_mlp_layer * self.num_hidden_layers
         prunable_head_layer_size = self.params_per_head_layer * self.num_hidden_layers
         prunable_model_size = 0
-       
+        
         if "structured_heads" in self.pruning_modules:
             prunable_model_size += prunable_head_layer_size
         if "structured_mlp" in self.pruning_modules:
             prunable_model_size += prunable_mlp_size
         if 'final_mlp_hidden' in self.pruning_modules :
             prunable_model_size += self.params_finalmlp_layer
+        #if "hidden" in self.pruning_modules:
+            
+            #return prunable_mlp_size + prunable_head_layer_size + self.params_finalmlp_layer
+        
         return prunable_model_size
         
     def initialize_one_module(self, module_name: str):
         if module_name == "structured_mlp":
+            #pass
             self.initialize_structured_mlp()
         elif module_name == "structured_heads":
-            
+            #pass
             self.initialize_structured_head()
         elif module_name == "hidden":
             self.initialize_hidden()
         elif module_name == "layer":
+            #pass
             self.initialize_whole_mlp()
             self.initialized_layer_structured_heads()
         elif module_name == 'final_mlp_hidden':
-            print("final ml")
+            #pass
+            #print("final ml")
             self.initialize_final_hidden_layer_mlp()
             
     def initialize_hidden(self):
@@ -328,8 +340,6 @@ class L0Module_LLAMA(nn.Module):
                                 + self.hidden_size    # o output
                                 + 3 * self.intermediate_size
                             )
-        
-        target_mask_size = self.hidden_size
            
         
         hidden_mask = Mask(name="hidden",
@@ -337,7 +347,6 @@ class L0Module_LLAMA(nn.Module):
                            num_params_per_mask=num_params_per_mask,
                            mask_output_shape=[self.hidden_size],
                            
-                           target_mask_size=target_mask_size,
                            device=self.device)
         self.masks["hidden"] = hidden_mask
 
@@ -346,14 +355,10 @@ class L0Module_LLAMA(nn.Module):
         num_params_per_mask = self.params_per_head
         mask_output_shape = [self.num_hidden_layers, 1, self.config.num_key_value_heads, 1] #was 22,1,4,1,1 in cofi code
         
-    
-        target_mask_size = self.config.num_key_value_heads
-            
         head_mask = Mask(name="head",
                          mask_shape=mask_shape,
                          num_params_per_mask=num_params_per_mask,
                          mask_output_shape=mask_output_shape,
-                         target_mask_size=target_mask_size,
                            device=self.device,)
         self.masks["head"] = head_mask 
 
@@ -370,31 +375,22 @@ class L0Module_LLAMA(nn.Module):
                               mask_shape=mask_shape,
                                num_params_per_mask=num_params_per_mask,
                                mask_output_shape=mask_output_shape,
-                              target_mask_size=self.final_mlp_hidden,
                            device=self.device)
         
         self.masks["final_mlp_hidden"] = final_mlp_mask
         
-        '''self.hidden_layer_mlp_loga = self.initialize_parameters(self.final_mlp_hidden) #3072,1024 this will prune the 1024
-        self.reset_loga(self.hidden_layer_mlp_loga, mean=10)
-        self.add_one_module(self.hidden_layer_mlp_loga, type="final_mlp_hidden", 
-                            parameter_per_dim=self.params_per_hidden_dim_final_mlp, size=self.final_mlp_hidden,
-                            shape=[self.final_mlp_hidden])'''
-       
-        logger.info(f"Initialized final layer hidden mlp! Prunable_model_size = {self.prunable_model_size}")
+    
     
         
     def initialized_layer_structured_heads(self):
         mask_shape = [self.num_hidden_layers]
         num_params_per_mask=self.params_per_head *  self.config.num_key_value_heads
         mask_output_shape = [self.num_hidden_layers] 
-        target_mask_size = self.num_hidden_layers
         
         head_layer_mask = Mask(name="head_layer",
                               mask_shape=mask_shape,
                                num_params_per_mask=num_params_per_mask,
                                mask_output_shape=mask_output_shape,
-                               target_mask_size=target_mask_size,
                            device=self.device)
         self.masks["head_layer"] = head_layer_mask
         
@@ -403,13 +399,10 @@ class L0Module_LLAMA(nn.Module):
         num_params_per_mask=self.params_per_intermediate_dim
         mask_output_shape = [self.num_hidden_layers, 1, 1, self.intermediate_size] 
         
-        target_mask_size = self.intermediate_size
-        
         int_mask = Mask(name="intermediate",
                         mask_shape=mask_shape,
                         num_params_per_mask=num_params_per_mask,
                         mask_output_shape=mask_output_shape,
-                        target_mask_size=target_mask_size,
                            device=self.device)
         self.masks["intermediate"] = int_mask
        
@@ -419,12 +412,10 @@ class L0Module_LLAMA(nn.Module):
         num_params_per_mask=1
         mask_output_shape = [self.num_hidden_layers] 
         
-        target_mask_size = self.num_hidden_layers
         mlp_mask = Mask(name="mlp",
                         mask_shape=mask_shape,
                         num_params_per_mask=num_params_per_mask,
                         mask_output_shape=mask_output_shape,
-                        target_mask_size=target_mask_size,
                            device=self.device)
         self.masks["mlp"] = mlp_mask 
 
@@ -435,12 +426,10 @@ class L0Module_LLAMA(nn.Module):
 
     def calculate_expected_score_sparsity(self):
         expected_scores = {}
-        expected_sparsitys = {}
         for key in self.masks:
-            score, sparsity = self.masks[key].calculate_expected_score_sparsity()
+            score = self.masks[key].calculate_expected_score_sparsity()
             expected_scores[key] = score
-            expected_sparsitys[key] = sparsity
-        return expected_scores, expected_sparsitys
+        return expected_scores
     
     def transform_scores_for_head(self, expected_scores: dict):
         head_score = expected_scores.get("head", torch.ones(22,4)) # 12 * 12
@@ -453,7 +442,7 @@ class L0Module_LLAMA(nn.Module):
             assert head_layer_score.shape[0]==22 and head_layer_score.shape[1]==1, f"headlayer shpe hsould be 22,1 but is {head_layer_score.shape}"
         #print(f"HEAD SHAPE: {head_score.shape} HEAD LAYER SHAPE: {head_layer_score.shape}")
         #HEAD SHAPE: torch.Size([22, 4]) HEAD LAYER SHAPE: torch.Size([22, 1])   
-        return head_layer_score, head_score.to(head_layer_score.device)
+        return head_layer_score, head_score.to(self.device) if head_score is not None else None
 
     def transform_scores_for_mlp(self, expected_scores: dict):
         mlp_score = None
@@ -462,7 +451,7 @@ class L0Module_LLAMA(nn.Module):
         if mlp_score is not None:
             mlp_score = mlp_score.unsqueeze(-1)
         
-        intermediate_score = expected_scores["intermediate"] # 12 * 3072
+        intermediate_score = expected_scores.get("intermediate", torch.ones((22,5632))) # 12 * 3072
         #print(f"mlp_score SHAPE: {mlp_score.shape} intermediate_score SHAPE: {intermediate_score.shape}")
         return mlp_score, intermediate_score
 
@@ -513,6 +502,7 @@ class L0Module_LLAMA(nn.Module):
 
         # per (hidden_dim, kv_head) pair cost
         q_per_kv = self.num_attention_heads // self.num_key_value_heads
+        
         attn_cost_per_pair = (
             2 * q_per_kv * self.dim_per_head    # Q + O
             + 2 * self.dim_per_head             # K + V
@@ -525,19 +515,19 @@ class L0Module_LLAMA(nn.Module):
             active_heads  = head_score.sum()            # scalar: sum over all (layer, kv_head)
             active_int    = int_score.sum()             # scalar: sum over all (layer, intermediate)
 
-            # --- Attention ---
+            # GQA
             # so each kv head connects to a hiden dim and the idea is how many hidden and kv connections are still active. and each of those connections affects some number of weights
             num_parameters += active_hidden * active_heads * attn_cost_per_pair
                 
 
-            # --- MLP ---
+            # MLP
             # active_hidden * active_int gives total (hidden, intermediate) pairs across all layers
-            # factor of 3 for gate, up, down projections
+            # *3 for gate, up, down projections
             num_parameters += active_hidden * active_int * 3
 
             # --- Final MLP classifier ---
             if "final_mlp_hidden" in expected_scores:
-                final_hidden_score = expected_scores["final_mlp_hidden"]    # (1024,)
+                final_hidden_score = expected_scores.get("final_mlp_hidden", torch.ones(1024,))    # (1024,)
                 active_final_hidden = final_hidden_score.sum()              # scalar
                 # input is 4 * hidden concatenated
                 active_final_input = active_hidden * 4                      # scalar
@@ -576,7 +566,7 @@ class L0Module_LLAMA(nn.Module):
             return lagrangian_loss
 
         target_sparsity = self.get_target_sparsity(pruned_steps, self.target_sparsity)            
-        expected_scores, expected_sparsitys = self.calculate_expected_score_sparsity()
+        expected_scores = self.calculate_expected_score_sparsity()
         expected_size = self.get_expected_num_params(expected_scores) #! calculate \bar s
         expected_sparsity = 1 - expected_size / self.prunable_model_size
         
@@ -600,7 +590,7 @@ class L0Module_LLAMA(nn.Module):
     def calculate_model_size(self, zs):
         numpified_zs = self.get_z_from_zs(zs)
         hidden_z = numpified_zs.get("hidden", np.ones(2048))
-        intermediate_z = numpified_zs["intermediate"]
+        intermediate_z = numpified_zs.get("intermediate", np.ones((22,5632)))
         head_z = numpified_zs.get("head", np.ones((22,4)))
         head_layer_z = numpified_zs.get("head_layer",np.ones(22,)).reshape(-1)
         mlp_z = numpified_zs.get("mlp", np.ones(22,)).reshape(-1)

@@ -423,6 +423,82 @@ class BertEntailmentClassifier(BaseModel):
         return super().to(device)
     
 
+class T5EntailmentClassifier(BaseModel):
+    def __init__(self, encoder_name="google-t5/t5-small", pretrained=True, freeze_bert=False, device='cuda'):
+        super().__init__()
+        self.encoder_name = encoder_name
+        self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
+        self.model_name='t5'
+        if pretrained:
+            print("Loading PRETRAINED")
+            self.t5 = AutoModel.from_pretrained(encoder_name)
+        else:
+            print("Loading UNTRAINED")
+            config = AutoConfig.from_pretrained(encoder_name)
+            self.t5 = AutoModel.from_config(config)
+        
+        if freeze_bert:
+            for param in self.t5.parameters():
+                param.requires_grad = False
+        
+        self.encoder_dim = self.t5.config.hidden_size
+        self.mlp_input_dim = self.encoder_dim * 4
+        self.dropout = nn.Dropout(0.1)
+        self.bn = nn.BatchNorm1d(self.mlp_input_dim)
+        self.mlp = nn.Sequential(
+            nn.Linear(self.mlp_input_dim, 1024),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(1024, 3),
+        )
+        self.output_dim = 3
+        self.initialize(device)
+
+    def forward(self, s1_batch, s2_batch):
+        s1enc = self.encode_sentence(s1_batch)
+        s2enc = self.encode_sentence(s2_batch)
+        
+        diffs = s1enc - s2enc
+        prods = s1enc * s2enc
+        
+        mlp_input = torch.cat([s1enc, s2enc, diffs, prods], 1)
+        mlp_input = self.bn(mlp_input)
+        mlp_input = self.dropout(mlp_input)
+        preds = self.mlp(mlp_input)
+        
+        return preds
+
+    def get_final_reprs(self, s1_batch, s2_batch):
+        s1enc = self.encode_sentence(s1_batch)
+        s2enc = self.encode_sentence(s2_batch)
+        
+        diffs = s1enc - s2enc
+        prods = s1enc * s2enc
+        
+        mlp_input = torch.cat([s1enc, s2enc, diffs, prods], 1)
+        mlp_input = self.bn(mlp_input)
+        mlp_input = self.dropout(mlp_input)
+        rep = self.mlp[:-1](mlp_input)
+        
+        return rep
+
+    def forward_from_final(self, rep):
+        preds = self.mlp[-1:](rep)
+        return preds
+
+    def mean_pool(self, token_embeddings, attention_mask):
+        mask_expanded = attention_mask.unsqueeze(-1).expand_as(token_embeddings).to(token_embeddings.dtype)
+        sum_embeddings = torch.sum(token_embeddings * mask_expanded, dim=1)
+        sum_mask = torch.clamp(mask_expanded.sum(dim=1), min=1e-9)
+        return sum_embeddings / sum_mask
+
+    def encode_sentence(self, tokens):
+        outputs = self.t5(**tokens)
+        return self.mean_pool(outputs.last_hidden_state, tokens["attention_mask"])
+        def to(self, device):
+            self.bert = self.bert.to(device)
+            return super().to(device)
+    
 class BowmanEntailmentClassifier(BaseModel):
     """
     The RNN-based entailment model of Bowman et al 2017

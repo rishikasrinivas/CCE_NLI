@@ -123,7 +123,7 @@ class L0Module_LLAMA(Module):
         self.lagrangian_warmup = lagrangian_warmup
 
     def initialize_one_module(self, module_name):
-        if module_name == "structured_mlp":
+        if module_name == "structured_mlp": 
             self.initialize_structured_mlp()
         elif module_name == "structured_heads":
             self.initialize_structured_head()
@@ -134,7 +134,6 @@ class L0Module_LLAMA(Module):
         elif module_name == "layer":
             self.initialize_whole_mlp()
         elif module_name == 'final_mlp_hidden':
-          
             self.initialize_final_hidden_layer_mlp()
             
     '''
@@ -276,7 +275,6 @@ class L0Module_LLAMA(Module):
         return torch.sum(1 - self.cdf_qz(0, loga)) * parameter_size
 
     def transform_scores_for_head(self):
-        assert "head" in self.types
 
         if "head_layer" in self.types:
             all_head_score = 1 - self.cdf_qz(0, self.headlayer_loga)
