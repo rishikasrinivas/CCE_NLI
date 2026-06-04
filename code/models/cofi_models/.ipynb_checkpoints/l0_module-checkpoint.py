@@ -407,6 +407,7 @@ class L0Module(Module):
         
         try:
             num_zeros = round(expected_num_zeros)
+            print(size ,expected_num_zeros )
         except:
             pdb.set_trace()
         soft_mask = torch.sigmoid(loga / self.temperature * self.magical_number)
