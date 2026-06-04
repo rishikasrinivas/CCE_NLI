@@ -104,8 +104,8 @@ def main():
  
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     max_data = None if data_args.data_debug > 0 else None
-    #train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, pruning_method='CoFi', max_data=None, debug=False)
-    train,val,dl = train_utils.create_dataloaders(model_type=additional_args.model_name, pruning_method='CoFi', max_data=60000, debug=True)
+    train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, pruning_method='CoFi', max_data=None, debug=False)
+    #train,val,dl = train_utils.create_dataloaders(model_type=additional_args.model_name, pruning_method='CoFi', max_data=60000, debug=True)
     label_list = list(set(train.labels))
     vocab= {'stoi': train.stoi, 'itos': train.itos}
 
@@ -191,7 +191,7 @@ def main():
    
     
 
-    student_path = "LLAMA/models/CoFi/Run_LTHStarter/25student_60000subset/student_model.pth" #"LLAMA/models/CoFi/Run_LTHStarter/25student_cublac1/student_model_drbug.pth" #None #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
+    student_path ="LLAMA/models/CoFi/Run_LTHStarter/25student/student_model.pth" #"LLAMA/models/CoFi/Run_LTHStarter/25student_cublac1/student_model_drbug.pth" #None #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
 
     print(f'Loading student model from : {student_path}')
     
@@ -356,4 +356,3 @@ if __name__ == "__main__":
 
 
    
-

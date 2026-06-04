@@ -1,9 +1,9 @@
 #!/bin/bash
 
-sparsities="0.25" # 0.4375 0.57812 0.68359 0.7627"
+sparsities="0.05" # 0.4375 0.57812 0.68359 0.7627"
 
-model_name=bert #sllama #bert
-encoder_name=bert-base-uncased  #knowledgator/Llama-encoder-1.0B #bert-base-uncased 
+model_name=llama #sllama #bert
+encoder_name=knowledgator/Llama-encoder-1.0B  #knowledgator/Llama-encoder-1.0B #bert-base-uncased 
 
 pruning_iter=25student
 for sparsity in ${sparsities}

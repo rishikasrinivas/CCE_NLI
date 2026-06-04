@@ -129,7 +129,7 @@ class Mask(nn.Module):
             expected_num_nonzeros = expected_score.sum()
             expected_num_zeros = self.target_mask_size - expected_num_nonzeros.item()
         else:
-            assert False, "targrt mask size not defined"
+            assert False, "target mask size not defined"
         try:
             num_zeros = round(expected_num_zeros)
         except:
@@ -148,8 +148,6 @@ class Mask(nn.Module):
         if self.z_loga.ndim == 1:
             z = self._deterministic_z(self.z_loga).reshape(*self.mask_output_shape)
         else:
-            
-            
             z_loga = self.z_loga.reshape(-1, self.z_loga.shape[-1])
             z = []
             for i in range(z_loga.shape[0]):

@@ -314,7 +314,7 @@ class CoFiTrainer(Trainer):
         print("created optimizer")
                 
     def ready_to_save(self):
-        return self.pruned_sparsity >= self.additional_args.target_sparsity or abs(self.expected_sparsity - self.additional_args.target_sparsity) <= self.additional_args.sparsity_epsilon
+        return self.pruned_sparsity >= self.additional_args.target_sparsity and abs(self.expected_sparsity - self.additional_args.target_sparsity) <= self.additional_args.sparsity_epsilon
     
     def train(self, using_trained_student=True):
         
@@ -963,8 +963,7 @@ class CoFiTrainer(Trainer):
                     existing_layers = head_layer_z != 0
                     existing_layers = existing_layers.to(layerwiseloss.device)
 
-                #WORST CASE FOR LLMA DONT DISTILL MLP
-                #layer_loss = mse_loss(normalize(student_pre_final_layer_reps), normalize(teacher_pre_final_layer_reps)) + mse_loss(normalize(student_final_layer_reps), normalize(teacher_final_layer_reps))
+                
                 layer_loss = mse_loss(student_pre_final_layer_reps, teacher_pre_final_layer_reps) + mse_loss(student_final_layer_reps, teacher_final_layer_reps)
                 #! no ordering restriction specified
                 if self.additional_args.layer_distill_version == 3:
@@ -1122,55 +1121,8 @@ class CoFiTrainer(Trainer):
        
         self.save_model(self.teacher_model, output_dir=teacher_model_path)
         return self.teacher_model
+
     
-    def compute_gradient_similarity(
-        self,
-        model,
-        layer_loss,
-        ce_loss,
-        layer_alpha=1.0,
-        ce_alpha=1.0,
-        tracked_modules=None,
-    ):
-        if tracked_modules is None:
-            tracked_modules = [
-                "layer_transformation",
-                "self_attn.v_proj",
-                "self_attn.o_proj",
-                "mlp.gate_proj",
-                "mlp.up_proj",
-                "mlp.down_proj",
-            ]
-
-        params = [
-            (name, p)
-            for name, p in model.named_parameters()
-            if p.requires_grad
-        ]
-
-        def grad_vec(loss, params):
-            grads = torch.autograd.grad(
-                loss,
-                params,
-                retain_graph=True,
-                allow_unused=True,
-            )
-            return torch.cat([
-                torch.zeros_like(p).flatten() if g is None else g.flatten()
-                for g, p in zip(grads, params)
-            ]).float()
-
-        params = [p for p in self.model.parameters() if p.requires_grad]
-
-        g_layer = grad_vec(layer_loss, params)
-        g_ce = grad_vec(ce_loss, params)
-
-        grad_stats = {
-            "cosine": F.cosine_similarity(g_layer, g_ce, dim=0).item(),
-            "layer_norm": g_layer.norm().item(),
-            "ce_norm": g_ce.norm().item(),
-        }
-        return grad_stats
 
 
     def training_step(self, model: torch.nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> List[torch.Tensor]:
@@ -1214,10 +1166,10 @@ class CoFiTrainer(Trainer):
                 teacher_outputs, student_outputs, zs)
 
             # More debug
-            if self.global_step % 50 == 0:
-                print(f"Distill layer loss: {distill_loss.item() if distill_loss is not None else 'None':.4f}")
-                print(f"Distill CE loss: {distill_ce_loss.item():.4f}")
-                print(f"Total distill loss: {loss.item():.4f}")
+            #if self.global_step % 50 == 0:
+                #print(f"Distill layer loss: {distill_loss.item() if distill_loss is not None else 'None':.4f}")
+                #print(f"Distill CE loss: {distill_ce_loss.item():.4f}")
+                #print(f"Total distill loss: {loss.item():.4f}")
                             
                 
         else:
@@ -1247,46 +1199,6 @@ class CoFiTrainer(Trainer):
                     total_norm += param_norm.item() ** 2
             total_norm = total_norm ** 0.5
             
-            print("COMPUTING GRADIENT SIMILARIY")
-            '''grad_stats = self.compute_gradient_similarity(
-                model=self.model,
-                layer_loss=distill_loss,
-                ce_loss=distill_ce_loss,
-                layer_alpha=self.additional_args.distill_loss_alpha,
-                ce_alpha=self.additional_args.distill_ce_loss_alpha,
-            )
-
-            if grad_stats is not None:
-                print(
-                    f"GRAD SIM layer-vs-CE: "
-                    f"cos={grad_stats['cosine']:.4f}, "
-                    f"layer_norm={grad_stats['layer_norm']:.4f}, "
-                    f"ce_norm={grad_stats['ce_norm']:.4f}"
-                )
-        
-            def print_big_grads(model, topk=20):
-                rows = []
-
-                for name, p in model.named_parameters():
-                    if p.grad is None:
-                        continue
-
-                    g = p.grad.detach()
-                    rows.append((
-                        name,
-                        g.norm().item(),
-                        g.abs().max().item(),
-                        tuple(p.shape),
-                    ))
-
-                rows = sorted(rows, key=lambda x: x[1], reverse=True)
-
-                for name, norm, maxval, shape in rows[:topk]:
-                    print(f"{name:80s} norm={norm:.4f} max={maxval:.4f} shape={shape}")'''
-        
-            print(f"Total gradient norm: {total_norm:.4f}\n")
-            #print(print_big_grads(self.model))
-    
 
                 
             l0_stats = {}
@@ -1325,3 +1237,5 @@ class CoFiTrainer(Trainer):
         for key in zs:
             inputs[key] = zs[key]
        
+    
+    
