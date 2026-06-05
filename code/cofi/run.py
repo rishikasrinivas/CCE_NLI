@@ -21,7 +21,7 @@ sys.path.append('code/')
 from args import AdditionalArguments, DataTrainingArguments
 from cofi.utils.cofi_utils import *
 from models.cofi_models.l0_module import L0Module
-from models.cofi_models.shreredl0_module import L0Module_LLAMA
+from models.cofi_models.shreredl0_module_lambda_per_mask import L0Module_LLAMA
 from models.cofi_models.modeling_bert import CoFiBertForSequenceClassification
 from models.cofi_models.modeling_llama import CoFiLlamaForSequenceClassification
 from models.cofi_models.modeling_bowman import CoFiBowmanEntailmentClassifier, TextEncoder

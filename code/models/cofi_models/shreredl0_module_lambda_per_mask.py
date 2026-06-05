@@ -9,8 +9,7 @@ import torch.nn.functional as F
 from argparse import Namespace as NS
 from typing import Any, List
 
-from composer.core.time import Time
-
+import numpy as np
 limit_a, limit_b, epsilon = -.1, 1.1, 1e-6
 
 class Mask(nn.Module):
@@ -19,16 +18,13 @@ class Mask(nn.Module):
                  mask_shape: List, 
                  num_params_per_mask: int, 
                  mask_output_shape: List, 
-                 target_sparsity: float,
                  target_mask_size: int,
-                 device: str,
-                 eval_target_model: bool=True) -> None:
+                 device: str) -> None:
         super().__init__()
         self.name = name
         self.num_params_per_mask = num_params_per_mask
         self.mask_output_shape = mask_output_shape
-        self.target_sparsity=target_sparsity
-
+      
         self.droprate_init = 0.5
         self.temperature = 2./3.
         self.magical_number = 0.8
@@ -37,8 +33,8 @@ class Mask(nn.Module):
         self.z_loga = self.initialize_mask(mask_shape) 
         self.mask_size = self.z_loga.shape[-1] # the full size of each unit
         self.target_mask_size = target_mask_size
-        self.eval_target_model = eval_target_model
-        
+    def get_size(self):
+        return self.mask_output_shape
         
     def param_init_fn(self, module):
         """ Initialize the parameters for masking variables. """
@@ -62,7 +58,9 @@ class Mask(nn.Module):
             z_loga = self.z_loga
         xn = (0 - limit_a) / (limit_b - limit_a)
         logits = math.log(xn) - math.log(1 - xn)
-        return torch.sigmoid(logits * self.temperature - z_loga).clamp(min=epsilon, max=1 - epsilon)
+        res=torch.sigmoid(logits * self.temperature - z_loga).clamp(min=epsilon, max=1 - epsilon)
+        print(f"{self.name}\norig shape: {z_loga.shape}\noutput shape: {self.mask_output_shape}\nresult shape {res.shape}")
+        return res
     
     def get_eps(self, size: List):
         """Uniform random numbers for the concrete distribution"""
@@ -85,7 +83,8 @@ class Mask(nn.Module):
         # THIS PART MODIFIED FOR VANILLA COFI
         expected_score = 1 - self.cdf_qz(z_loga)
         expected_num_nonzeros = expected_score.sum()
-        expected_num_zeros = self.mask_size - expected_num_nonzeros.item()
+        
+        expected_num_zeros = self.target_mask_size - expected_num_nonzeros.item()
         try:
             num_zeros = round(expected_num_zeros)
         except:
@@ -127,7 +126,7 @@ class Mask(nn.Module):
         return score, sparsity
  
 class L0Module_LLAMA(nn.Module):
-    def __init__(self, self,
+    def __init__(self,
                  config=None, 
                  model_name=None,
                  droprate_init=0.5,
@@ -139,14 +138,19 @@ class L0Module_LLAMA(nn.Module):
                  full_model_size=None,
                  pruning_type="structured_heads+structured_mlp+hidden+layer+final_mlp_hidden",
                  magical_number=0.8, # from Wang et al. 2020
-                 device='cuda'):
-        super(L0Module, self).__init__()
-
-        # base and target model info
-        n_matrix_mlp =  3
-        #self.base_model_info = self.set_model_info(cfg, n_matrix_mlp=n_matrix_mlp) 
+                 device='cuda'
+                 ):
+        super(L0Module_LLAMA, self).__init__()
         
-        # Model Config Vars
+
+        self.final_mlp_hidden = 1024
+        self.out_params = 3
+        
+        # base and target model info
+        n_matrix_mlp = 3
+        #l0_module_cfg = cfg.l0_module
+   
+        #l0 module config attrs
         self.config = config
         self.hidden_size = config.hidden_size
         self.intermediate_size = config.intermediate_size #hidden_size*4#config.ffn_dim#intermediate_size 
@@ -155,9 +159,9 @@ class L0Module_LLAMA(nn.Module):
         self.mlp_num_per_layer = 1
         self.dim_per_head = self.hidden_size // self.num_attention_heads #changed this from num attn heads to num kv heads 
         self.num_hidden_layers = config.num_hidden_layers
-
+        
         self.vocab_size = config.vocab_size
-
+       
         #modified
         kv_dim = self.num_key_value_heads * self.dim_per_head
         self.params_per_head_layer = (
@@ -166,45 +170,47 @@ class L0Module_LLAMA(nn.Module):
             + self.hidden_size * kv_dim             # v_proj
             + self.hidden_size * self.hidden_size    # o_proj
         )
-
+        
         self.params_per_mlp_layer = self.hidden_size * self.intermediate_size * 3
-
-
+        
+        
         self.params_per_head =  self.params_per_head_layer // self.num_key_value_heads
         self.params_per_intermediate_dim = self.params_per_mlp_layer // self.intermediate_size
-
+        
         self.params_finalmlp_layer = (self.hidden_size * 4 * self.final_mlp_hidden) + (self.final_mlp_hidden* self.out_params)  
         self.params_per_hidden_dim_final_mlp = self.params_finalmlp_layer // self.final_mlp_hidden
-
+        
         # we ignore the parameters in normalization layers (it takes a very small amount)
         self.full_model_size = (self.params_per_head_layer + self.params_per_mlp_layer) * self.num_hidden_layers + self.params_finalmlp_layer
-        self.prunable_model_size = self.calculate_prunable_model_size(self) 
-        
-        
-        # l0 config
-        self.pruning_modules = pruning_type.split("+")         
-        self.start_sparsity = 0.0
-        self.lagrangian_warmup_steps = lagrangian_warmup
-        self.device = device
+        self.prunable_model_size = 0 
     
         
+        # l0 config
+        self.pruning_modules = pruning_type.split("+")   
+        self.start_sparsity = start_sparsity
+        self.lagrangian_warmup_steps = lagrangian_warmup
+        self.device = device
+        
         # l0 params
-        self.lambdas = {}
-        self.lambdas["lambda_1"] = torch.nn.Parameter(torch.tensor(0.0, device=device))
-        self.lambdas["lambda_2"] = torch.nn.Parameter(torch.tensor(0.0, device=device))
+   
+        self.lambda1 = torch.nn.Parameter(torch.tensor(0.0))
+        self.lambda2 = torch.nn.Parameter(torch.tensor(0.0))
         self.masks = {}
         for pruning_module in self.pruning_modules:
             self.initialize_one_module(pruning_module)
         self.masks = torch.nn.ModuleDict(self.masks)
-        self.lambdas = torch.nn.ParameterDict(self.lambdas)
         
         # config after initialization
-        self.prunable_model_size = self.calculate_prunable_model_size(self.base_model_info)
-        
-        self.target_sparsity =  target_sparsity
-
+        self.prunable_model_size = self.calculate_prunable_model_size()
+        #can comment this out bc else is equiv to setting the arget sparsity raw
+        '''if target_model_cfg is not None:
+            self.prunable_target_model_size = self.calculate_prunable_model_size()
+            self.target_sparsity = 1 - self.prunable_target_model_size / self.prunable_model_size
+        else:
+            self.target_sparsity = l0_module_cfg.target_sparsity'''
+        self.target_sparsity = target_sparsity
         print("********** Initializing L0 Module **********") 
-        for pruning_module in self.pruning_modules:
+        for pruning_module in self.masks:
             print(f"***** {pruning_module} *****")
             print(f"z.shape", self.masks[pruning_module].z_loga.shape)
             print(f"size", self.masks[pruning_module].mask_size)
@@ -212,13 +218,14 @@ class L0Module_LLAMA(nn.Module):
         
     
     
+    
         
     def calculate_prunable_model_size(self):
-        prunable_mlp_size = self.params_per_mlp_layer * self.num_layers
-        prunable_head_layer_size = self.params_per_head_layer * self.num_layers
+        prunable_mlp_size = self.params_per_mlp_layer * self.num_hidden_layers
+        prunable_head_layer_size = self.params_per_head_layer * self.num_hidden_layers
         prunable_model_size = 0
         if "hidden" in self.pruning_modules:
-            return prunable_mlp_size + prunable_head_layer_size
+            return prunable_mlp_size + prunable_head_layer_size + self.params_finalmlp_layer
         if "head_layer" in self.pruning_modules or "head" in self.pruning_modules:
             prunable_model_size += prunable_head_layer_size
         if "mlp" in self.pruning_modules or "intermediate" in self.pruning_modules:
@@ -228,23 +235,19 @@ class L0Module_LLAMA(nn.Module):
             
         return prunable_model_size
         
+    def set_lagrangian_warmup_steps(self, lagrangian_warmup):
+        self.lagrangian_warmup_steps = lagrangian_warmup
+        
     def initialize_one_module(self, module_name: str):
-        if module_name == "structured_mlp":
-            self.initialize_structured_mlp()
-        elif module_name == "structured_heads":
-            
-            self.initialize_structured_head()
-        elif module_name == "hidden":
-            self.initialize_hidden()
-        elif module_name == "layer":
-            self.initialize_whole_mlp()
-            self.initialized_layer_structured_heads()
-        elif module_name == 'final_mlp_hidden':
-            print("final ml")
-            self.initialize_final_hidden_layer_mlp()
+        func_name = f"initialize_{module_name}"
+        try:
+            method = getattr(self, func_name)
+        except AttributeError:
+            raise NotImplementedError("Instance `{}` does not implement `{}`".format(self, func_name))
+        method()
             
     def initialize_hidden(self):
-        mask_shape = [self.base_model_info.hidden_size]
+        mask_shape = [self.hidden_size]
         #num_params_per_mask=self.base_model_info.hidden_size * 4 + self.base_model_info.hidden_size * 4 * 2
         num_params_per_mask= (
             self.hidden_size      # q input
@@ -256,9 +259,7 @@ class L0Module_LLAMA(nn.Module):
         
        
         target_mask_size = self.hidden_size
-        pd = {"lambda_1_hidden": torch.nn.Parameter(torch.tensor(0.0, device=self.device)),
-              "lambda_2_hidden": torch.nn.Parameter(torch.tensor(0.0, device=self.device))}
-        self.lambdas.update(pd)
+        
         
         hidden_mask = Mask(name="hidden",
                            mask_shape=mask_shape,
@@ -269,14 +270,12 @@ class L0Module_LLAMA(nn.Module):
         self.masks["hidden"] = hidden_mask
 
     def initialize_head(self):
-        mask_shape = [self.num_layers, self.num_key_value_heads]
+        mask_shape = [self.num_hidden_layers, self.num_key_value_heads]
         num_params_per_mask = self.params_per_head
-        mask_output_shape = [self.num_layers, 1, self.num_key_value_heads, 1] 
+        mask_output_shape = [self.num_hidden_layers, 1, self.num_key_value_heads, 1] 
         
         target_mask_size = self.num_key_value_heads
-        pd = {"lambda_1_head": torch.nn.Parameter(torch.tensor(0.0, device=self.device)),
-              "lambda_2_head": torch.nn.Parameter(torch.tensor(0.0, device=self.device))}
-        self.lambdas.update(pd)
+        
         head_mask = Mask(name="head",
                          mask_shape=mask_shape,
                          num_params_per_mask=num_params_per_mask,
@@ -287,15 +286,13 @@ class L0Module_LLAMA(nn.Module):
 
         
     def initialize_head_layer(self):
-        mask_shape = [self.num_layers]
+        mask_shape = [self.num_hidden_layers]
         num_params_per_mask=self.params_per_head *  self.config.num_key_value_heads
-        mask_output_shape = [self.num_layers] 
+        mask_output_shape = [self.num_hidden_layers] 
         
 
-        target_mask_size = self.target_model_info.num_layers
-        pd = {"lambda_1_head_layer": torch.nn.Parameter(torch.tensor(0.0, device=self.device)),
-              "lambda_2_head_layer": torch.nn.Parameter(torch.tensor(0.0, device=self.device))}
-        self.lambdas.update(pd)
+        target_mask_size = self.num_hidden_layers
+       
         
         head_layer_mask = Mask(name="head_layer",
                                mask_shape=mask_shape,
@@ -306,15 +303,13 @@ class L0Module_LLAMA(nn.Module):
         self.masks["head_layer"] = head_layer_mask
         
     def initialize_intermediate(self):
-        mask_shape = [self.num_layers, self.intermediate_size]
+        mask_shape = [self.num_hidden_layers, self.intermediate_size]
         num_params_per_mask=self.params_per_intermediate_dim
-        mask_output_shape = [self.num_layers, 1, 1, self.intermediate_size] 
+        mask_output_shape = [self.num_hidden_layers, 1, 1, self.intermediate_size] 
         
        
         target_mask_size = self.intermediate_size
-        pd = {"lambda_1_intermediate": torch.nn.Parameter(torch.tensor(0.0, device=self.device)),
-              "lambda_2_intermediate": torch.nn.Parameter(torch.tensor(0.0, device=self.device))}
-        self.lambdas.update(pd)
+        
         
         int_mask = Mask(name="intermediate",
                         mask_shape=mask_shape,
@@ -326,15 +321,13 @@ class L0Module_LLAMA(nn.Module):
        
 
     def initialize_mlp(self):
-        mask_shape = [self.num_layers]
+        mask_shape = [self.num_hidden_layers]
         num_params_per_mask=self.params_per_mlp_layer
-        mask_output_shape = [self.num_layers] 
+        mask_output_shape = [self.num_hidden_layers] 
         
         
-        target_mask_size = self.num_layers
-        pd = {"lambda_1_mlp": torch.nn.Parameter(torch.tensor(0.0, device=self.device)),
-              "lambda_2_mlp": torch.nn.Parameter(torch.tensor(0.0, device=self.device))}
-        self.lambdas.update(pd)
+        target_mask_size = self.num_hidden_layers
+       
         
         mlp_mask = Mask(name="mlp",
                         mask_shape=mask_shape,
@@ -345,7 +338,21 @@ class L0Module_LLAMA(nn.Module):
         self.masks["mlp"] = mlp_mask 
 
     
-    
+    def initialize_final_mlp_hidden(self): #also add final_layer_hid_mlp to self.types
+      
+        mask_shape = [self.final_mlp_hidden]
+        num_params_per_mask=self.params_per_hidden_dim_final_mlp
+        mask_output_shape = [self.final_mlp_hidden] 
+        
+        final_mlp_mask = Mask(name="final_mlp_hidden",
+                              mask_shape=mask_shape,
+                               num_params_per_mask=num_params_per_mask,
+                               mask_output_shape=mask_output_shape,
+                              target_mask_size=self.final_mlp_hidden,
+                           device=self.device)
+        
+        self.masks["final_mlp_hidden"] = final_mlp_mask
+        
     def constrain_parameters(self):
         for key in self.masks:
             self.masks[key].constrain_parameters()
@@ -368,6 +375,7 @@ class L0Module_LLAMA(nn.Module):
         
         if head_layer_score is not None:
             head_layer_score = head_layer_score.view(-1, 1) # 12 * 1
+        assert head_layer_score.shape[0]==22 and head_layer_score.shape[1]==1, f"headlayer shpe hsould be 22,1 but is {head_layer_score.shape}"
        
         return head_layer_score, head_score
 
@@ -396,6 +404,7 @@ class L0Module_LLAMA(nn.Module):
 
         qk_score = None
         if "qk_head_dim" in expected_scores:
+            #does not enter
             qk_head_dim_score = expected_scores["qk_head_dim"] # num_layer * hidden_size
             vo_head_dim_score = expected_scores["vo_head_dim"] # num_layer * hidden_size
             qk_head_dim_score = qk_head_dim_score.view(qk_head_dim_score.shape[0], -1) # 12 * 768
@@ -404,7 +413,7 @@ class L0Module_LLAMA(nn.Module):
 
             qk_score = head_score * qk_head_dim_score # 12 * 768
             vo_score = head_score * vo_head_dim_score # 12 * 768
-                
+        
         if "hidden" in expected_scores:
             hidden_score = expected_scores["hidden"] # 768 
             
@@ -457,6 +466,7 @@ class L0Module_LLAMA(nn.Module):
                     num_parameters += torch.sum(final_hidden_score) * self.out_params
 
             else:
+                assert False
                 num_parameters += torch.sum(torch.matmul(hidden_score.reshape(1, -1, 1), qk_score.unsqueeze(1))) * 2 # 12 * 768 * 768
                 num_parameters += torch.sum(torch.matmul(hidden_score.reshape(1, -1, 1), vo_score.unsqueeze(1))) * 2 # 12 * 768 * 768
                 num_parameters += torch.sum(torch.matmul(hidden_score.reshape(1, -1, 1), int_score.unsqueeze(1))) * 3 # 12 * 768 * 3072
@@ -484,12 +494,15 @@ class L0Module_LLAMA(nn.Module):
         expected_sparsity = 1 - expected_size / self.prunable_model_size
         
         return_v = {}
+        self.target_model_info = None
         if self.target_model_info is None:
-            lagrangian_loss = _lag_loss(expected_sparsity, target_sparsity, self.lambdas["lambda_1"], self.lambdas["lambda_2"])
+            
+            lagrangian_loss = _lag_loss(expected_sparsity, target_sparsity, self.lambda1, self.lambda2)
             return_v = {"expected_sparsity": expected_sparsity.item(), "target_sparsity": target_sparsity}
             for key in expected_sparsitys:
                 return_v[f"expected_{key}_sparsity"] = expected_sparsitys[key].mean().item()
         else:
+            assert False
             lagrangian_loss = 0
             return_v = {}
             for pruning_module in self.pruning_modules:
@@ -503,17 +516,88 @@ class L0Module_LLAMA(nn.Module):
 
 
         # return_v might not matter
-        return lagrangian_loss, return_v
+        return lagrangian_loss, expected_sparsity, target_sparsity
  
-    def forward(self, calculate_lagrangian: bool = False, pruned_steps: int = 0):
+    def get_z_from_zs(self, zs):
+        numpified_zs = {} 
+        for type in self.masks:
+            print(type, self.masks[type].get_size())
+            
+            z = zs.get(f"{type}_z", np.ones(self.masks[type].get_size()))
+            if torch.is_tensor(z): 
+                z = z.squeeze().detach().cpu().numpy() > 0
+            numpified_zs[type] = z
+        return numpified_zs
+    
+    def calculate_model_size(self, zs):
+        numpified_zs = self.get_z_from_zs(zs)
+        hidden_z = numpified_zs.get("hidden", np.ones(2048))
+        intermediate_z = numpified_zs.get("intermediate", np.ones((22,5632)))
+        head_z = numpified_zs.get("head", np.ones((22,4)))
+        head_layer_z = numpified_zs.get("head_layer",np.ones(22,)).reshape(-1)
+        mlp_z = numpified_zs.get("mlp", np.ones(22,)).reshape(-1)
+            
+
+        remaining_hidden_dims = hidden_z.sum().item()
+        head_z = head_z.reshape(self.num_hidden_layers, self.num_key_value_heads)
+        intermediate_z = intermediate_z.reshape(self.num_hidden_layers, self.intermediate_size)
+        head_layer_z = head_layer_z.reshape(self.num_hidden_layers, 1)
+        mlp_z = mlp_z.reshape(self.num_hidden_layers, 1)
+
+        head_mask = head_z * head_layer_z
+        intermediate_mask = intermediate_z * mlp_z
+
+        remaining_head_nums = head_mask.sum(-1).tolist()
+        remaining_intermediate_nums = intermediate_mask.sum(-1).tolist()
+
+        head_nums = np.outer(head_mask.reshape(-1), hidden_z).sum().item()
+        intermediate_nums = np.outer(intermediate_mask.reshape(-1), hidden_z).sum().item()
+        q_per_kv = self.num_attention_heads // self.num_key_value_heads
+
+        attn_per_hidden_per_kv = (
+            2 * q_per_kv * self.dim_per_head  # Q + O
+            + 2 * self.dim_per_head           # K + V
+        )
+
+        remaining_model_size = head_nums * attn_per_hidden_per_kv + intermediate_nums * 3
+
+            
+            
+        #MLP
+        mlp_final_hidden = numpified_zs.get("final_mlp_hidden", np.ones(1024))
+        mlp_final_input = np.concatenate((hidden_z,hidden_z,hidden_z,hidden_z))
+        remaining_mlp_inp = mlp_final_input.sum().item()
+        remaining_mlp_hidden = mlp_final_hidden.sum().item()
+        final = (remaining_mlp_inp * remaining_mlp_hidden)+ (remaining_mlp_hidden*3)
+        remaining_model_size += final
+        pruned_model_size = self.prunable_model_size - remaining_model_size
+
+        
+        results = {}
+        # Not multiplied with each other
+        if "head_layer" in self.masks:
+            results["head_layer"] = head_layer_z.reshape(-1).astype(int).tolist()
+        if "mlp" in self.masks:
+            results["mlp"] = mlp_z.reshape(-1).astype(int).tolist()
+            results["head_layer"] = head_layer_z.reshape(-1).astype(int).tolist()
+        results["hidden_dims"] = remaining_hidden_dims
+        results["intermediate_dims"] = remaining_intermediate_nums
+        results["head_nums"] = remaining_head_nums
+        results["final mlp "] = remaining_mlp_hidden
+        results["pruned_params"] = pruned_model_size
+        results["remaining_params"] = remaining_model_size
+        results["pruned_model_sparsity"] = (pruned_model_size) / (self.prunable_model_size)
+        
+    
+        return results
+    
+    def forward(self, training=True):
         self.constrain_parameters()
-        if calculate_lagrangian:
-            return self.lagrangian_regularization(pruned_steps)
         
         zs = {f"{pruning_module}_z": [] for pruning_module in self.pruning_modules}
         
         
-        if self.training:
+        if training:
             for pruning_module in self.pruning_modules:
                 mask = self.masks[pruning_module]
                 z = mask.sample_z()

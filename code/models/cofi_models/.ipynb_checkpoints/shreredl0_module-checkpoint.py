@@ -129,7 +129,7 @@ class Mask(nn.Module):
             expected_num_nonzeros = expected_score.sum()
             expected_num_zeros = self.target_mask_size - expected_num_nonzeros.item()
         else:
-            assert False, "targrt mask size not defined"
+            assert False, "target mask size not defined"
         try:
             num_zeros = round(expected_num_zeros)
         except:
@@ -148,8 +148,6 @@ class Mask(nn.Module):
         if self.z_loga.ndim == 1:
             z = self._deterministic_z(self.z_loga).reshape(*self.mask_output_shape)
         else:
-            
-            
             z_loga = self.z_loga.reshape(-1, self.z_loga.shape[-1])
             z = []
             for i in range(z_loga.shape[0]):
@@ -189,6 +187,7 @@ class L0Module_LLAMA(nn.Module):
                  magical_number=0.8, # from Wang et al. 2020
                  device='cuda'
                  ):
+        print("STATE ", torch.get_rng_state())
         super(L0Module_LLAMA, self).__init__()
         
 
@@ -291,60 +290,58 @@ class L0Module_LLAMA(nn.Module):
         prunable_mlp_size = self.params_per_mlp_layer * self.num_hidden_layers
         prunable_head_layer_size = self.params_per_head_layer * self.num_hidden_layers
         prunable_model_size = 0
-       
-        if "structured_heads" in self.pruning_modules:
+        #if "hidden" in self.masks:
+            #return prunable_mlp_size + prunable_head_layer_size + self.params_finalmlp_layer
+        if "head_layer" in self.masks or "head" in self.masks:
             prunable_model_size += prunable_head_layer_size
-        if "structured_mlp" in self.pruning_modules:
+        if "mlp" in self.masks or "intermediate" in self.masks:
             prunable_model_size += prunable_mlp_size
-        if 'final_mlp_hidden' in self.pruning_modules :
+        if "final_mlp_hidden" in self.masks:
             prunable_model_size += self.params_finalmlp_layer
+            
         return prunable_model_size
         
+    def set_lagrangian_warmup_steps(self, lagrangian_warmup):
+        self.lagrangian_warmup_steps = lagrangian_warmup
+        
     def initialize_one_module(self, module_name: str):
-        if module_name == "structured_mlp":
-            self.initialize_structured_mlp()
-        elif module_name == "structured_heads":
-            
-            self.initialize_structured_head()
-        elif module_name == "hidden":
-            self.initialize_hidden()
-        elif module_name == "layer":
-            self.initialize_whole_mlp()
-            self.initialized_layer_structured_heads()
-        elif module_name == 'final_mlp_hidden':
-            print("final ml")
-            self.initialize_final_hidden_layer_mlp()
+        func_name = f"initialize_{module_name}"
+        try:
+            method = getattr(self, func_name)
+        except AttributeError:
+            raise NotImplementedError("Instance `{}` does not implement `{}`".format(self, func_name))
+        method()
             
     def initialize_hidden(self):
         mask_shape = [self.hidden_size]
+        #num_params_per_mask=self.base_model_info.hidden_size * 4 + self.base_model_info.hidden_size * 4 * 2
         num_params_per_mask= (
-                                self.hidden_size      # q input
-                                + 256                 # k input
-                                + 256                 # v input
-                                + self.hidden_size    # o output
-                                + 3 * self.intermediate_size
-                            )
+            self.hidden_size      # q input
+            + 256                 # k input
+            + 256                 # v input
+            + self.hidden_size    # o output
+            + 3 * self.intermediate_size
+        )
         
+       
         target_mask_size = self.hidden_size
-           
+        
         
         hidden_mask = Mask(name="hidden",
                            mask_shape=mask_shape,
                            num_params_per_mask=num_params_per_mask,
                            mask_output_shape=[self.hidden_size],
-                           
                            target_mask_size=target_mask_size,
-                           device=self.device)
+                           device=self.device,)
         self.masks["hidden"] = hidden_mask
 
-    def initialize_structured_head(self):
-        mask_shape = [self.num_hidden_layers, self.config.num_key_value_heads]
+    def initialize_head(self):
+        mask_shape = [self.num_hidden_layers, self.num_key_value_heads]
         num_params_per_mask = self.params_per_head
-        mask_output_shape = [self.num_hidden_layers, 1, self.config.num_key_value_heads, 1] #was 22,1,4,1,1 in cofi code
+        mask_output_shape = [self.num_hidden_layers, 1, self.num_key_value_heads, 1] 
         
-    
-        target_mask_size = self.config.num_key_value_heads
-            
+        target_mask_size = self.num_key_value_heads
+        
         head_mask = Mask(name="head",
                          mask_shape=mask_shape,
                          num_params_per_mask=num_params_per_mask,
@@ -354,9 +351,60 @@ class L0Module_LLAMA(nn.Module):
         self.masks["head"] = head_mask 
 
         
+    def initialize_head_layer(self):
+        mask_shape = [self.num_hidden_layers]
+        num_params_per_mask=self.params_per_head *  self.config.num_key_value_heads
+        mask_output_shape = [self.num_hidden_layers] 
+        
+
+        target_mask_size = self.num_hidden_layers
+       
+        
+        head_layer_mask = Mask(name="head_layer",
+                               mask_shape=mask_shape,
+                               num_params_per_mask=num_params_per_mask,
+                               mask_output_shape=mask_output_shape,
+                               target_mask_size=target_mask_size,
+                           device=self.device)
+        self.masks["head_layer"] = head_layer_mask
+        
+    def initialize_intermediate(self):
+        mask_shape = [self.num_hidden_layers, self.intermediate_size]
+        num_params_per_mask=self.params_per_intermediate_dim
+        mask_output_shape = [self.num_hidden_layers, 1, 1, self.intermediate_size] 
+        
+       
+        target_mask_size = self.intermediate_size
         
         
-    def initialize_final_hidden_layer_mlp(self): #also add final_layer_hid_mlp to self.types
+        int_mask = Mask(name="intermediate",
+                        mask_shape=mask_shape,
+                        num_params_per_mask=num_params_per_mask,
+                        mask_output_shape=mask_output_shape,
+                        target_mask_size=target_mask_size,
+                           device=self.device)
+        self.masks["intermediate"] = int_mask
+       
+
+    def initialize_mlp(self):
+        mask_shape = [self.num_hidden_layers]
+        num_params_per_mask=self.params_per_mlp_layer
+        mask_output_shape = [self.num_hidden_layers] 
+        
+        
+        target_mask_size = self.num_hidden_layers
+       
+        
+        mlp_mask = Mask(name="mlp",
+                        mask_shape=mask_shape,
+                        num_params_per_mask=num_params_per_mask,
+                        mask_output_shape=mask_output_shape,
+                        target_mask_size=target_mask_size,
+                           device=self.device)
+        self.masks["mlp"] = mlp_mask 
+
+    
+    def initialize_final_mlp_hidden(self): #also add final_layer_hid_mlp to self.types
       
         mask_shape = [self.final_mlp_hidden]
         num_params_per_mask=self.params_per_hidden_dim_final_mlp
@@ -370,51 +418,7 @@ class L0Module_LLAMA(nn.Module):
                            device=self.device)
         
         self.masks["final_mlp_hidden"] = final_mlp_mask
-       
-    def initialized_layer_structured_heads(self):
-        mask_shape = [self.num_hidden_layers]
-        num_params_per_mask=self.params_per_head *  self.config.num_key_value_heads
-        mask_output_shape = [self.num_hidden_layers] 
-        target_mask_size = self.num_hidden_layers
         
-        head_layer_mask = Mask(name="head_layer",
-                              mask_shape=mask_shape,
-                               num_params_per_mask=num_params_per_mask,
-                               mask_output_shape=mask_output_shape,
-                               target_mask_size=target_mask_size,
-                           device=self.device)
-        self.masks["head_layer"] = head_layer_mask
-        
-    def initialize_structured_mlp(self):
-        mask_shape = [self.num_hidden_layers, self.intermediate_size]
-        num_params_per_mask=self.params_per_intermediate_dim
-        mask_output_shape = [self.num_hidden_layers, 1, 1, self.intermediate_size] 
-        
-        target_mask_size = self.intermediate_size
-        
-        int_mask = Mask(name="intermediate",
-                        mask_shape=mask_shape,
-                        num_params_per_mask=num_params_per_mask,
-                        mask_output_shape=mask_output_shape,
-                        target_mask_size=target_mask_size,
-                           device=self.device)
-        self.masks["intermediate"] = int_mask
-       
-
-    def initialize_whole_mlp(self):
-        mask_shape = [self.num_hidden_layers]
-        num_params_per_mask=self.params_per_mlp_layer
-        mask_output_shape = [self.num_hidden_layers] 
-        
-        target_mask_size = self.num_hidden_layers
-        mlp_mask = Mask(name="mlp",
-                        mask_shape=mask_shape,
-                        num_params_per_mask=num_params_per_mask,
-                        mask_output_shape=mask_output_shape,
-                        target_mask_size=target_mask_size,
-                           device=self.device)
-        self.masks["mlp"] = mlp_mask 
-
     
     def constrain_parameters(self):
         for key in self.masks:
@@ -689,50 +693,3 @@ class L0Module_LLAMA(nn.Module):
     
 
 
-def test_l0_module():
-    from omegaconf import OmegaConf as om 
-    cfg = om.load("/scratch/gpfs/mengzhou/space2/examples/examples/llm/yamls/llama/7b.yaml")
-    cfg = om.load("/scratch/gpfs/mengzhou/space2/examples/examples/llm/yamls/pythia/410m.yaml")
-    cfg.model.l0_module.pruning_modules = ["layer", "head", "intermediate", "hidden"]
-    
-    l0_module = L0Module(cfg.model, "cpu")
-    
-    # test run_through
-    print("\n***************************** \n run forward pass during training")
-    l0_module.train()
-    zs = l0_module.forward(calculate_lagrangian=False)
-    for key in zs:
-        print(key, zs[key].shape)
-
-    print("\n***************************** \n run forward pass during eval")
-    l0_module.eval()
-    zs = l0_module.forward(calculate_lagrangian=False)
-    for key in zs:
-        print(key, zs[key].shape)
-
-    print("\n***************************** \n run forward pass during lagrangian")
-    l0_module.train()
-    loss, v = l0_module(calculate_lagrangian=True, pruned_steps=320)
-    print("loss", loss.item())
-    for key in v:
-        if torch.is_tensor(v[key]): vv = v[key].item()
-        else: vv = v[key]
-        print(key, vv)
-    
-    print("\n***************************** \n Test target sparsity") 
-    # test target_sparsity
-    target_sparsity = l0_module.get_target_sparsity(50, l0_module.target_sparsity)
-    print("target sparsity at step 50: ", target_sparsity)
-     
-    target_sparsity = l0_module.get_target_sparsity(100, l0_module.target_sparsity)
-    print("target sparsity at step 100: ", target_sparsity)
-    
-    target_sparsity = l0_module.get_target_sparsity(200, l0_module.target_sparsity)
-    print("target sparsity at step 200: ", target_sparsity)
-    import pdb; pdb.set_trace()
-
-
-  
-if __name__ == "__main__":
-    test_l0_module()
-    
