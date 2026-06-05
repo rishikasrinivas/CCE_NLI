@@ -304,7 +304,6 @@ class CoFiTrainer(Trainer):
                                                     eps=self.args.adam_epsilon)
 
         if self.lr_scheduler is None:
-            print("Warmupsteps ", self.args.warmup_steps, " trainingh steps ",num_training_steps )
             if self.additional_args.scheduler_type == "linear":
                 self.lr_scheduler = get_linear_schedule_with_warmup(
                     self.student_optimizer, num_warmup_steps=self.args.warmup_steps, num_training_steps=num_training_steps
@@ -517,7 +516,6 @@ class CoFiTrainer(Trainer):
                         logging_lag_loss_scalar = lag_loss_scalar
 
                         self.log(logs)
-                        print(f"Global step: {self.global_step}, eval_steps: {self.args.eval_steps}")
 
                     if self.global_step % self.args.eval_steps == 0:
                         logger.warning("evaluating")

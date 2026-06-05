@@ -459,8 +459,8 @@ def serialize(model, model_type, dataset):
         "itos": dataset.itos,
     }
 
-def run_eval(model, val_loader, model_type, pruning_method):
-    model.cuda()
+def run_eval(model, val_loader, model_type, pruning_method, device):
+    model.to(device)
     model.eval()
     all_preds = []
     all_targets = []
@@ -468,10 +468,8 @@ def run_eval(model, val_loader, model_type, pruning_method):
     # CORRECTED: Added conditional logic for batch handling
     for batch in val_loader:
         if pruning_method == 'CoFi':
-            if torch.cuda.is_available():
-
-                batch = {k: v.to('cuda') for k, v in batch.items()}
-                targets = batch['labels']
+            batch = {k: v.to(device) for k, v in batch.items()}
+            targets = batch['labels']
 
 
             batch_size = targets.shape[0]
@@ -485,16 +483,16 @@ def run_eval(model, val_loader, model_type, pruning_method):
             if model_type in ['bert', 'llama']:
                 s1_batch, s2_batch, targets = batch
                 if settings.CUDA:
-                    s1_batch = {k: v.cuda() for k, v in s1_batch.items()}
-                    s2_batch = {k: v.cuda() for k, v in s2_batch.items()}
+                    s1_batch = {k: v.to(device) for k, v in s1_batch.items()}
+                    s2_batch = {k: v.to(device) for k, v in s2_batch.items()}
 
                 with torch.no_grad():
                     logits = model(s1_batch, s2_batch)
             else: # Bowman path
                 s1, s1len, s2, s2len, targets = batch
                 if settings.CUDA:
-                    s1, s1len = s1.cuda(), s1len.cuda()
-                    s2, s2len = s2.cuda(), s2len.cuda()
+                    s1, s1len = s1.to(device), s1len.to(device)
+                    s2, s2len = s2.to(device), s2len.to(device)
 
                 with torch.no_grad():
                     logits = model(s1, s1len, s2, s2len)
