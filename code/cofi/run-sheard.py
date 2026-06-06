@@ -21,9 +21,10 @@ sys.path.append('code/')
 from args import AdditionalArguments, DataTrainingArguments
 from cofi.utils.cofi_utils import *
 from models.cofi_models.l0_module import L0Module
-from models.cofi_models.shreredl0_module import L0Module_LLAMA
+from models.cofi_models.compser_l0 import L0Module_Sheared
+from models.cofi_models.shreredl0_module_lambda_per_mask import L0Module_LLAMA
 from models.cofi_models.modeling_bert import CoFiBertForSequenceClassification
-from models.cofi_models.modeling_llama import CoFiLlamaForSequenceClassification
+from models.cofi_models.modeling_llama_sheared import CoFiLlamaForSequenceClassification
 from models.cofi_models.modeling_bowman import CoFiBowmanEntailmentClassifier, TextEncoder
 from cofi.trainer.trainer import CoFiTrainer 
 from cofi.utils.utils import *
@@ -102,7 +103,7 @@ def main():
 
     # ====== Data Loading ===========
  
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = data_args.device
     max_data = None if data_args.data_debug > 0 else None
     train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, pruning_method='CoFi', max_data=None, debug=False)
     #train,val,dl = train_utils.create_dataloaders(model_type=additional_args.model_name, pruning_method='CoFi', max_data=60000, debug=True)
@@ -127,12 +128,12 @@ def main():
     if model_args.model_name_or_path.startswith("bert"):
         Teach_Model = CoFiBertForSequenceClassification 
         Student_Model = CoFiBertForSequenceClassification 
-    elif model_args.model_name_or_path.startswith('knowledg'):
+    elif model_args.model_name_or_path.startswith('princeton-nlp/Sheared-LLaMA-1.3B'):
         Teach_Model = CoFiLlamaForSequenceClassification
         Student_Model = CoFiLlamaForSequenceClassification
     # ======= Load the model params ========
-    base_model_path = os.path.join(f"/workspace/CCE_NLI/{additional_args.model_name.upper()}/models/lottery_ticket/Run0.25_5/0_Pruning_Iter/model_best.pth")
-    pretrained_path = os.path.join(data_args.path_to_pretrained, f'{additional_args.model_name}_MAIN_pretrained_inits.pth')
+    base_model_path = "LLAMA/models/CoFi/Run_LTHStarter/Llama1.3b/model_best.pth"
+    pretrained_path = os.path.join(data_args.path_to_pretrained, f'{additional_args.model_name}_princeton_MAIN_pretrained_inits.pth')
     if additional_args.model_name in ['bert', 'llama']:
         config = AutoConfig.from_pretrained(
             model_args.model_name_or_path,
@@ -191,9 +192,9 @@ def main():
    
     
 
-    student_path ="/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth" #"LLAMA/models/CoFi/Run_LTHStarter/25student_cublac1/student_model_drbug.pth" #None #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
+    student_path = None #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth" #"LLAMA/models/CoFi/Run_LTHStarter/25student_cublac1/student_model_drbug.pth" #None #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
 
-    print(f'Loading student model from : {student_path}')
+    print(f'Loading student model from : {student_path} to {device}')
     
     #load an untrained student model which we need to initially finetune before pruning
     student_model, trained_student = Student_Model.from_pretrained(
@@ -204,7 +205,7 @@ def main():
         device=device
         
     ) #! inside the function, we get the original struct  #! CofiBertForSequenceClassification
-   
+    print(f'Loaded student model from : {student_path} to {student_model.device}')
     LABEL_STOI = {"entailment": 0, "neutral": 1, "contradiction": 2}
     LABEL_ITOS = {v: k for k, v in LABEL_STOI.items()}
     if config:
@@ -233,14 +234,15 @@ def main():
     
     if additional_args.pruning_type is not None:
         if additional_args.model_name  == 'llama':
-            l0_module = L0Module_LLAMA(config=config,
+            '''l0_module = L0Module_LLAMA(config=config,
                                  model_name=additional_args.model_name,
                                  droprate_init=additional_args.droprate_init,
                                  temperature=additional_args.temperature,
                                  target_sparsity=additional_args.target_sparsity,
                                  pruning_type=additional_args.pruning_type,
                                  args=training_args,
-                                full_model_size=calculate_parameters(teacher_model)).to(device)
+                                full_model_size=calculate_parameters(teacher_model)).to(device)'''
+            l0_module = L0Module_Sheared(device=device)
         else:
             l0_module = L0Module(config=config,
                                  model_name=additional_args.model_name,

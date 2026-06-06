@@ -865,4 +865,3 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         
         return rep
     
-

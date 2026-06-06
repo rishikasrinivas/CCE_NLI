@@ -81,14 +81,14 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
     # transformer specific batch conversion
     if model_type in ['bert', 'llama']:
         print(f"Pruning method: {pruning_method}")
-        filepath = 'cofi' if pruning_method == 'CoFi' else 'unstructured'
+        filepath = 'cofi_sheared' if pruning_method == 'CoFi' else 'unstructured'
 
         train_batch_dir = os.path.join(root_dir, f"train_batches_{model_type}_{filepath}_{max_data}")
         val_batch_dir   = os.path.join(root_dir, f"val_batches_{model_type}_{filepath}_{max_data}")
         os.makedirs(train_batch_dir, exist_ok=True)
         os.makedirs(val_batch_dir, exist_ok=True)
 
-        tokenizer_name = "bert-base-uncased" if model_type == 'bert' else "knowledgator/Llama-encoder-1.0B"
+        tokenizer_name = "bert-base-uncased" if model_type == 'bert' else "princeton-nlp/Sheared-LLaMA-1.3B"
         tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
         if tokenizer.pad_token is None:
             tokenizer.add_special_tokens({'pad_token': tokenizer.eos_token})

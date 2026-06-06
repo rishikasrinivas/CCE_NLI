@@ -146,6 +146,7 @@ class DataTrainingArguments:
     )
     test_file: Optional[str] = field(default=None, metadata={"help": "A csv or a json file containing the test data."})
 
+    device: str = field(default='cuda:0', metadata={"help": "cuda device"})
     def __post_init__(self):
         if self.task_name is not None:
             self.task_name = self.task_name.lower()

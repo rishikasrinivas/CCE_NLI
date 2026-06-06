@@ -184,10 +184,11 @@ class CoFiTrainer(Trainer):
         
         
         
+        
         self.dataset=dataset
         self.additional_args = additional_args
         self.finetuned_teacher = trained_teacher
-        self.l0_module = l0_module
+        self.l0_module = l0_module.to(device)
         self.prepruning_finetune_steps = 100
         self.start_prune = False
         self.teacher_model_dir=teacher_model_dir
@@ -202,9 +203,14 @@ class CoFiTrainer(Trainer):
         self.pruned_sparsity = 0.0
         self.expected_sparsity= 1.0 #make sure the expected-pruned check doesn't say > epsilon 
 
+        self.device=device
+        print("initiaalt student on ", self.device)
+        self.model.to(self.device)
+        
         self.teacher_model = teacher_model
         if self.teacher_model is not None:
-            self.teacher_model = self.teacher_model.to(self.args.device)
+            print(f"MOVIG TEACHER TO {self.device}")
+            self.teacher_model = self.teacher_model.to(self.device)
         
             
         log_level = args.get_process_log_level()
@@ -231,7 +237,7 @@ class CoFiTrainer(Trainer):
         
         
         
-        self.device=device
+        
     
 
 
@@ -428,6 +434,7 @@ class CoFiTrainer(Trainer):
                     #use the momentum from the previously saved student (if those states are saved, else load an optimizer from scracth)
                     #resumed = self.resume_from()
                     #if not resumed:
+                    print("Pruning")
                     self.start_prune = True
                     self.global_step = self.prepruning_finetune_steps
                     self.student_optimizer = None
@@ -627,7 +634,6 @@ class CoFiTrainer(Trainer):
         if zs is not None:
             pruned_model_size_info = self.l0_module.calculate_model_size(zs)
 
-    
         for ii, inputs  in enumerate(dataloader): #here instead do for ii, (s1,s1l,s2,s2l,labels) in enumerate(dataloader) using the algined w our model appraoch
            
             if zs is not None:
@@ -636,16 +642,33 @@ class CoFiTrainer(Trainer):
                 self.fill_inputs_with_zs(zs, inputs) #! use the zd     
                 
                 
+            inputs = {key: inputs[key].to(model.device) for key in inputs}
+            #loss, logits, labels = self.prediction_step(
+                #model, inputs, prediction_loss_only) #pass instead of "inputs"
             
-            loss, logits, labels = self.prediction_step(
-                model, inputs, prediction_loss_only) #pass instead of "inputs"
+            with torch.no_grad():
+                # Pass the inputs directly to the model. 
+                # Because we bypass the Trainer's wrapper, your cuda:1 tensors stay on cuda:1!
+                outputs = model(**inputs)
+
+                # Reconstruct the loss, logits, and labels manually to match your loop variables
+                loss = outputs.loss if hasattr(outputs, "loss") else None
+
+                # Match your specific structure: logits[0][2] is extracted below in your loop
+                # Hugging Face models return custom objects; extract the underlying tuple/tensor
+                logits = outputs.logits if hasattr(outputs, "logits") else outputs 
+
+                # Extract labels safely if your metrics loop requires them downstream
+                labels = inputs.get("labels", None)
+            
            
             batch_size = inputs[list(inputs.keys())[0]].shape[0]
             #13x16x62x768 #logits[1][0] is premise hidden states logits[1][1] is hyp hidden similarly logits[2] is attn mask [0] for pre [1] for hyp
             if logits is not None:
                    # print("shape of arbitrary hidden state 2 in first logtis ", preds_host[2][0][2].shape)
-                preds_host = logits[0][2] if preds_host is None else nested_concat(
-                    preds_host, logits[0][2])
+                pooled_logits = logits[2] #logits[0][2] if foing self.pred_step  else just [2]
+                preds_host = pooled_logits if preds_host is None else nested_concat(
+                    preds_host, pooled_logits)
             if labels is not None:
                 labels_host = labels if labels_host is None else nested_concat(
                     labels_host, labels)
@@ -1125,7 +1148,6 @@ class CoFiTrainer(Trainer):
 
     def training_step(self, model: torch.nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> List[torch.Tensor]:
         model.train()
-        self.teacher_model.eval()
         if self.l0_module is not None:
             self.l0_module.train()
 
@@ -1140,12 +1162,16 @@ class CoFiTrainer(Trainer):
                                          "pre_attention_mask", "token_type_ids", "position_ids", "labels",
                                          "output_attentions", "output_hidden_states", "return_dict"]
 
-                teacher_inputs = {key: inputs[key] for key in teacher_inputs_keys if key in inputs}
+                teacher_inputs = {key: inputs[key].to(self.device) for key in teacher_inputs_keys if key in inputs}
                 self.shortens_inputs(teacher_inputs)
+                teacher_inputs = {key: inputs[key].to(self.device) for key in teacher_inputs_keys if key in inputs}
                 teacher_outputs = self.teacher_model(**teacher_inputs)
+                
 
             self.shortens_inputs(inputs)
-               
+            inputs = {key: inputs[key].to(self.device) for key in inputs} #addd for device mismatch
+            
+            
             student_outputs = self.model(**inputs)
 
             # CRITICAL DEBUG
@@ -1226,14 +1252,14 @@ class CoFiTrainer(Trainer):
 
             })
 
-        return {"loss": loss.detach(),
-                "lagrangian_loss": lagrangian_loss.detach() if lagrangian_loss is not None else None,
-                "distill_layer_loss": distill_loss.detach() if distill_loss is not None else None,
-                "distill_ce_loss": distill_ce_loss.detach() if distill_ce_loss is not None else None}
+        return {"loss": loss.detach().cpu(),
+                "lagrangian_loss": lagrangian_loss.detach().cpu() if lagrangian_loss is not None else None,
+                "distill_layer_loss": distill_loss.detach().cpu() if distill_loss is not None else None,
+                "distill_ce_loss": distill_ce_loss.detach().cpu() if distill_ce_loss is not None else None}
 
     def fill_inputs_with_zs(self, zs, inputs):
         for key in zs:
-            inputs[key] = zs[key]
+            inputs[key] = zs[key].to(self.model.device)
        
     
     

@@ -403,7 +403,7 @@ class CoFiT5ForSequenceClassification(T5ForSequenceClassification):
 
 
 
-class T5Model(T5PreTrainedModel):
+class CoFiT5Model(T5PreTrainedModel):
     _keys_to_ignore_on_load_unexpected = [
         "decoder.block.0.layer.1.EncDecAttention.relative_attention_bias.weight",
     ]
@@ -419,7 +419,7 @@ class T5Model(T5PreTrainedModel):
         encoder_config = copy.deepcopy(config)
         encoder_config.is_decoder = False
         encoder_config.use_cache = False
-        self.encoder = T5Stack(encoder_config)
+        self.encoder = CoFiT5Stack(encoder_config)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -495,7 +495,7 @@ class T5Model(T5PreTrainedModel):
         )
 
 
-class T5Stack(T5PreTrainedModel):
+class CoFiT5Stack(T5PreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
 
@@ -503,9 +503,9 @@ class T5Stack(T5PreTrainedModel):
         self.is_decoder = config.is_decoder
 
         self.block = nn.ModuleList(
-            [T5Block(config, has_relative_attention_bias=bool(i == 0), layer_idx=i) for i in range(config.num_layers)]
+            [CoFiT5Block(config, has_relative_attention_bias=bool(i == 0), layer_idx=i) for i in range(config.num_layers)]
         )
-        self.final_layer_norm = T5LayerNorm(config.d_model, eps=config.layer_norm_epsilon)
+        self.final_layer_norm = CoFiT5LayerNorm(config.d_model, eps=config.layer_norm_epsilon)
         self.dropout = nn.Dropout(config.dropout_rate)
 
         # Initialize weights and apply final processing
@@ -683,12 +683,12 @@ class T5Block(GradientCheckpointingLayer):
         self.is_decoder = config.is_decoder
         self.layer = nn.ModuleList()
         self.layer.append(
-            T5LayerSelfAttention(config, has_relative_attention_bias=has_relative_attention_bias, layer_idx=layer_idx)
+            CoFiT5LayerSelfAttention(config, has_relative_attention_bias=has_relative_attention_bias, layer_idx=layer_idx)
         )
         if self.is_decoder:
-            self.layer.append(T5LayerCrossAttention(config, layer_idx=layer_idx))
+            self.layer.append(CoFiT5LayerCrossAttention(config, layer_idx=layer_idx))
 
-        self.layer.append(T5LayerFF(config))
+        self.layer.append(CoFiT5LayerFF(config))
 
     def forward(
         self,
@@ -775,7 +775,7 @@ class T5Block(GradientCheckpointingLayer):
         )  # hidden-states, (self-attention position bias), (self-attention weights), (cross-attention position bias), (cross-attention weights)
 
 
-class T5Attention(nn.Module):
+class CoFiT5Attention(nn.Module):
     def __init__(
         self,
         config: T5Config,
@@ -988,7 +988,7 @@ class T5Attention(nn.Module):
         return outputs
 
 
-class T5LayerSelfAttention(nn.Module):
+class CoFiT5LayerSelfAttention(nn.Module):
     def __init__(self, config, has_relative_attention_bias=False, layer_idx: int | None = None):
         super().__init__()
         self.SelfAttention = T5Attention(
@@ -1024,15 +1024,15 @@ class T5LayerSelfAttention(nn.Module):
         outputs = (hidden_states,) + attention_output[1:]  # add attentions if we output them
         return outputs
 
-class T5LayerFF(nn.Module):
+class CoFiT5LayerFF(nn.Module):
     def __init__(self, config: T5Config):
         super().__init__()
         if config.is_gated_act:
-            self.DenseReluDense = T5DenseGatedActDense(config)
+            self.DenseReluDense = CoFiT5DenseGatedActDense(config)
         else:
-            self.DenseReluDense = T5DenseActDense(config)
+            self.DenseReluDense = CoFiT5DenseActDense(config)
 
-        self.layer_norm = T5LayerNorm(config.d_model, eps=config.layer_norm_epsilon)
+        self.layer_norm = CoFiT5LayerNorm(config.d_model, eps=config.layer_norm_epsilon)
         self.dropout = nn.Dropout(config.dropout_rate)
 
     def forward(self, hidden_states, head_layer_z=None, hidden_z=None, intermediate_z = None, inference=False):
@@ -1047,7 +1047,7 @@ class T5LayerFF(nn.Module):
         return hidden_states
 
 
-class T5DenseActDense(nn.Module):
+class CoFiT5DenseActDense(nn.Module):
     def __init__(self, config: T5Config):
         super().__init__()
         self.wi = nn.Linear(config.d_model, config.d_ff, bias=False)
@@ -1074,7 +1074,7 @@ class T5DenseActDense(nn.Module):
             hidden_states *= hidden_z
         return hidden_states
     
-class T5DenseGatedActDense(nn.Module):
+class CoFiT5DenseGatedActDense(nn.Module):
     def __init__(self, config: T5Config):
         super().__init__()
         self.wi_0 = nn.Linear(config.d_model, config.d_ff, bias=False)

@@ -74,6 +74,8 @@ class Mask(nn.Module):
         self.z_loga = self.initialize_mask(mask_shape) 
         self.mask_size = self.z_loga.shape[-1] # the full size of each unit
         self.target_mask_size = target_mask_size
+        print("initislizes",  self.z_loga)
+        
         
         
     def get_size(self):
@@ -93,12 +95,15 @@ class Mask(nn.Module):
         """ Initialize the parameters for masking variables. """
         z_loga = nn.Parameter(torch.ones(*mask_shape, device=self.device))
         self.param_init_fn(z_loga)
+        
+        
         return z_loga
 
     def cdf_qz(self, z_loga: torch.Tensor = None):
         """Implements the CDF of the 'stretched' concrete distribution"""
         if z_loga is None:
             z_loga = self.z_loga
+        #print("cdf ", z_loga)
         xn = (0 - limit_a) / (limit_b - limit_a)
         logits = math.log(xn) - math.log(1 - xn)
         
@@ -119,20 +124,26 @@ class Mask(nn.Module):
     def sample_z(self):
         eps = self.get_eps(torch.FloatTensor(*self.z_loga.shape)).to(self.z_loga.device)
         z = self.quantile_concrete(eps)
+        #print("127 ", z)
         z = F.hardtanh(z, min_val=0, max_val=1).reshape(*self.mask_output_shape)
+        #print("129 ", z)
         return z
     
     def _deterministic_z(self, z_loga):
         # Following https://github.com/asappresearch/flop/blob/e80e47155de83abbe7d90190e00d30bfb85c18d5/flop/hardconcrete.py#L8 line 103
         if self.target_mask_size is not None:
+            
             expected_score = 1 - self.cdf_qz(z_loga)
             expected_num_nonzeros = expected_score.sum()
+            
             expected_num_zeros = self.target_mask_size - expected_num_nonzeros.item()
         else:
             assert False, "target mask size not defined"
         try:
             num_zeros = round(expected_num_zeros)
         except:
+            print(self.name)
+            print(z_loga.shape)
             print("num of zeros is nan....")
             sys.exit()
         soft_mask = torch.sigmoid(z_loga / self.temperature * self.magical_number)
@@ -244,6 +255,7 @@ class L0Module_LLAMA(nn.Module):
         self.lambda_1 = torch.nn.Parameter(torch.tensor(0.0))
         self.lambda_2 = torch.nn.Parameter(torch.tensor(0.0))
         self.masks = {}
+        print(self.pruning_modules)
         for pruning_module in self.pruning_modules:
             self.initialize_one_module(pruning_module)
         self.masks = torch.nn.ModuleDict(self.masks)
@@ -258,7 +270,7 @@ class L0Module_LLAMA(nn.Module):
             self.target_sparsity = l0_module_cfg.target_sparsity'''
         self.target_sparsity = target_sparsity
         print("********** Initializing L0 Module **********") 
-        for pruning_module in self.masks:
+        for pruning_module in self.pruning_modules:
             print(f"***** {pruning_module} *****")
             print(f"z.shape", self.masks[pruning_module].z_loga.shape)
             print(f"size", self.masks[pruning_module].mask_size)
@@ -290,8 +302,8 @@ class L0Module_LLAMA(nn.Module):
         prunable_mlp_size = self.params_per_mlp_layer * self.num_hidden_layers
         prunable_head_layer_size = self.params_per_head_layer * self.num_hidden_layers
         prunable_model_size = 0
-        #if "hidden" in self.masks:
-            #return prunable_mlp_size + prunable_head_layer_size + self.params_finalmlp_layer
+        if "hidden" in self.masks:
+            return prunable_mlp_size + prunable_head_layer_size + self.params_finalmlp_layer
         if "head_layer" in self.masks or "head" in self.masks:
             prunable_model_size += prunable_head_layer_size
         if "mlp" in self.masks or "intermediate" in self.masks:
@@ -313,6 +325,7 @@ class L0Module_LLAMA(nn.Module):
         method()
             
     def initialize_hidden(self):
+        print("creating hidden)")
         mask_shape = [self.hidden_size]
         #num_params_per_mask=self.base_model_info.hidden_size * 4 + self.base_model_info.hidden_size * 4 * 2
         num_params_per_mask= (
@@ -333,6 +346,7 @@ class L0Module_LLAMA(nn.Module):
                            mask_output_shape=[self.hidden_size],
                            target_mask_size=target_mask_size,
                            device=self.device,)
+   
         self.masks["hidden"] = hidden_mask
 
     def initialize_head(self):
@@ -443,17 +457,17 @@ class L0Module_LLAMA(nn.Module):
             head_layer_score = head_layer_score.view(-1, 1) # 12 * 1
             assert head_layer_score.shape[0]==22 and head_layer_score.shape[1]==1, f"headlayer shpe hsould be 22,1 but is {head_layer_score.shape}"
         #print(f"HEAD SHAPE: {head_score.shape} HEAD LAYER SHAPE: {head_layer_score.shape}")
-        #HEAD SHAPE: torch.Size([22, 4]) HEAD LAYER SHAPE: torch.Size([22, 1])   
-        return head_layer_score, head_score.to(head_layer_score.device)
-
+        #HEAD SHAPE: torch.Size([22, 4]) HEAD LAYER SHAPE: torch.Size([22, 1]) 
+       
+        return head_layer_score, head_score.to(self.device) 
     def transform_scores_for_mlp(self, expected_scores: dict):
         mlp_score = None
         if "mlp" in expected_scores:
-            mlp_score = expected_scores.get("mlp", torch.ones(22,)) # 12
+            mlp_score = expected_scores.get("mlp", torch.ones(22,)).to(self.device) # 12
         if mlp_score is not None:
             mlp_score = mlp_score.unsqueeze(-1)
         
-        intermediate_score = expected_scores["intermediate"] # 12 * 3072
+        intermediate_score = expected_scores.get("intermediate", torch.ones((22,5632))).to(self.device) # 12 * 3072
         #print(f"mlp_score SHAPE: {mlp_score.shape} intermediate_score SHAPE: {intermediate_score.shape}")
         return mlp_score, intermediate_score
 
@@ -503,7 +517,7 @@ class L0Module_LLAMA(nn.Module):
 
         if "hidden" in expected_scores:
             hidden_score = expected_scores["hidden"]  # (H,)
-
+            
             q_per_kv = self.num_attention_heads // self.num_key_value_heads
 
 
@@ -533,7 +547,7 @@ class L0Module_LLAMA(nn.Module):
             # final MLP classifier params
             # =========================
             if "final_mlp_hidden" in expected_scores:
-                final_hidden_score = expected_scores["final_mlp_hidden"]  # (1024,)
+                final_hidden_score = expected_scores.get("final_mlp_hidden", torch.ones(1024)).to(self.device)  # (1024,)
 
                 final_input_score = torch.cat([
                     hidden_score,
@@ -545,8 +559,10 @@ class L0Module_LLAMA(nn.Module):
                 num_parameters += torch.sum(
                     torch.outer(final_input_score, final_hidden_score)
                 )
-
+                
                 num_parameters += torch.sum(final_hidden_score) * self.out_params
+             
+            
 
         else:
             # no hidden pruning: use normal per-mask parameter counts
@@ -591,7 +607,6 @@ class L0Module_LLAMA(nn.Module):
     def get_z_from_zs(self, zs):
         numpified_zs = {} 
         for type in self.masks:
-            print(type, self.masks[type].get_size())
             
             z = zs.get(f"{type}_z", np.ones(self.masks[type].get_size()))
             if torch.is_tensor(z): 
@@ -671,22 +686,26 @@ class L0Module_LLAMA(nn.Module):
 
         return results
     def forward(self, training=True):
-
+        #self.constrain_parameters()
         
         zs = {f"{pruning_module}_z": [] for pruning_module in self.masks}
         
         
         if training:
+            #print("TRAINING")
             #dict_keys(['head', 'intermediate', 'hidden', 'mlp', 'head_layer', 'final_mlp_hidden']) 
             for pruning_module in self.masks:
                 mask = self.masks[pruning_module]
                 z = mask.sample_z()
                 zs[f"{pruning_module}_z"] = z
         else: # removed layerwise!]
+            #print("EVAL")
+            
             with torch.no_grad():
                 for pruning_module in self.masks:
                     
                     mask = self.masks[pruning_module]
+                 
                     z = mask.deterministic_z()
                     zs[f"{pruning_module}_z"] = z
         return zs 

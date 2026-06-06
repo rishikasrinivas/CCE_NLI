@@ -59,7 +59,6 @@ class Mask(nn.Module):
         xn = (0 - limit_a) / (limit_b - limit_a)
         logits = math.log(xn) - math.log(1 - xn)
         res=torch.sigmoid(logits * self.temperature - z_loga).clamp(min=epsilon, max=1 - epsilon)
-        print(f"{self.name}\norig shape: {z_loga.shape}\noutput shape: {self.mask_output_shape}\nresult shape {res.shape}")
         return res
     
     def get_eps(self, size: List):
