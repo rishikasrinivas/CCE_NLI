@@ -631,8 +631,8 @@ class CoFiTrainer(Trainer):
             zs = self.l0_module.forward(training=False)
 
         
-        if zs is not None:
-            pruned_model_size_info = self.l0_module.calculate_model_size(zs)
+        #if zs is not None:
+            pruned_model_size_info = self.l0_module.calculate_model_size_LLM(zs)
 
         for ii, inputs  in enumerate(dataloader): #here instead do for ii, (s1,s1l,s2,s2l,labels) in enumerate(dataloader) using the algined w our model appraoch
            
@@ -642,7 +642,10 @@ class CoFiTrainer(Trainer):
                 self.fill_inputs_with_zs(zs, inputs) #! use the zd     
                 
                 
-            inputs = {key: inputs[key].to(model.device) for key in inputs}
+            inputs = {
+                k: v.to(self.device, non_blocking=True) if torch.is_tensor(v) else v
+                for k, v in inputs.items()
+            }
             #loss, logits, labels = self.prediction_step(
                 #model, inputs, prediction_loss_only) #pass instead of "inputs"
             
@@ -726,7 +729,7 @@ class CoFiTrainer(Trainer):
                 self.global_step - self.prepruning_finetune_steps)
 
             expected_sparsity = round(expected_sparsity.item(), 5)
-            metrics.update(pruned_model_size_info)
+            #metrics.update(pruned_model_size_info)
             metrics["expected_sparsity"] = expected_sparsity
             metrics["target_sparsity"] = target_sparsity
 
@@ -1151,7 +1154,10 @@ class CoFiTrainer(Trainer):
         if self.l0_module is not None:
             self.l0_module.train()
 
-        inputs = self._prepare_inputs(inputs)
+        inputs = {
+                    k: v.to(self.device, non_blocking=True) if torch.is_tensor(v) else v
+                    for k, v in inputs.items()
+                }
 
         if self.teacher_model is not None:
             with torch.no_grad():
@@ -1169,7 +1175,8 @@ class CoFiTrainer(Trainer):
                 
 
             self.shortens_inputs(inputs)
-            inputs = {key: inputs[key].to(self.device) for key in inputs} #addd for device mismatch
+
+
             
             
             student_outputs = self.model(**inputs)

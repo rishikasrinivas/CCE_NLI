@@ -168,7 +168,8 @@ def main():
                 pretrained_model_name_or_path=base_model_path, #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
                 ckpt= pretrained_path,
                 config=config,
-                device=device
+                device=device,
+                hf_name= model_args.model_name_or_path,
 
             )
             config.do_layer_distill = additional_args.do_layer_distill #! True

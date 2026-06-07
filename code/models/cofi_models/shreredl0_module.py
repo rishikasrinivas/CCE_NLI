@@ -566,14 +566,17 @@ class L0Module_LLAMA(nn.Module):
 
         else:
             # no hidden pruning: use normal per-mask parameter counts
-            num_parameters += torch.sum(head_score) * self.masks["head"].num_params_per_mask
-            num_parameters += torch.sum(int_score) * self.masks["intermediate"].num_params_per_mask
+            num_parameters += torch.sum(head_score) * self.params_per_head # self.masks["head"].num_params_per_mask
+            num_parameters += torch.sum(int_score) * self.params_per_intermediate_dim #self.masks["intermediate"].num_params_per_mask
 
             if "final_mlp_hidden" in expected_scores:
+                
                 num_parameters += (
                     torch.sum(expected_scores["final_mlp_hidden"])
                     * self.masks["final_mlp_hidden"].num_params_per_mask
                 )
+            else:
+                num_parameters += self.params_finalmlp_layer
 
         return num_parameters
 

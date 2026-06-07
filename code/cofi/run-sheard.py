@@ -24,7 +24,7 @@ from models.cofi_models.l0_module import L0Module
 from models.cofi_models.compser_l0 import L0Module_Sheared
 from models.cofi_models.shreredl0_module_lambda_per_mask import L0Module_LLAMA
 from models.cofi_models.modeling_bert import CoFiBertForSequenceClassification
-from models.cofi_models.modeling_llama_sheared import CoFiLlamaForSequenceClassification
+from models.cofi_models.modeling_llama import CoFiLlamaForSequenceClassification
 from models.cofi_models.modeling_bowman import CoFiBowmanEntailmentClassifier, TextEncoder
 from cofi.trainer.trainer import CoFiTrainer 
 from cofi.utils.utils import *
@@ -128,11 +128,11 @@ def main():
     if model_args.model_name_or_path.startswith("bert"):
         Teach_Model = CoFiBertForSequenceClassification 
         Student_Model = CoFiBertForSequenceClassification 
-    elif model_args.model_name_or_path.startswith('princeton-nlp/Sheared-LLaMA-1.3B'):
+    elif model_args.model_name_or_path.startswith('knowledgator') or model_args.model_name_or_path.startswith('princ'):
         Teach_Model = CoFiLlamaForSequenceClassification
         Student_Model = CoFiLlamaForSequenceClassification
     # ======= Load the model params ========
-    base_model_path = "LLAMA/models/CoFi/Run_LTHStarter/Llama1.3b/model_best.pth"
+    base_model_path = os.path.join(training_args.output_dir, 'model_best.pth')
     pretrained_path = os.path.join(data_args.path_to_pretrained, f'{additional_args.model_name}_princeton_MAIN_pretrained_inits.pth')
     if additional_args.model_name in ['bert', 'llama']:
         config = AutoConfig.from_pretrained(
@@ -192,7 +192,7 @@ def main():
    
     
 
-    student_path = None #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth" #"LLAMA/models/CoFi/Run_LTHStarter/25student_cublac1/student_model_drbug.pth" #None #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
+    student_path = os.path.join(training_args.output_dir, 'student_model.pth') #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth" #"LLAMA/models/CoFi/Run_LTHStarter/25student_cublac1/student_model_drbug.pth" #None #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
 
     print(f'Loading student model from : {student_path} to {device}')
     

@@ -8,7 +8,7 @@ from torch.nn import CrossEntropyLoss
 from torch.nn import functional as F
 from transformers.modeling_outputs import BaseModelOutput, SequenceClassifierOutputWithPast
 from transformers import AutoTokenizer, AutoConfig
-from transformers.models.llama.modeling_llama import LlamaRMSNorm, LlamaRotaryEmbedding, LlamaPreTrainedModel
+from transformers.models.llama.modeling_llama import LlamaRMSNorm, LlamaRotaryEmbedding, LlamaPreTrainedModel, LlamaAttention
 from transformers.cache_utils import Cache, DynamicCache
 from llm2vec.models.bidirectional_llama import LlamaBiModel, ModifiedLlamaDecoderLayer, ModifiedLlamaAttention
 from transformers.trainer import Trainer
@@ -65,6 +65,7 @@ def normal_attn_fn(
     attn_weights = torch.nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query.dtype)
     attn_output = torch.matmul(attn_weights, value) # (bsz, n_heads, q_len, head_dim)
     if head_z is not None:
+    
         attn_output *= head_z.unsqueeze(-1)
     attn_output = attn_output.transpose(1, 2)
     attn_output = attn_output.reshape(bsz, q_len, dim)
@@ -132,37 +133,63 @@ def flash_attn_fn(
         output_unpad = output_unpad * head_z # 1 * h * 1
     output = bert_padding.pad_input(rearrange(output_unpad, 'nnz h d -> nnz (h d)'), indices_q, batch_size, seqlen)
     return output, None
+def rotate_half(x):
+    """Rotates half the hidden dims of the input."""
+    x1 = x[..., : x.shape[-1] // 2]
+    x2 = x[..., x.shape[-1] // 2 :]
+    return torch.cat((-x2, x1), dim=-1)
 
-class CoFiLlamaAttention(nn.Module):
-    """Multi-headed attention from 'Attention Is All You Need' paper"""
 
+def apply_rotary_pos_emb(q, k, cos, sin, position_ids=None, unsqueeze_dim=1):
+    """Applies Rotary Position Embedding to the query and key tensors.
+
+    Args:
+        q (`torch.Tensor`): The query tensor.
+        k (`torch.Tensor`): The key tensor.
+        cos (`torch.Tensor`): The cosine part of the rotary embedding.
+        sin (`torch.Tensor`): The sine part of the rotary embedding.
+        position_ids (`torch.Tensor`, *optional*):
+            Deprecated and unused.
+        unsqueeze_dim (`int`, *optional*, defaults to 1):
+            The 'unsqueeze_dim' argument specifies the dimension along which to unsqueeze cos[position_ids] and
+            sin[position_ids] so that they can be properly broadcasted to the dimensions of q and k. For example, note
+            that cos[position_ids] and sin[position_ids] have the shape [batch_size, seq_len, head_dim]. Then, if q and
+            k have the shape [batch_size, heads, seq_len, head_dim], then setting unsqueeze_dim=1 makes
+            cos[position_ids] and sin[position_ids] broadcastable to the shapes of q and k. Similarly, if q and k have
+            the shape [batch_size, seq_len, heads, head_dim], then set unsqueeze_dim=2.
+    Returns:
+        `tuple(torch.Tensor)` comprising of the query and key tensors rotated using the Rotary Position Embedding.
+    """
+    cos = cos.unsqueeze(unsqueeze_dim)
+    sin = sin.unsqueeze(unsqueeze_dim)
+    q_embed = (q * cos) + (rotate_half(q) * sin)
+    k_embed = (k * cos) + (rotate_half(k) * sin)
+    return q_embed, k_embed
+
+
+class CoFiLlamaAttention(LlamaAttention):
     def __init__(self, config, layer_idx):
-        super().__init__()
-        self.attn_impl = 'eager'
-        
-        self.d_model = 2048
-        self.n_heads = 32
-        self.all_head_size = 2048
-        self.head_dim = self.d_model // self.n_heads 
-        self.pruned_heads = set()
-        
-        self.softmax_scale = 1 / math.sqrt(self.d_model / self.n_heads)
-        self.attn_dropout_p = 0.0
-        
-        # self.Wqkv = nn.Linear(self.d_model, 3 * self.d_model, device=device, bias=False)
-        # for param init fn; enables shape based init of fused layers
-        # fuse_splits = (cfg.d_model, 2 * cfg.d_model)
-        # self.Wqkv._fused = (0, fuse_splits)  # type: ignore
-        self.wq = nn.Linear(self.d_model, self.d_model, bias=False)
-        self.wk = nn.Linear(self.d_model, self.d_model,  bias=False)
-        self.wv = nn.Linear(self.d_model, self.d_model, bias=False)
-        
-        self.attn_fn = flash_attn_fn if self.attn_impl == 'flash' else normal_attn_fn
+        super().__init__(config, layer_idx)
+        self.layer_idx = layer_idx
+        self.attn_impl = "eager"
 
-        self.out_proj = nn.Linear(self.d_model, self.d_model,  bias=False)
-        self.out_proj._is_residual = True  # type: ignore
-        
-        self.rotary_emb = LlamaRotaryEmbedding(self.head_dim)
+        self.d_model = config.hidden_size
+        self.num_heads = config.num_attention_heads
+        self.num_kv_heads = config.num_key_value_heads
+        self.head_dim = self.d_model // self.num_heads
+        self.num_key_value_groups = self.num_heads // self.num_kv_heads
+        assert self.num_key_value_groups == 1
+
+        self.q_size = self.num_heads * self.head_dim
+        self.kv_size = self.num_kv_heads * self.head_dim
+
+        self.wq = nn.Linear(self.d_model, self.q_size, bias=False)
+        self.wk = nn.Linear(self.d_model, self.kv_size, bias=False)
+        self.wv = nn.Linear(self.d_model, self.kv_size, bias=False)
+        self.out_proj = nn.Linear(self.q_size, self.d_model, bias=False)
+
+        self.softmax_scale = self.head_dim ** -0.5
+        self.attn_dropout_p = 0.0
     
     
     def prune_params(self, zs_block):
@@ -257,132 +284,6 @@ class CoFiLlamaAttention(nn.Module):
 
     def forward(
         self,
-        hidden_states,
-        past_key_value=None,
-        attn_bias=None,
-        key_padding_mask=None,
-        is_causal=True,
-        needs_weights=False,
-        attention_mask=None,
-        retain_grad=False,
-        head_z=None,
-        output_attentions = False,
-        head_layer_z=None,
-        hidden_z=None,
-        qk_head_dim_z=None,
-        vo_head_dim_z=None,**kwargs):
-        
-        x=hidden_states
-        # qkv = self.Wqkv(x)
-        # query, key, value = qkv.chunk(3, dim=2)
-        if self.wq is None:
-            return None, None, past_key_value
-
-        query = self.wq(x)
-        key = self.wk(x)
-        value = self.wv(x)
-
-        if qk_head_dim_z is not None:
-            query = query.mul(qk_head_dim_z)
-            value = value.mul(vo_head_dim_z)
-        
-        query_padding_mask = None
-        if key_padding_mask is not None:
-            query_padding_mask = key_padding_mask[:, -query.size(1):]
-        
-        if attn_bias is not None:
-            attn_bias = attn_bias[:, :, -query.size(1):, -key.size(1):]
-
-        # b, s, d = query.shape
-        query = rearrange(query, 'b s (h d) -> b h s d', h=self.n_heads)
-        key = rearrange(key, 'b s (h d) -> b h s d', h=self.n_heads)
-        value = rearrange(value, 'b s (h d) -> b h s d', h=self.n_heads)
-        
-        kv_seq_len = key.size(2)
-        offset = 0
-        if past_key_value is not None:
-            offset = past_key_value[0].shape[-2]
-            kv_seq_len += offset
-        cos, sin = self.rotary_emb(value, seq_len=kv_seq_len)
-        query, key = apply_rotary_pos_emb(query, key, cos, sin, offset=offset)
-
-        offset = 0
-        if past_key_value is not None:
-            if len(past_key_value) != 0:
-                offset = past_key_value[0].shape[-2]
-                key = torch.cat([past_key_value[0], key], dim=1)
-                value = torch.cat([past_key_value[1], value], dim=1)
-                past_key_value = (key, value)
-
-        if self.attn_fn == flash_attn_fn:
-            query = rearrange(query, 'b h s d -> b s h d')
-            key = rearrange(key, 'b h s d -> b s h d')
-            value = rearrange(value, 'b h s d -> b s h d')
-            context, attn_weights = self.attn_fn(
-                query,
-                key,
-                value,
-                softmax_scale=self.softmax_scale,
-                attn_bias=attn_bias,
-                query_padding_mask=query_padding_mask,
-                key_padding_mask=key_padding_mask,
-                is_causal=is_causal,
-                dropout_p=self.attn_dropout_p,
-                training=self.training,
-                needs_weights=needs_weights,
-                head_z=head_z
-            )
-        else:
-            context = self.attn_fn(
-                query=query,
-                key=key,
-                value=value,
-                attention_mask=attention_mask,
-                head_z=head_z
-            )
-            attn_weights = None
-
-        if retain_grad:
-            self.context = context
-            if self.context.requires_grad:
-                self.context.retain_grad()
-                
-        output = self.out_proj(context)
-        
-        if head_layer_z is not None:
-            output *= head_layer_z
-        
-        if hidden_z is not None:
-            output *= hidden_z
-            
-        if retain_grad: 
-            self.output = output 
-            if self.output.requires_grad:
-                self.output.retain_grad()
-        
-        return (output, attn_weights) if output_attentions else (output, None )
-
-class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
-    def __init__(self, config, layer_idx):
-        super().__init__(config, layer_idx)
-        
-            
-        self.layer_idx = layer_idx
-        self.num_key_value_groups = config.num_attention_heads // config.num_key_value_heads
-        self.scaling = self.head_dim**-0.5
-        self.attention_dropout = config.attention_dropout
-        self.is_causal = False
-
-        self.num_attention_heads = config.num_attention_heads
-        self.attention_head_size = int(
-            config.hidden_size / config.num_attention_heads)
-        self.all_head_size = self.num_attention_heads * self.attention_head_size
-        self.pruned_heads = set()
-    
-
-
-    def forward(
-        self,
         hidden_states: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
@@ -394,6 +295,8 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         head_z=None,  # Prune KV heads
         head_layer_z=None,  # Prune entire attention layer
         hidden_z = None,
+        qk_head_dim_z=None,
+        vo_head_dim_z=None,
         **kwargs,
     ):
         if self.v_proj is None: #only return none if the final proj is pruned out, othewise just apply the mask and see for youself
@@ -407,6 +310,9 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         query_states = self.q_proj(hidden_states)
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
+        if qk_head_dim_z is not None:
+            query_states = query_states.mul(qk_head_dim_z)
+            value_states = value_states.mul(vo_head_dim_z)
         
         '''query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
@@ -428,7 +334,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
   
         # Apply rotary embeddings
         cos, sin = position_embeddings
-        query_states, key_states = self._apply_rotary_pos_emb(query_states, key_states, cos, sin)
+        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
         
         # Update cache if needed
         if past_key_value is not None:
@@ -439,8 +345,8 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         '''key_states = self._repeat_kv(key_states, self.num_key_value_groups)
         value_states = self._repeat_kv(value_states, self.num_key_value_groups)'''
         
-        key_states = self._repeat_kv(key_states, actual_kv_groups)
-        value_states = self._repeat_kv(value_states, actual_kv_groups)
+        key_states = self.repeat_kv(key_states, actual_kv_groups)
+        value_states = self.repeat_kv(value_states, actual_kv_groups)
         
         # Compute attention scores
         attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
@@ -487,119 +393,18 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         
         return (attn_output, attn_weights) if output_attentions else (attn_output, None )
     
-    def prune_heads(self, heads):
-        len_heads = len(heads)
-        
-        if len_heads == 0: 
-            return
-        
-    
-        heads, index = find_pruneable_heads_and_indices(
-            heads,
-            4,      # NOT num_attention_heads
-            self.attention_head_size,      # 64
-            self.pruned_heads
-        )
 
-        #NOT SELF.NUM_HEADS--LLAMA DOESNT HANDLE QUERY HEADS IN TERMS OF PRUNING (GQA NOT MHA)
-        group_size = self.num_attention_heads // self.num_key_value_heads  # e.g. 32 // 4 = 8
-
-        qo_index_to_prune = []
-       
-        for head in heads:  # these are KV heads
-            q_head_start = head * group_size #2*8 to 3*8 so 16->24 
-            start = q_head_start * self.attention_head_size
-            q_head_end = (head+1)*group_size
-            end = q_head_end * self.attention_head_size
-            qo_index_to_prune.extend(range(start, end))
-        qo_index_to_keep = [i for i in range(2048) if i not in qo_index_to_prune]
-        qo_index_to_keep=torch.tensor(qo_index_to_keep)
-        # Prune linear layers
-        if len(index) == 0:
-           
-            self.q_proj = None
-            self.k_proj = None
-            self.v_proj = None
-            self.o_proj = None
-        else:
-            self.k_proj = prune_linear_layer(self.k_proj, index, dim=0)
-            self.v_proj = prune_linear_layer(self.v_proj, index, dim=0)
-            self.q_proj = prune_linear_layer(self.q_proj, qo_index_to_keep, dim=0)
-            self.o_proj = prune_linear_layer(self.o_proj, qo_index_to_keep, dim=1)
-           
-        
-        # Update hyper params and store pruned heads
-        self.num_attention_heads -= group_size * len(heads)
-        self.num_key_value_heads -= len(heads)
-        self.num_key_value_groups = self.num_attention_heads // self.num_key_value_heads
-        self.all_head_size = self.attention_head_size * \
-            self.num_attention_heads
-        self.pruned_heads = self.pruned_heads.union(heads)
-
-
- 
-    
-    def _apply_rotary_pos_emb(self, q, k, cos, sin):
-        # Helper method to apply rotary embeddings
-        q_embed = (q * cos) + (self._rotate_half(q) * sin)
-        k_embed = (k * cos) + (self._rotate_half(k) * sin)
-        return q_embed, k_embed
-    
-    def _rotate_half(self, x):
-        x1 = x[..., : x.shape[-1] // 2]
-        x2 = x[..., x.shape[-1] // 2 :]
-        return torch.cat((-x2, x1), dim=-1)
-    
-    def _repeat_kv(self, hidden_states, n_rep):
-        batch, num_key_value_heads, slen, head_dim = hidden_states.shape
+    def repeat_kv(self, hidden_states, n_rep):
+        # [B, num_kv_heads, S, D] -> [B, num_heads, S, D]
+        b, h_kv, s, d = hidden_states.shape
         if n_rep == 1:
             return hidden_states
-        hidden_states = hidden_states[:, :, None, :, :].expand(batch, num_key_value_heads, n_rep, slen, head_dim)
-        return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
-class LlamaRotaryEmbedding(torch.nn.Module):
-    def __init__(self, dim, max_position_embeddings=2048, base=10000, device=None):
-        super().__init__()
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float().to(device) / dim))
-        self.register_buffer("inv_freq", inv_freq)
-
-        # Build here to make `torch.jit.trace` work.
-        self.max_seq_len_cached = max_position_embeddings
-        t = torch.arange(self.max_seq_len_cached, device=self.inv_freq.device, dtype=self.inv_freq.dtype)
-        freqs = torch.einsum("i,j->ij", t, self.inv_freq)
-        # Different from paper, but it uses a different permutation in order to obtain the same calculation
-        emb = torch.cat((freqs, freqs), dim=-1)
-        self.register_buffer("cos_cached", emb.cos()[None, None, :, :], persistent=False)
-        self.register_buffer("sin_cached", emb.sin()[None, None, :, :], persistent=False)
-
-    def forward(self, x, seq_len=None):
-        # x: [bs, num_attention_heads, seq_len, head_size]
-        # This `if` block is unlikely to be run after we build sin/cos in `__init__`. Keep the logic here just in case.
-        if seq_len > self.max_seq_len_cached:
-            self.max_seq_len_cached = seq_len
-            t = torch.arange(self.max_seq_len_cached, device=x.device, dtype=self.inv_freq.dtype)
-            freqs = torch.einsum("i,j->ij", t, self.inv_freq)
-            # Different from paper, but it uses a different permutation in order to obtain the same calculation
-            emb = torch.cat((freqs, freqs), dim=-1).to(x.device)
-            self.register_buffer("cos_cached", emb.cos()[None, None, :, :], persistent=False)
-            self.register_buffer("sin_cached", emb.sin()[None, None, :, :], persistent=False)
-        return (
-            self.cos_cached[:, :, :seq_len, ...].to(dtype=x.dtype),
-            self.sin_cached[:, :, :seq_len, ...].to(dtype=x.dtype),
-        )
-
-def rotate_half(x):
-    """Rotates half the hidden dims of the input."""
-    x1 = x[..., : x.shape[-1] // 2]
-    x2 = x[..., x.shape[-1] // 2 :]
-    return torch.cat((-x2, x1), dim=-1)
+        hidden_states = hidden_states[:, :, None, :, :].expand(b, h_kv, n_rep, s, d)
+        return hidden_states.reshape(b, h_kv * n_rep, s, d)
 
 
-def apply_rotary_pos_emb(q, k, cos, sin, offset: int = 0):
-    cos = cos[..., offset : q.shape[-2] + offset, :]
-    sin = sin[..., offset : q.shape[-2] + offset, :]
-    q_embed = (q * cos) + (rotate_half(q) * sin)
-    k_embed = (k * cos) + (rotate_half(k) * sin)
-    return q_embed, k_embed
+   
+
 
 def _make_causal_mask(input_ids_shape: torch.Size, dtype: torch.dtype, past_key_values_length: int = 0):
     bsz, tgt_len = input_ids_shape
@@ -651,6 +456,8 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         intermediate_z=None,
         mlp_z=None,
         hidden_z=None,
+        qk_head_dim_z=None,
+        vo_head_dim_z=None,
         **kwargs,
     ):
         residual = hidden_states
@@ -672,6 +479,8 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
             head_z=head_z,
             head_layer_z=head_layer_z,
             hidden_z=hidden_z,
+            qk_head_dim_z=qk_head_dim_z,
+            vo_head_dim_z=vo_head_dim_z,
             **kwargs,
         )
 
@@ -755,7 +564,7 @@ class CoFiLlamaBiModel(LlamaBiModel):
         self.layers = nn.ModuleList(
             [CoFiModifiedLlamaDecoderLayer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
         )
-        
+        self.rotary_emb = LlamaRotaryEmbedding(config=config)
         # Replace norm with CoFi-enabled version
         self.norm = CoFiLlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
     
@@ -776,6 +585,8 @@ class CoFiLlamaBiModel(LlamaBiModel):
         intermediate_z=None,  # List of tensors, one per layer
         mlp_z=None,  # List of tensors, one per layer
         hidden_z=None,  # Single tensor shared across layers
+        qk_head_dim_z=None,
+        vo_head_dim_z=None
    
     ):
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
@@ -836,6 +647,8 @@ class CoFiLlamaBiModel(LlamaBiModel):
             layer_head_z = head_z[idx] if head_z is not None else None
             layer_head_layer_z = head_layer_z[idx] if head_layer_z is not None else None
             layer_intermediate_z = intermediate_z[idx] if intermediate_z is not None else None
+            layer_vo_head_dim_z = vo_head_dim_z[idx] if vo_head_dim_z is not None else None
+            layer_qk_head_dim_z = qk_head_dim_z[idx] if qk_head_dim_z is not None else None
             layer_mlp_z = mlp_z[idx] if mlp_z is not None else None
             #if hidden_z is not None:
                # print(f"Passing through decoder layer {idx}")
@@ -864,6 +677,9 @@ class CoFiLlamaBiModel(LlamaBiModel):
                 intermediate_z=layer_intermediate_z,
                 mlp_z=layer_mlp_z,
                 hidden_z=hidden_z,
+                vo_head_dim_z=layer_vo_head_dim_z,
+                qk_head_dim_z=layer_qk_head_dim_z
+                
             )
             
             hidden_states = layer_outputs[0]
@@ -904,7 +720,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         self.config=config
         self.model = CoFiLlamaBiModel(config)
    
-        self.tokenizer = AutoTokenizer.from_pretrained('princeton-nlp/Sheared-LLaMA-1.3B')
+        self.tokenizer = AutoTokenizer.from_pretrained('knowledgator/Sheared-LLaMA-1.3B')
         if "pad_token" not in self.tokenizer.special_tokens_map:
             num_new_tokens = self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
             if num_new_tokens > 0:
@@ -1065,6 +881,8 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             hidden_z=None,
             final_mlp_hidden_z=None,
             final_mlp_inp_z=None,
+            qk_head_dim_z=None,
+        vo_head_dim_z=None
     ):
   
         #pre_input_ids = pre_input_ids.unsqueeze(0)  # Shape becomes [1, 46]
@@ -1085,7 +903,9 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             head_layer_z=head_layer_z,
             intermediate_z=intermediate_z,
             mlp_z=mlp_z,
-            hidden_z=hidden_z
+            hidden_z=hidden_z,
+            qk_head_dim_z=qk_head_dim_z,
+            vo_head_dim_z=vo_head_dim_z
         ) #! [32, 68, 768]
         
         
@@ -1103,7 +923,9 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             head_layer_z=head_layer_z,
             intermediate_z=intermediate_z,
             mlp_z=mlp_z,
-            hidden_z=hidden_z
+            hidden_z=hidden_z,
+            qk_head_dim_z=qk_head_dim_z,
+            vo_head_dim_z=vo_head_dim_z
         )
         '''if mlp_z is not None:
             print("PREMISED OUTPUTS ", outputs_pre[0])
