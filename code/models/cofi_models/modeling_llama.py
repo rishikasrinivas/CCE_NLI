@@ -701,8 +701,8 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
 
 
     def masked_mean_pool(self, hidden, mask):
-        hidden = outputs_pre.last_hidden_state
-        mask = attention_mask.unsqueeze(-1)
+        hidden = hidden.last_hidden_state
+        mask = mask.unsqueeze(-1)
 
         return (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-9)
     def forward(
@@ -777,9 +777,9 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         
         
 
-        pre_out= self.masked_mean_pool(outputs_pre, pre_attention_mask)
+        pre_out= outputs_pre.last_hidden_state.mean(dim=1) #self.masked_mean_pool(outputs_pre, pre_attention_mask) 
         
-        hyp_out =self.masked_mean_pool(outputs_hyp, hyp_attention_mask)
+        hyp_out =outputs_hyp.last_hidden_state.mean(dim=1) # self.masked_mean_pool(outputs_hyp, hyp_attention_mask)# 
 
         diffs = pre_out - hyp_out
         prods = pre_out * hyp_out

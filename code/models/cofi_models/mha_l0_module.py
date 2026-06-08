@@ -139,7 +139,7 @@ class L0Module_Sheared(nn.Module):
         target_model_cfg= None
         self.target_model_info = None
         # l0 config
-        assert pruning_modules == 'head+head_layer+intermediate+mlp+final_mlp_hidden+hidden', f'moduels is {pruning_modules}'
+        
         self.pruning_modules = pruning_modules.split("+")  
         self.start_sparsity = 0.0
         self.lagrangian_warmup_steps = 0
