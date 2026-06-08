@@ -84,6 +84,8 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         head_z=None,  # Prune KV heads
         head_layer_z=None,  # Prune entire attention layer
         hidden_z = None,
+        qk_head_dim_z=None,
+        vo_head_dim_z=None,
         **kwargs,
     ):
         if self.v_proj is None: #only return none if the final proj is pruned out, othewise just apply the mask and see for youself
@@ -98,6 +100,11 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
         
+        if qk_head_dim_z is not None:
+            query_states = query_states.mul(qk_head_dim_z)
+            value_states = value_states.mul(vo_head_dim_z)
+        
+        
         '''query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
         value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)'''
@@ -107,6 +114,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         actual_q_heads  = query_states.shape[-1] // self.head_dim    # e.g. 1536//64 = 24
         actual_kv_groups = actual_q_heads // actual_kv_heads
         
+        assert actual_q_heads == actual_kv_heads, f'actual_q_heads={actual_q_heads} actual_kv_heads= {actual_kv_heads}'
         # Reshape for GQA
         query_states = query_states.view(bsz, q_len, actual_q_heads, self.head_dim).transpose(1, 2)
         key_states = key_states.view(bsz, q_len, actual_kv_heads, self.head_dim).transpose(1, 2)
@@ -126,11 +134,8 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
             key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
         
         # Repeat KV heads for grouped query attention
-        '''key_states = self._repeat_kv(key_states, self.num_key_value_groups)
-        value_states = self._repeat_kv(value_states, self.num_key_value_groups)'''
-        
-        key_states = self._repeat_kv(key_states, actual_kv_groups)
-        value_states = self._repeat_kv(value_states, actual_kv_groups)
+        key_states = self._repeat_kv(key_states, self.num_key_value_groups)
+        value_states = self._repeat_kv(value_states, self.num_key_value_groups)
         
         # Compute attention scores
         attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
@@ -145,16 +150,18 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         # Apply attention to values
         attn_output = torch.matmul(attn_weights, value_states)
         
-
+        #In attention pruning the kv heads norm the atttnout is  torch.Size([16, 16, 16, 128]) and head is expanded to torch.Size([1, 16, 1, 1])
+        #torch.Size([16])
         if head_z is not None:
-            #torch.Size([1, 4, 1])
             # head_z is over KV heads, need to expand to query heads
             head_z = head_z.squeeze()
+            #head_z.shaoe=#torch.Size([16])
           
             #head_z_expanded = head_z.repeat_interleave(self.num_key_value_groups)
             head_z_expanded = head_z.repeat_interleave(actual_kv_groups)
             
-            #print(f"In attention pruning the kv heads norm the atttnout is  {attn_output.shape} and head is expanded to {head_z_expanded.view(1, -1, 1, 1).shape}")
+            #In attention pruning the kv heads norm the atttnout is  torch.Size([16, 16, 16, 128]) and head_z_expanded.view(1, -1, 1, 1).shape = torch.Size([1, 16, 1, 1])
+    
             
             attn_output = attn_output * head_z_expanded.view(1, -1, 1, 1)
         attn_output = attn_output.transpose(1, 2)
@@ -186,24 +193,11 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
     
         heads, index = find_pruneable_heads_and_indices(
             heads,
-            4,      # NOT num_attention_heads
+            self.num_attention_heads,      # NOT num_attention_heads
             self.attention_head_size,      # 64
             self.pruned_heads
         )
-
-        #NOT SELF.NUM_HEADS--LLAMA DOESNT HANDLE QUERY HEADS IN TERMS OF PRUNING (GQA NOT MHA)
-        group_size = self.num_attention_heads // self.num_key_value_heads  # e.g. 32 // 4 = 8
-
-        qo_index_to_prune = []
-       
-        for head in heads:  # these are KV heads
-            q_head_start = head * group_size #2*8 to 3*8 so 16->24 
-            start = q_head_start * self.attention_head_size
-            q_head_end = (head+1)*group_size
-            end = q_head_end * self.attention_head_size
-            qo_index_to_prune.extend(range(start, end))
-        qo_index_to_keep = [i for i in range(2048) if i not in qo_index_to_prune]
-        qo_index_to_keep=torch.tensor(qo_index_to_keep)
+    
         # Prune linear layers
         if len(index) == 0:
            
@@ -214,16 +208,15 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         else:
             self.k_proj = prune_linear_layer(self.k_proj, index, dim=0)
             self.v_proj = prune_linear_layer(self.v_proj, index, dim=0)
-            self.q_proj = prune_linear_layer(self.q_proj, qo_index_to_keep, dim=0)
-            self.o_proj = prune_linear_layer(self.o_proj, qo_index_to_keep, dim=1)
+            self.q_proj = prune_linear_layer(self.q_proj, index, dim=0)
+            self.o_proj = prune_linear_layer(self.o_proj, index, dim=1)
            
         
         # Update hyper params and store pruned heads
-        self.num_attention_heads -= group_size * len(heads)
-        self.num_key_value_heads -= len(heads)
-        self.num_key_value_groups = self.num_attention_heads // self.num_key_value_heads
-        self.all_head_size = self.attention_head_size * \
-            self.num_attention_heads
+        self.self.num_attention_heads = self.self.num_attention_heads - \
+            len(heads)
+        self.self.all_head_size = self.self.attention_head_size * \
+            self.self.num_attention_heads
         self.pruned_heads = self.pruned_heads.union(heads)
 
 
@@ -278,6 +271,8 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         intermediate_z=None,
         mlp_z=None,
         hidden_z=None,
+        qk_head_dim_z=None,
+        vo_head_dim_z=None,
         **kwargs,
     ):
         residual = hidden_states
@@ -299,6 +294,8 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
             head_z=head_z,
             head_layer_z=head_layer_z,
             hidden_z=hidden_z,
+            qk_head_dim_z=qk_head_dim_z,
+            vo_head_dim_z=vo_head_dim_z,
             **kwargs,
         )
 
@@ -434,6 +431,8 @@ class CoFiLlamaBiModel(LlamaBiModel):
         intermediate_z=None,  # List of tensors, one per layer
         mlp_z=None,  # List of tensors, one per layer
         hidden_z=None,  # Single tensor shared across layers
+        qk_head_dim_z=None,
+        vo_head_dim_z=None
    
     ):
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
@@ -491,6 +490,8 @@ class CoFiLlamaBiModel(LlamaBiModel):
             layer_head_layer_z = head_layer_z[idx] if head_layer_z is not None else None
             layer_intermediate_z = intermediate_z[idx] if intermediate_z is not None else None
             layer_mlp_z = mlp_z[idx] if mlp_z is not None else None
+            layer_qk_head_dim_z = qk_head_dim_z[idx] if qk_head_dim_z is not None else None
+            layer_vo_head_dim_z = vo_head_dim_z[idx] if vo_head_dim_z is not None else None
             #if hidden_z is not None:
                # print(f"Passing through decoder layer {idx}")
             '''if layer_head_z is not None:
@@ -518,6 +519,10 @@ class CoFiLlamaBiModel(LlamaBiModel):
                 intermediate_z=layer_intermediate_z,
                 mlp_z=layer_mlp_z,
                 hidden_z=hidden_z,
+                qk_head_dim_z=layer_qk_head_dim_z,
+                vo_head_dim_z=layer_vo_head_dim_z,
+                
+                
             )
             
             hidden_states = layer_outputs[0]
@@ -695,6 +700,11 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             return self.tokenizer(words, is_split_into_words=True, return_tensors="pt", padding=True, truncation=True)
 
 
+    def masked_mean_pool(self, hidden, mask):
+        hidden = outputs_pre.last_hidden_state
+        mask = attention_mask.unsqueeze(-1)
+
+        return (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-9)
     def forward(
             self,
             pre_input_ids=None,
@@ -715,6 +725,8 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             hidden_z=None,
             final_mlp_hidden_z=None,
             final_mlp_inp_z=None,
+            qk_head_dim_z=None,
+            vo_head_dim_z=None
     ):
   
         #pre_input_ids = pre_input_ids.unsqueeze(0)  # Shape becomes [1, 46]
@@ -735,7 +747,9 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             head_layer_z=head_layer_z,
             intermediate_z=intermediate_z,
             mlp_z=mlp_z,
-            hidden_z=hidden_z
+            hidden_z=hidden_z,
+            qk_head_dim_z=qk_head_dim_z,
+            vo_head_dim_z=vo_head_dim_z
         ) #! [32, 68, 768]
         
         
@@ -753,7 +767,9 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             head_layer_z=head_layer_z,
             intermediate_z=intermediate_z,
             mlp_z=mlp_z,
-            hidden_z=hidden_z
+            hidden_z=hidden_z,
+            qk_head_dim_z=qk_head_dim_z,
+            vo_head_dim_z=vo_head_dim_z
         )
         '''if mlp_z is not None:
             print("PREMISED OUTPUTS ", outputs_pre[0])
@@ -761,9 +777,9 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         
         
 
-        pre_out=outputs_pre.last_hidden_state.mean(dim=1)  #self.encode_sentence(outputs_pre, hyp_attention_mask)
+        pre_out= self.masked_mean_pool(outputs_pre, pre_attention_mask)
         
-        hyp_out =outputs_hyp.last_hidden_state.mean(dim=1)
+        hyp_out =self.masked_mean_pool(outputs_hyp, hyp_attention_mask)
 
         diffs = pre_out - hyp_out
         prods = pre_out * hyp_out

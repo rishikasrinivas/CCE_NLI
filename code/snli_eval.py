@@ -85,7 +85,6 @@ def get_percent_pruned(model):
     final_weights_pruned= np.round(100*torch.where(torch.tensor(final_weights) == 0,1,0).sum().item()/(model.mlp[0].weight.shape[0]*model.mlp[0].weight.shape[1]), 3)
     return final_weights_pruned
 
-    
 def main(args):
     print("using weights from ", args.ckpt)
     nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger", "ner"])
@@ -103,115 +102,107 @@ def main(args):
             inputs[key] = zs[key]
         return inputs
 
-    for folder in os.listdir(args.root_dir):
-        if '.ipynb' in folder: continue
-        if '.pt' in folder: continue
-        if '.csv' in folder: continue
     
-        try:
-            if args.pruning_method == 'CoFi':
-                if args.model_type in ['bert', 'llama']:
-                    #tokenizer = AutoTokenizer.from_pretrained(os.path.join(args.root_dir, f"0_Pruning_Iter"), trust_remote_code=True)
-                    tokenizer=None
-                else:
-                    tokenizer = model.encoder
-                
-
-                if folder == '0_Pruning_Iter':
-                    zs=None
-                    continue
-                else:
-                    zs=torch.load(os.path.join(args.root_dir, folder,"zs.pt"))
-
-                pruned_model = load_model(os.path.join(args.root_dir, folder), model, zs,tokenizer, train_data=train, ckpt=os.path.join(args.root_dir, folder, 'model_best.pth'), device='cuda')
-                pruned_model.eval()
-
-                if settings.CUDA:
-                    pruned_model.cuda()
-                if args.model_type in ['bert', 'llama']:
-                    pruned_model_size = calculate_parameters(pruned_model)
-                    if folder == '0_Pruning_Iter': og=pruned_model_size
-                    final_weights_pruned = 1 - (pruned_model_size / 1) 
-                else:
-                    final_weights_pruned = get_percent_pruned(pruned_model)
-                print("sparsity=", final_weights_pruned)
-      
-                all_preds = []
-                all_targets = []
-
-                # CORRECTED: Added conditional logic for batch handling
-                for batch in dataloaders['val']:
-
-                    if torch.cuda.is_available():
-                        #batch = fill_inputs_with_zs(zs, batch)
-                        if settings.CUDA:
-                            batch = {k: v.to('cuda') for k, v in batch.items()}
-                        targets = batch['labels']
+    try:
+        if args.pruning_method == 'CoFi':
+            if args.model_type in ['bert', 'llama']:
+                #tokenizer = AutoTokenizer.from_pretrained(os.path.join(args.root_dir, f"0_Pruning_Iter"), trust_remote_code=True)
+                tokenizer=None
+            else:
+                tokenizer = model.encoder
 
 
-                    batch_size = targets.shape[0]
+            zs=torch.load(os.path.join(args.root_dir,"zs.pt"))
+
+            pruned_model = load_model(os.path.join(args.root_dir), model, zs,tokenizer, train_data=train, ckpt=os.path.join(args.root_dir, 'model_best.pth'), device='cuda')
+            pruned_model.eval()
+
+            if settings.CUDA:
+                pruned_model.cuda()
+            if args.model_type in ['bert', 'llama']:
+                pruned_model_size = calculate_parameters(pruned_model)
+                if folder == '0_Pruning_Iter': og=pruned_model_size
+                final_weights_pruned = 1 - (pruned_model_size / og) 
+            else:
+                final_weights_pruned = get_percent_pruned(pruned_model)
+            print("sparsity=", final_weights_pruned)
+
+            all_preds = []
+            all_targets = []
+
+            # CORRECTED: Added conditional logic for batch handling
+            for batch in dataloaders['val']:
+
+                if torch.cuda.is_available():
+                    #batch = fill_inputs_with_zs(zs, batch)
+                    if settings.CUDA:
+                        batch = {k: v.to('cuda') for k, v in batch.items()}
+                    targets = batch['labels']
+
+
+                batch_size = targets.shape[0]
+
+                with torch.no_grad():
+                    logits = pruned_model(**batch)
+
+                preds = logits[1][2].argmax(1)
+                all_preds.append(preds.cpu().numpy())
+                all_targets.append(targets.cpu().numpy())
+
+            all_preds = np.concatenate(all_preds, 0)
+            all_targets = np.concatenate(all_targets, 0)
+            acc = (all_preds == all_targets).mean()
+            print(np.round(acc, 3))
+        else:
+            torch.cuda.empty_cache()
+            if '.ipy' in folder or not folder[0].isdigit(): return
+            weights = torch.load(os.path.join(args.root_dir, folder, 'model_best.pth'))['state_dict']
+            model.load_state_dict(weights)
+            all_preds = []
+            all_targets = []
+            model.eval()
+            print("Loaded some apth ", os.path.join(args.root_dir, 'model_best.pth'))
+            if settings.CUDA:
+                model = model.cuda()
+            if args.model_type=='bowman':
+                for (s1, s1len, s2, s2len, targets) in val_loader:
+                    if settings.CUDA:
+                        s1 = s1.cuda()
+                        s1len = s1len.cuda()
+                        s2 = s2.cuda()
+                        s2len = s2len.cuda()
 
                     with torch.no_grad():
-                        logits = pruned_model(**batch)
+                        logits = model(s1, s1len, s2, s2len)
 
-                    preds = logits[1][2].argmax(1)
+                    preds = logits.argmax(1)
+
+                    all_preds.append(preds.cpu().numpy())
+                    all_targets.append(targets.cpu().numpy())
+            else:
+                for s1, s2, targets in val_loader:
+                    s1={k:v.cuda() for k,v in s1.items()}
+                    s2={k:v.cuda() for k,v in s2.items()}
+
+                    with torch.no_grad():
+                        logits = model(s1, s2)
+
+                    preds = logits.argmax(1)
+
                     all_preds.append(preds.cpu().numpy())
                     all_targets.append(targets.cpu().numpy())
 
-                all_preds = np.concatenate(all_preds, 0)
-                all_targets = np.concatenate(all_targets, 0)
-                acc = (all_preds == all_targets).mean()
-                print(np.round(acc, 3))
-            else:
-                torch.cuda.empty_cache()
-                if '.ipy' in folder or not folder[0].isdigit(): continue
-                weights = torch.load(os.path.join(args.root_dir, folder, 'model_best.pth'))['state_dict']
-                model.load_state_dict(weights)
-                all_preds = []
-                all_targets = []
-                model.eval()
-                print("Loaded some apth ", os.path.join(args.root_dir, folder, 'model_best.pth'))
-                if settings.CUDA:
-                    model = model.cuda()
-                if args.model_type=='bowman':
-                    for (s1, s1len, s2, s2len, targets) in val_loader:
-                        if settings.CUDA:
-                            s1 = s1.cuda()
-                            s1len = s1len.cuda()
-                            s2 = s2.cuda()
-                            s2len = s2len.cuda()
 
-                        with torch.no_grad():
-                            logits = model(s1, s1len, s2, s2len)
+            all_preds = np.concatenate(all_preds, 0)
+            all_targets = np.concatenate(all_targets, 0)
 
-                        preds = logits.argmax(1)
+            acc = (all_preds == all_targets).mean()
 
-                        all_preds.append(preds.cpu().numpy())
-                        all_targets.append(targets.cpu().numpy())
-                else:
-                    for s1, s2, targets in val_loader:
-                        s1={k:v.cuda() for k,v in s1.items()}
-                        s2={k:v.cuda() for k,v in s2.items()}
-
-                        with torch.no_grad():
-                            logits = model(s1, s2)
-
-                        preds = logits.argmax(1)
-
-                        all_preds.append(preds.cpu().numpy())
-                        all_targets.append(targets.cpu().numpy())
-
-
-                all_preds = np.concatenate(all_preds, 0)
-                all_targets = np.concatenate(all_targets, 0)
-
-                acc = (all_preds == all_targets).mean()
-
-                print(f" Val acc: {acc:.3f}")
-            accs[folder]=np.round(acc,3)
-        except Exception as e:
-            print(e)
-    pd.DataFrame({'folder':accs.keys(), 'accs':accs.values()}).to_csv(f"{args.root_dir}/accuracy.csv")
+            print(f" Val acc: {acc:.3f}")
+        #accs[folder]=np.round(acc,3)
+    except Exception as e:
+        print(e)
+    #pd.DataFrame({'folder':accs.keys(), 'accs':accs.values()}).to_csv(f"{args.root_dir}/accuracy.csv")
 
 
    
@@ -243,6 +234,7 @@ def parse_args():
     parser.add_argument("--cuda", action="store_true")
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     args = parse_args()

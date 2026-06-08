@@ -96,7 +96,7 @@ def update_llama_params(model, zs):
                     llama.layers[layer].mlp.down_proj.weight.data.mul(intermediate_z)
                 
                 if "mlp_z" in zs:
-                    mlp_z = zs["mlp_z"][layer]
+                    mlp_z = zs["mlp_z"][layer].cpu()
                     
                     llama.layers[layer].mlp.down_proj.weight.data = \
                         llama.layers[layer].mlp.down_proj.weight.data.transpose(0, 1).mul(mlp_z).transpose(0, 1)
@@ -115,9 +115,11 @@ def update_llama_params(model, zs):
                 llama.layers[layer].self_attn.v_proj.weight.data = \
                     llama.layers[layer].self_attn.v_proj.weight.data.mul(head_z.reshape(-1,1))
                 # No bias
+                llama.layers[layer].self_attn.v_proj.weight.data = llama.layers[layer].self_attn.v_proj.weight.transpose(0, 1).data.mul(head_z).transpose(0, 1)
+                
                 
                 if "head_layer_z" in zs:
-                    head_layer_z = zs["head_layer_z"][layer]
+                    head_layer_z = zs["head_layer_z"][layer].cpu()
                     # o_proj instead of attention.output.dense
                     llama.layers[layer].self_attn.o_proj.weight.data = \
                         llama.layers[layer].self_attn.o_proj.weight.transpose(0, 1).data.mul(head_layer_z).transpose(0, 1)
@@ -132,7 +134,7 @@ def update_llama_params(model, zs):
             llama.embed_tokens.weight.data = \
                 llama.embed_tokens.weight.data.mul(hidden_z)
             
-            for layer in range(22):
+            for layer in range(24):
                 # Attention projections
                 #print('k ', layer, llama.layers[layer].self_attn.k_proj.weight.data.shape, hidden_z.shape)
                 #print('q ', llama.layers[layer].self_attn.k_proj.weight.data.shape, hidden_z.shape)
@@ -374,7 +376,7 @@ def prune_model_with_z(zs, model):
                 llama.norm.weight.index_select(0, index))
             llama.norm.normalized_shape = (len(index),)
             
-            for layer in range(0, 22):  # You have 22 layers (0-21)
+            for layer in range(0, 24):  # You have 22 layers (0-21)
                 prune_layer_norm_llama(layer, index)
                 
                 # Attention projections - all take hidden_dim as input (dim=1)

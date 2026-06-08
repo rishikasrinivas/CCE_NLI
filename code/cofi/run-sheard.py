@@ -20,9 +20,7 @@ print(os.listdir(os.getcwd()))
 sys.path.append('code/')
 from args import AdditionalArguments, DataTrainingArguments
 from cofi.utils.cofi_utils import *
-from models.cofi_models.l0_module import L0Module
-from models.cofi_models.compser_l0 import L0Module_Sheared
-from models.cofi_models.shreredl0_module_lambda_per_mask import L0Module_LLAMA
+from models.cofi_models.mha_l0_module import L0Module_Sheared
 from models.cofi_models.modeling_bert import CoFiBertForSequenceClassification
 from models.cofi_models.modeling_llama import CoFiLlamaForSequenceClassification
 from models.cofi_models.modeling_bowman import CoFiBowmanEntailmentClassifier, TextEncoder
@@ -234,15 +232,7 @@ def main():
     
     if additional_args.pruning_type is not None:
         if additional_args.model_name  == 'llama':
-            '''l0_module = L0Module_LLAMA(config=config,
-                                 model_name=additional_args.model_name,
-                                 droprate_init=additional_args.droprate_init,
-                                 temperature=additional_args.temperature,
-                                 target_sparsity=additional_args.target_sparsity,
-                                 pruning_type=additional_args.pruning_type,
-                                 args=training_args,
-                                full_model_size=calculate_parameters(teacher_model)).to(device)'''
-            l0_module = L0Module_Sheared(device=device)
+            l0_module = L0Module_Sheared(config=config,target_sparsity=additional_args.target_sparsity, pruning_modules= additional_args.pruning_type, device=device)
         else:
             l0_module = L0Module(config=config,
                                  model_name=additional_args.model_name,

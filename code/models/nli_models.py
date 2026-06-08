@@ -254,7 +254,7 @@ class BaseModel(torch.nn.Module):
         raise NotImplementedError()
 
 class LLAMAEntailmentClassifier(BaseModel):
-    def __init__(self, encoder_name="knowledgator/Llama-encoder-1.0B", pretrained = True, freeze_encoder=False, device='cuda'):
+    def __init__(self, encoder_name="knowledgator/Sheared-LLaMA-encoder-1.3B", pretrained = True, freeze_encoder=False, device='cuda'):
         super().__init__()
         self.encoder_name = encoder_name
         if pretrained:
@@ -328,24 +328,14 @@ class LLAMAEntailmentClassifier(BaseModel):
         return preds
 
     def encode_sentence(self, tokens):
-       
         outputs = self.model(**tokens)
-        hidden = outputs.last_hidden_state  # (B, T, H)
+        hidden = outputs.last_hidden_state
 
-        attention_mask = tokens["attention_mask"]  # (B, T)
-        seq_lengths = attention_mask.sum(dim=-1)   # (B,)
+        mask = tokens["attention_mask"].unsqueeze(-1).float()  # (B, T, 1)
+        reps = (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-9)
 
-        reps = []
+        return reps
 
-        for i, length in enumerate(seq_lengths):
-            length = length.item()
-
-            # take ONLY real tokens (assumes padding is on left OR mask-aligned)
-            token_reprs = hidden[i, -length:, :]  # (length, H)
-
-            reps.append(token_reprs.mean(dim=0))  # (H,)
-
-        return torch.stack(reps, dim=0)  # (B, H)
 
     def to(self, device):
         self.model = self.model.to(device)

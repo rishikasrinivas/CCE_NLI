@@ -396,7 +396,7 @@ class CoFiTrainer(Trainer):
         train_pbar = trange(epochs_trained, int(
             np.ceil(num_train_epochs)), desc="Epoch", disable=disable_tqdm)
 
-        #Train the teacher model first
+        #Train the teacher model first bc in cofi orig repo they start with a trained teacher but here the frist run teach might not be trained yet so train it
 
         if not self.finetuned_teacher:
             self.teacher_model = self.finetune_teacher(self.teacher_model)
@@ -429,7 +429,8 @@ class CoFiTrainer(Trainer):
             for step, inputs in enumerate(epoch_iterator):
                 #print(f"Can only start pruning at {self.global_step} == {self.prepruning_finetune_steps}")
                 #print(f"right now, glboal step = {self.global_step} and self.prepruning_finetune_steps = {self.prepruning_finetune_steps}" )
-              
+                  # in orig foi they say self.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps:
+                        # but this is because they train the student first run. we may start with a trained student alr
                 if  using_trained_student and not self.start_prune: #elf.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps: #! before pruning, run 12272 steps
                     #use the momentum from the previously saved student (if those states are saved, else load an optimizer from scracth)
                     #resumed = self.resume_from()
@@ -525,7 +526,6 @@ class CoFiTrainer(Trainer):
                         self.log(logs)
 
                     if self.global_step % self.args.eval_steps == 0:
-                        logger.warning("evaluating")
                         self.evaluate()
                    
        
@@ -535,7 +535,8 @@ class CoFiTrainer(Trainer):
                         
 
                 epoch_pbar.update(1)
-          
+                  #they stop when self.args.max_steps > 0 and self.global_step >= self.args.max_steps: and we stop when sparsity is reached 
+                    #TODO: check what their max_steps is if its eqiuv to the epochs then its fine with ours 
                 if using_trained_student and self.ready_to_save():
                     print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity} with expected at {self.expected_sparsity}")
                     self.save_model(model, student=False)
@@ -595,7 +596,7 @@ class CoFiTrainer(Trainer):
         
         print("Is iterable:", hasattr(dataloader, '__iter__'))
         # disable output hidden states and attention during evaluation
-        if self.model_name != 'bowman':
+        if self.model_name != 'bowman': # bc bowman doesnt have this attr
             self.model.config.output_hidden_states = False
             self.model.config.output_attentions = False
 
@@ -648,6 +649,7 @@ class CoFiTrainer(Trainer):
             }
             #loss, logits, labels = self.prediction_step(
                 #model, inputs, prediction_loss_only) #pass instead of "inputs"
+                #NOTE: this one fails when i run on multiple GPUS so switched it to this bttoom block
             
             with torch.no_grad():
                 # Pass the inputs directly to the model. 
@@ -729,7 +731,7 @@ class CoFiTrainer(Trainer):
                 self.global_step - self.prepruning_finetune_steps)
 
             expected_sparsity = round(expected_sparsity.item(), 5)
-            #metrics.update(pruned_model_size_info)
+            metrics.update(pruned_model_size_info)
             metrics["expected_sparsity"] = expected_sparsity
             metrics["target_sparsity"] = target_sparsity
 
@@ -881,13 +883,14 @@ class CoFiTrainer(Trainer):
             head_layer_z = None
             # logger.info(f"zs={zs}")
             if "mlp_z" in zs:
-                mlp_z = zs["mlp_z"]
+                mlp_z = zs["mlp_z"].detach().cpu()
             if "head_layer_z" in zs:
-                head_layer_z = zs["head_layer_z"]
+                head_layer_z = zs["head_layer_z"].detach().cpu()
 
             
             
             teacher_pre_final_layer_reps, teacher_final_layer_reps = teacher_outputs.logits[0], teacher_outputs.logits[1]
+            student_pre_final_layer_reps, student_final_layer_reps = student_outputs.logits[0], student_outputs.logits[1]
             if self.model_name!='bowman':
                 teacher_pre_layer_output = teacher_outputs.hidden_states[0][1:] #! hidden states, with a length of 12. Every has a shape of [32, 65, 768] for pre and hyp
                 teacher_hyp_layer_output = teacher_outputs.hidden_states[1][1:] #! hidden states, with a length of 12. Every has a shape of [32, 65, 768] for pre and hyp
@@ -896,14 +899,13 @@ class CoFiTrainer(Trainer):
                 student_hyp_layer_output = student_outputs.hidden_states[1][1:] 
                 
 
-                student_pre_final_layer_reps, student_final_layer_reps = student_outputs.logits[0], student_outputs.logits[1]
+                
                 
             else:
                 teacher_pre_layer_output = teacher_outputs.hidden_states[0] #! hidden states, with a length of 12. Every has a shape of [32, 65, 768] for pre and hyp
                 teacher_hyp_layer_output = teacher_outputs.hidden_states[1]#! hidden states, with a length of 12. Every has a shape of [32, 65, 768] for pre and hyp
 
 
-                student_pre_final_layer_reps, student_final_layer_reps = student_outputs.logits[0], student_outputs.logits[1]
                 student_pre_layer_output = student_outputs.hidden_states[0]
                 student_hyp_layer_output = student_outputs.hidden_states[1]
 
@@ -988,13 +990,13 @@ class CoFiTrainer(Trainer):
                     existing_layers = existing_layers.to(layerwiseloss.device)
 
                 
-                layer_loss = mse_loss(student_pre_final_layer_reps, teacher_pre_final_layer_reps) + mse_loss(student_final_layer_reps, teacher_final_layer_reps)
+                layer_loss = mse_loss(student_pre_final_layer_reps, teacher_pre_final_layer_reps) + mse_loss(student_final_layer_reps, teacher_final_layer_reps) #mlp loss
                 #! no ordering restriction specified
                 if self.additional_args.layer_distill_version == 3:
                     alignment = torch.argmin(layerwiseloss, dim=1)
                 #! added the ordering restriction -> to choose the min loss in 4 student layers
                 elif self.additional_args.layer_distill_version in (3, 4, 5, 6):
-                    last_aligned_layer = 22
+                    last_aligned_layer = 24
                     alignment = []
                     for search_index in range(len(specified_teacher_layers)-1, -1, -1):
                         indexes = layerwiseloss[search_index].sort()[1]
@@ -1019,7 +1021,6 @@ class CoFiTrainer(Trainer):
 
                 layerwise = torch.arange(len(specified_teacher_layers)).to(device)
                 #print(f"MLP LAYER LOSS: {layer_loss}")
-                #WORST CASE FOR LLAMA JUST DO THIS DONT DISTILL MLP
                 layer_loss += layerwiseloss[layerwise, alignment].sum() #! layerwise: teacher (specified layers) / alignment: student (min loss layers) / layerwiseloss: [4,12]
                 if self.global_step % 100 == 0:
                     logger.info(f"v{self.additional_args.layer_distill_version} Global step: {self.global_step}, Alignment: " + str(alignment))
