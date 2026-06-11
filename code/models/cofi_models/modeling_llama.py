@@ -14,9 +14,33 @@ from llm2vec.models.bidirectional_llama import LlamaBiModel, ModifiedLlamaDecode
 from transformers.trainer import Trainer
 from transformers.training_args import TrainingArguments
 from cofi.utils.cofi_utils import *
+from flash_attn import flash_attn_func
 
 logger = logging.getLogger(__name__)
 
+def eager_attention_forward(
+    module: nn.Module,
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attention_mask: torch.Tensor | None,
+    scaling: float,
+    dropout: float = 0.0,
+    **kwargs: Unpack[TransformersKwargs],
+):
+    key_states = repeat_kv(key, module.num_key_value_groups)
+    value_states = repeat_kv(value, module.num_key_value_groups)
+
+    attn_weights = torch.matmul(query, key_states.transpose(2, 3)) * scaling
+    if attention_mask is not None:
+        attn_weights = attn_weights + attention_mask
+
+    attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query.dtype)
+    attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=module.training)
+    attn_output = torch.matmul(attn_weights, value_states)
+    attn_output = attn_output.transpose(1, 2).contiguous()
+
+    return attn_output, attn_weights
 
 #replaced the rms norm and moved logits to gpu
 class CoFiLlamaRMSNorm(nn.Module):
@@ -133,25 +157,21 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
             key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
         
-        # Repeat KV heads for grouped query attention
-        key_states = self._repeat_kv(key_states, self.num_key_value_groups)
-        value_states = self._repeat_kv(value_states, self.num_key_value_groups)
-        
-        # Compute attention scores
-        attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
-        
-        if attention_mask is not None:
-            attn_weights = attn_weights + attention_mask
-        
-        # Softmax and dropout
-        attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
-        attn_weights = nn.functional.dropout(attn_weights, p=self.attention_dropout, training=self.training)
-        
-        # Apply attention to values
-        attn_output = torch.matmul(attn_weights, value_states)
-        
+        attn_fn = eager_attention_forward if attn_impl == 'eager' else flash_attn_func
+        attn_output, attn_weights = attn_fn(
+            self,
+            query_states,
+            key_states,
+            value_states,
+            attention_mask,
+            dropout=0.0 if not self.training else self.attention_dropout,
+            scaling=self.scaling,
+            **kwargs,
+        )
+      
         #In attention pruning the kv heads norm the atttnout is  torch.Size([16, 16, 16, 128]) and head is expanded to torch.Size([1, 16, 1, 1])
-        #torch.Size([16])
+        #torch.Size([16]) 
+        #verify the attnout shpaes are right
         if head_z is not None:
             # head_z is over KV heads, need to expand to query heads
             head_z = head_z.squeeze()
@@ -163,8 +183,8 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
             #In attention pruning the kv heads norm the atttnout is  torch.Size([16, 16, 16, 128]) and head_z_expanded.view(1, -1, 1, 1).shape = torch.Size([1, 16, 1, 1])
     
             
-            attn_output = attn_output * head_z_expanded.view(1, -1, 1, 1)
-        attn_output = attn_output.transpose(1, 2)
+            attn_output = attn_output * head_z_expanded.view(1, 1, -1, 1)
+        
         attn_output = attn_output.reshape(bsz, q_len, -1)
 
         attn_output = self.o_proj(attn_output)
