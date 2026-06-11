@@ -10,13 +10,21 @@ from transformers.modeling_outputs import BaseModelOutput, SequenceClassifierOut
 from transformers import AutoTokenizer, AutoConfig
 from transformers.models.llama.modeling_llama import LlamaRMSNorm, LlamaRotaryEmbedding, LlamaPreTrainedModel
 from transformers.cache_utils import Cache, DynamicCache
-from llm2vec.models.bidirectional_llama import LlamaBiModel, ModifiedLlamaDecoderLayer, ModifiedLlamaAttention
+from llm2vec.models.bidirectional_llama import LlamaBiModel, ModifiedLlamaDecoderLayer, ModifiedLlamaAttention, ModifiedLlamaFlashAttention2
 from transformers.trainer import Trainer
 from transformers.training_args import TrainingArguments
 from cofi.utils.cofi_utils import *
 from flash_attn import flash_attn_func
 
 logger = logging.getLogger(__name__)
+
+def repeat_kv(hidden_states, n_rep):
+    batch, num_key_value_heads, slen, head_dim = hidden_states.shape
+    if n_rep == 1:
+        return hidden_states
+    hidden_states = hidden_states[:, :, None, :, :].expand(batch, num_key_value_heads, n_rep, slen, head_dim)
+    return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
+
 
 def eager_attention_forward(
     module: nn.Module,
@@ -26,7 +34,7 @@ def eager_attention_forward(
     attention_mask: torch.Tensor | None,
     scaling: float,
     dropout: float = 0.0,
-    **kwargs: Unpack[TransformersKwargs],
+    **kwargs,
 ):
     key_states = repeat_kv(key, module.num_key_value_groups)
     value_states = repeat_kv(value, module.num_key_value_groups)
@@ -76,7 +84,7 @@ class CoFiLlamaRMSNorm(nn.Module):
 
 
 
-class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
+class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
     def __init__(self, config, layer_idx):
         super().__init__(config, layer_idx)
         
@@ -92,6 +100,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
             config.hidden_size / config.num_attention_heads)
         self.all_head_size = self.num_attention_heads * self.attention_head_size
         self.pruned_heads = set()
+        self.attn_impl = 'flash'
     
 
 
@@ -157,18 +166,24 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
             key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
         
-        attn_fn = eager_attention_forward if attn_impl == 'eager' else flash_attn_func
-        attn_output, attn_weights = attn_fn(
-            self,
+        attn_fn = eager_attention_forward if self.attn_impl == 'eager' else flash_attn_func
+        orig_dtype = query_states.dtype
+        query_states = query_states.to(torch.bfloat16)
+        key_states   = key_states.to(torch.bfloat16)
+        value_states = value_states.to(torch.bfloat16)
+
+        attn_output = flash_attn_func(
             query_states,
             key_states,
             value_states,
-            attention_mask,
-            dropout=0.0 if not self.training else self.attention_dropout,
-            scaling=self.scaling,
-            **kwargs,
+            0.0 if not self.training else self.config.attention_dropout,
+            softmax_scale=self.scaling,
+            causal=self.is_causal,
         )
-      
+        attn_output = attn_output.to(orig_dtype)
+        attn_weights = None
+        #print("attn out = ", attn_output.shape) #attn out =  torch.Size([16, 29, 16, 128])
+
         #In attention pruning the kv heads norm the atttnout is  torch.Size([16, 16, 16, 128]) and head is expanded to torch.Size([1, 16, 1, 1])
         #torch.Size([16]) 
         #verify the attnout shpaes are right
@@ -176,7 +191,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
             # head_z is over KV heads, need to expand to query heads
             head_z = head_z.squeeze()
             #head_z.shaoe=#torch.Size([16])
-          
+            print("head_z_expanded.view(1, 1, -1, 1) ",head_z_expanded.view(1, 1, -1, 1).shape)
             #head_z_expanded = head_z.repeat_interleave(self.num_key_value_groups)
             head_z_expanded = head_z.repeat_interleave(actual_kv_groups)
             
@@ -184,9 +199,9 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
     
             
             attn_output = attn_output * head_z_expanded.view(1, 1, -1, 1)
-        
+        #print("attn out after head = ", attn_output.shape) #attn out after head =  torch.Size([16, 29, 16, 128])
         attn_output = attn_output.reshape(bsz, q_len, -1)
-
+        #print("attn out after reshape  = ", attn_output.shape)
         attn_output = self.o_proj(attn_output)
         if head_layer_z is not None:
             #print(f"In attention layer {attn_output.shape} and head layer is {head_layer_z.shape}")
@@ -253,13 +268,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaAttention):
         x2 = x[..., x.shape[-1] // 2 :]
         return torch.cat((-x2, x1), dim=-1)
     
-    def _repeat_kv(self, hidden_states, n_rep):
-        batch, num_key_value_heads, slen, head_dim = hidden_states.shape
-        if n_rep == 1:
-            return hidden_states
-        hidden_states = hidden_states[:, :, None, :, :].expand(batch, num_key_value_heads, n_rep, slen, head_dim)
-        return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
-
+    
 class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
     def __init__(self, config, layer_idx):
         super().__init__(config, layer_idx)
@@ -685,7 +694,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         # Load HF pretrained encoder only
         # -----------------------
         print("Loading HF ", kwargs['hf_name'])
-        hf_encoder = LlamaBiModel.from_pretrained(kwargs['config_file'])
+        hf_encoder = LlamaBiModel.from_pretrained(kwargs['hf_name'])
 
         # Filter HF weights to match model (skip classifier / MLP)
   
