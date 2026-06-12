@@ -878,7 +878,6 @@ class CoFiTrainer(Trainer):
         #print(f"In calculate_layer_distillation_loss in trainer.py\nteacher_outputs: {teacher_outputs}\nstudent_outputs: {student_outputs}")
         layer_loss=0
         mse_loss = torch.nn.MSELoss(reduction="mean")
-        cosine_loss_fn = nn.CosineEmbeddingLoss()
         if self.additional_args.do_layer_distill: #! only do layer distill
             mlp_z = None
             head_layer_z = None
@@ -1030,6 +1029,35 @@ class CoFiTrainer(Trainer):
             return None
         
     def calculate_distillation_loss(self, teacher_outputs, student_outputs, zs):
+        layer_loss = self.calculate_layer_distillation_loss(
+            teacher_outputs,
+            student_outputs,
+            zs,
+        )
+        distill_loss = layer_loss
+
+        student_logits = student_outputs.logits[2]
+        teacher_logits = teacher_outputs.logits[2]
+
+        ce_distill_loss = F.kl_div(
+            input=F.log_softmax(
+                student_logits / self.additional_args.distill_temp,
+                dim=-1,
+            ),
+            target=F.softmax(
+                teacher_logits / self.additional_args.distill_temp,
+                dim=-1,
+            ),
+            reduction="batchmean",
+        ) * (self.additional_args.distill_temp ** 2)
+
+        loss = self.additional_args.distill_ce_loss_alpha * ce_distill_loss
+
+        if distill_loss is not None:
+            loss = loss + self.additional_args.distill_loss_alpha * distill_loss.float()
+
+        return distill_loss, ce_distill_loss, loss.float()
+    '''def calculate_distillation_loss(self, teacher_outputs, student_outputs, zs):
         layer_loss = self.calculate_layer_distillation_loss(teacher_outputs, student_outputs, zs)
         distill_loss = layer_loss
 
@@ -1045,7 +1073,7 @@ class CoFiTrainer(Trainer):
             loss += self.additional_args.distill_loss_alpha * distill_loss
         #print("Layer loss: ", layer_loss, "Total loss" ,loss, "KL Div",  ce_distill_loss)
       
-        return distill_loss, ce_distill_loss, loss
+        return distill_loss, ce_distill_loss, loss'''
 
 
     def store_results(self,teacher):
@@ -1151,6 +1179,108 @@ class CoFiTrainer(Trainer):
     
 
 
+    '''def training_step(
+        self,
+        model: torch.nn.Module,
+        inputs: Dict[str, Union[torch.Tensor, Any]]
+    ) -> Dict[str, torch.Tensor]:
+        model.train()
+        if self.l0_module is not None:
+            self.l0_module.train()
+
+        inputs = {
+            k: v.to(self.device, non_blocking=True) if torch.is_tensor(v) else v
+            for k, v in inputs.items()
+        }
+
+        distill_loss = None
+        distill_ce_loss = None
+        lagrangian_loss = None
+
+        if self.teacher_model is not None:
+            if self.model_name == "bowman":
+                teacher_inputs_keys = ["s1", "s1len", "s2", "s2len", "labels"]
+            else:
+                teacher_inputs_keys = [
+                    "hyp_input_ids",
+                    "hyp_attention_mask",
+                    "pre_input_ids",
+                    "pre_attention_mask",
+                    "token_type_ids",
+                    "position_ids",
+                    "labels",
+                    "output_attentions",
+                    "output_hidden_states",
+                    "return_dict",
+                ]
+
+            teacher_inputs = {
+                key: inputs[key]
+                for key in teacher_inputs_keys
+                if key in inputs
+            }
+
+            self.shortens_inputs(teacher_inputs)
+            self.shortens_inputs(inputs)
+
+            with torch.no_grad():
+                with torch.autocast(device_type="cuda", dtype=torch.float16):
+                    teacher_outputs = self.teacher_model(**teacher_inputs)
+
+            with torch.autocast(device_type="cuda", dtype=torch.float16):
+                student_outputs = self.model(**inputs)
+
+            zs = {key: inputs[key] for key in inputs if "_z" in key}
+
+            # Important: distillation losses in fp32.
+            with torch.autocast(device_type="cuda", enabled=False):
+                distill_loss, distill_ce_loss, loss = self.calculate_distillation_loss(
+                    teacher_outputs,
+                    student_outputs,
+                    zs,
+                )
+                loss = loss.float()
+
+        else:
+            with torch.autocast(device_type="cuda", dtype=torch.float16):
+                outputs = model(**inputs)
+                loss = outputs.loss if hasattr(outputs, "loss") else self.compute_loss(model, inputs)
+
+        if self.start_prune:
+            lagrangian_loss, _, _ = self.l0_module.lagrangian_regularization(
+                self.global_step - self.prepruning_finetune_steps
+            )
+            loss = loss + lagrangian_loss.float()
+
+        if self.args.gradient_accumulation_steps > 1:
+            loss = loss / self.args.gradient_accumulation_steps
+
+        loss.backward()
+
+        if self.global_step > 0 and self.global_step % 50000 == 0:
+            l0_stats = {}
+
+            if self.l0_module is not None:
+                for name, p in self.l0_module.named_parameters():
+                    if p.grad is not None:
+                        l0_stats[f"l0/{name}_norm"] = p.grad.norm().item()
+                        l0_stats[f"l0/{name}_max"] = p.grad.abs().max().item()
+
+            wandb.log({
+                **l0_stats,
+                "train/distill_layer_loss": distill_loss.item() if distill_loss is not None else float("inf"),
+                "train/distill_ce_loss": distill_ce_loss.item() if distill_ce_loss is not None else float("inf"),
+                "train/total_distill_loss": loss.item(),
+                "train/learning_rate": self.student_optimizer.param_groups[0]["lr"],
+                "train/step": self.global_step,
+            })
+
+        return {
+            "loss": loss.detach(),
+            "lagrangian_loss": lagrangian_loss.detach() if lagrangian_loss is not None else None,
+            "distill_layer_loss": distill_loss.detach() if distill_loss is not None else None,
+            "distill_ce_loss": distill_ce_loss.detach() if distill_ce_loss is not None else None,
+        }'''
     def training_step(self, model: torch.nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> List[torch.Tensor]:
         model.train()
         if self.l0_module is not None:
@@ -1172,15 +1302,22 @@ class CoFiTrainer(Trainer):
 
                 teacher_inputs = {key: inputs[key].to(self.device) for key in teacher_inputs_keys if key in inputs}
                 self.shortens_inputs(teacher_inputs)
-                teacher_outputs = self.teacher_model(**teacher_inputs)
+                with torch.no_grad():
+                    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                        teacher_outputs = self.teacher_model(**teacher_inputs)
+
+
+                #teacher_outputs = self.teacher_model(**teacher_inputs)
                 
 
             self.shortens_inputs(inputs)
 
 
             
-            
-            student_outputs = self.model(**inputs)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                student_outputs = self.model(**inputs)
+
+            #student_outputs = self.model(**inputs)
 
                
             zs = {key: inputs[key] for key in inputs if "_z" in key}

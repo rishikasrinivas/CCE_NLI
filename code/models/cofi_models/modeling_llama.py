@@ -15,7 +15,7 @@ from transformers.trainer import Trainer
 from transformers.training_args import TrainingArguments
 from cofi.utils.cofi_utils import *
 from flash_attn import flash_attn_func
-
+from torch.cuda.amp import autocast
 logger = logging.getLogger(__name__)
 
 def repeat_kv(hidden_states, n_rep):
@@ -273,7 +273,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
 
         if hidden_z is not None:
             attn_output = attn_output * hidden_z
-        assert attn_output.dtype == torch.bfloat16
+            
         return (attn_output, attn_weights)
     def prune_heads(self, heads):
         len_heads = len(heads)
@@ -379,10 +379,8 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         # -------------------------
         # PRE-NORM ATTENTION INPUT
         # -------------------------
-        assert hidden_states.dtype == torch.float32, f'even before layer nrom Input is not float32 is { hidden_states.dtype}'
         
         attn_input = self.input_layernorm(hidden_states, hidden_z)
-        assert hidden_states.dtype == torch.float32, f'Input is not float32'
         attn_out, attn_weights = self.self_attn(
             hidden_states=attn_input,
             attention_mask=attention_mask,
@@ -407,7 +405,7 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
             hidden_states = residual #if attn was pruned out pass forward just what was passed in as input 
         else: 
             hidden_states = residual + attn_out # otherwise add the attn out (ie ignore the layernomr)
-        assert hidden_states.dtype == torch.float32
+        
 
 
         # =========================
@@ -551,7 +549,7 @@ class CoFiLlamaBiModel(LlamaBiModel):
         # apply hidden mask to embeddings
         if hidden_z is not None:
             inputs_embeds *= hidden_z
-            print(f"sfer hidden Input embeds shape = {inputs_embeds.dtype}")
+            #print(f"sfer hidden Input embeds shape = {inputs_embeds.dtype}")
         
         # Position embeddings
         if position_ids is None:
@@ -766,9 +764,9 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
 
             load_pruned_model(model, weights)
             trained = True
-            #if hasattr(model, 'model'):
-                #model.model = model.model.to(torch.bfloat16)
-                #print(f"Encoder set to bfloat16")
+            '''if hasattr(model, 'model'):
+                model.model = model.model.to(torch.bfloat16)
+                print(f"Encoder set to float16")'''
             print("teach: after load:", model.model.embed_tokens.weight.dtype)
 
             
@@ -777,10 +775,10 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             weights = torch.load(kwargs['ckpt'], map_location=kwargs['device'])['state_dict']
             model.load_state_dict(weights, strict=False)
             assert trained==False
-            #if hasattr(model, 'model'):
-                #model.model = model.model.to(torch.bfloat16)
-                #print(f"Encoder set to bfloat16")
-            print("stud: after load:", model.model.embed_tokens.weight.dtype)
+            '''if hasattr(model, 'model'):
+                model.model = model.model.to(torch.bfloat16)
+                print(f"Encoder set to float16")
+            print("stud: after load:", model.model.embed_tokens.weight.dtype)'''
             
             print("MODEL DTYPE ", model.model.dtype)
             return model , trained
@@ -846,6 +844,113 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
 
         return (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-9)
     def forward(
+        self,
+        pre_input_ids=None,
+        pre_attention_mask=None,
+        hyp_input_ids=None,
+        hyp_attention_mask=None,
+        position_ids=None,
+        inputs_embeds=None,
+        labels=None,
+        use_cache=None,
+        past_key_values=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        head_z=None,
+        head_layer_z=None,
+        intermediate_z=None,
+        mlp_z=None,
+        hidden_z=None,
+        final_mlp_hidden_z=None,
+        final_mlp_inp_z=None,
+        qk_head_dim_z=None,
+        vo_head_dim_z=None,
+    ):
+        
+        with autocast(dtype=torch.float16):
+            outputs_pre = self.model(
+                pre_input_ids,
+                attention_mask=pre_attention_mask,
+                position_ids=position_ids,
+                inputs_embeds=inputs_embeds,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                head_z=head_z,
+                head_layer_z=head_layer_z,
+                intermediate_z=intermediate_z,
+                mlp_z=mlp_z,
+                hidden_z=hidden_z,
+                qk_head_dim_z=qk_head_dim_z,
+                vo_head_dim_z=vo_head_dim_z,
+            )
+
+            outputs_hyp = self.model(
+                hyp_input_ids,
+                attention_mask=hyp_attention_mask,
+                position_ids=position_ids,
+                inputs_embeds=inputs_embeds,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                head_z=head_z,
+                head_layer_z=head_layer_z,
+                intermediate_z=intermediate_z,
+                mlp_z=mlp_z,
+                hidden_z=hidden_z,
+                qk_head_dim_z=qk_head_dim_z,
+                vo_head_dim_z=vo_head_dim_z,
+            )
+            
+            pre_out = self.masked_mean_pool(outputs_pre, pre_attention_mask).float()
+            hyp_out = self.masked_mean_pool(outputs_hyp, hyp_attention_mask).float()
+
+            diffs = pre_out - hyp_out
+            prods = pre_out * hyp_out
+
+            mlp_input = torch.cat([pre_out, hyp_out, diffs, prods], dim=1).float()
+
+            if final_mlp_inp_z is not None:
+                mlp_input = mlp_input * final_mlp_inp_z.to(
+                    device=mlp_input.device,
+                    dtype=mlp_input.dtype,
+                )
+
+            mlp_input = self.bn(mlp_input)
+            mlp_input = self.dropout(mlp_input)
+
+            mlp_unpacked = list(self.mlp)
+
+            pre_final_layer_reps = mlp_input
+
+            mlp_input = mlp_unpacked[0](mlp_input)
+            mlp_input = mlp_unpacked[1](mlp_input)
+            mlp_input = mlp_unpacked[2](mlp_input)
+
+            final_layer_reps = mlp_input
+
+            if final_mlp_hidden_z is not None:
+                mlp_input = mlp_input * final_mlp_hidden_z.to(
+                    device=mlp_input.device,
+                    dtype=mlp_input.dtype,
+                )
+
+            logits = mlp_unpacked[3](mlp_input)
+            pooled_logits = logits
+
+            loss = None
+            if labels is not None:
+                loss_fct = CrossEntropyLoss()
+                loss = loss_fct(
+                    pooled_logits.view(-1, self.num_labels),
+                    labels.view(-1),
+                )
+
+        return SequenceClassifierOutputWithPast(
+            loss=loss,
+            logits=(pre_final_layer_reps, final_layer_reps, pooled_logits),
+            hidden_states=(outputs_pre.hidden_states, outputs_hyp.hidden_states),
+            attentions=(outputs_pre.attentions, outputs_hyp.attentions),
+        )
+    '''def forward(
             self,
             pre_input_ids=None,
             pre_attention_mask=None,
@@ -911,15 +1016,15 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             qk_head_dim_z=qk_head_dim_z,
             vo_head_dim_z=vo_head_dim_z
         )
-        '''if mlp_z is not None:
+        if mlp_z is not None:
             print("PREMISED OUTPUTS ", outputs_pre[0])
-            print("HYPED OUTPUTS ", outputs_hyp[0])'''
+            print("HYPED OUTPUTS ", outputs_hyp[0])
         
         
 
-        pre_out= self.masked_mean_pool(outputs_pre, pre_attention_mask) 
+        pre_out= self.masked_mean_pool(outputs_pre, pre_attention_mask).float() 
         
-        hyp_out = self.masked_mean_pool(outputs_hyp, hyp_attention_mask)# 
+        hyp_out = self.masked_mean_pool(outputs_hyp, hyp_attention_mask).float()  
 
         diffs = pre_out - hyp_out
         prods = pre_out * hyp_out
@@ -997,7 +1102,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             
             hidden_states=(outputs_pre.hidden_states,outputs_hyp.hidden_states) ,
             attentions=(outputs_pre.attentions, outputs_hyp.attentions)
-        )
+        )'''
     def get_final_reprs(
             self,
             pre_input_ids=None,

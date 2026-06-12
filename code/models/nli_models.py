@@ -259,7 +259,7 @@ class LLAMAEntailmentClassifier(BaseModel):
         self.encoder_name = encoder_name
         if pretrained:
             print("Loading PRETRAINED")
-            self.model = LlamaBiModel.from_pretrained(encoder_name, attn_implementation='flash_attention_2', torch_dtype=torch.bfloat16).to(device) #for flash atttention
+            self.model = LlamaBiModel.from_pretrained(encoder_name, attn_implementation='flash_attention_2').to(device) #for flash atttention
         else:
             print("Loading UNTRAINED")
             config = AutoConfig.from_pretrained(encoder_name)
@@ -308,7 +308,6 @@ class LLAMAEntailmentClassifier(BaseModel):
         mlp_input = self.bn(mlp_input)
         mlp_input = self.dropout(mlp_input)
         preds = self.mlp(mlp_input)
-        
         return preds
 
     def get_final_reprs(self, s1_batch, s2_batch):

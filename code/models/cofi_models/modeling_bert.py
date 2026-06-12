@@ -22,7 +22,7 @@ from transformers.training_args import TrainingArguments
 from safetensors.torch import load_file
 from huggingface_hub import hf_hub_download
 import train_utils
-
+from torch.cuda.amp import autocast
 from cofi.utils.cofi_utils import *
 logger = logging.getLogger(__name__)
 
@@ -191,101 +191,102 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
 
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
         
-        outputs_pre = self.bert(
-            pre_input_ids,
-            attention_mask=pre_attention_mask,
-            token_type_ids=token_type_ids,
-            position_ids=position_ids,
-            inputs_embeds=inputs_embeds,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-            head_z=head_z,
-            head_layer_z=head_layer_z,
-            intermediate_z=intermediate_z,
-            mlp_z=mlp_z,
-            hidden_z=hidden_z
-        ) #! [32, 68, 768]
-        
+        with autocast():
+            outputs_pre = self.bert(
+                pre_input_ids,
+                attention_mask=pre_attention_mask,
+                token_type_ids=token_type_ids,
+                position_ids=position_ids,
+                inputs_embeds=inputs_embeds,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+                head_z=head_z,
+                head_layer_z=head_layer_z,
+                intermediate_z=intermediate_z,
+                mlp_z=mlp_z,
+                hidden_z=hidden_z
+            ) #! [32, 68, 768]
+
       
-        outputs_hyp = self.bert(
-            hyp_input_ids,
-            attention_mask=hyp_attention_mask,
-            token_type_ids=token_type_ids,
-            position_ids=position_ids,
-            inputs_embeds=inputs_embeds,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-            head_z=head_z,
-            head_layer_z=head_layer_z,
-            intermediate_z=intermediate_z,
-            mlp_z=mlp_z,
-            hidden_z=hidden_z
-        )
-        
-   
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-   
-    
-    
-        
-        hyp_out = outputs_hyp.last_hidden_state[:,0,:]
-        pre_out = outputs_pre.last_hidden_state[:,0,:]
-        diffs = pre_out - hyp_out
-        prods = pre_out * hyp_out
-        
-        mlp_input = torch.cat([pre_out, hyp_out,diffs,prods],dim=1)
-        
-        
-        mlp_input = self.bn(mlp_input)
-        mlp_input = self.dropout(mlp_input)
-        
-        mlp_unpacked = list(self.mlp)
-        
-        if final_mlp_inp_z is not None:
-            #print("MULT BY ZS Input (3072->1024)", final_mlp_inp_z.shape)
-            mlp_input *= final_mlp_inp_z #apply mask of 3072, to mlp_input(shaoe is.  16x3072 )
-            
-        pre_final_layer_reps=mlp_input
-        mlp_input = mlp_unpacked[0](mlp_input)
-        
-        mlp_input = mlp_unpacked[1](mlp_input)
-        mlp_input = mlp_unpacked[2](mlp_input)
-        final_layer_reps=mlp_input
-        
-        if final_mlp_hidden_z is not None:
-            #print("MULT BY ZS Hidden (1024->3): ", final_mlp_hidden_z.shape)
-            mlp_input *= final_mlp_hidden_z
-        logits = mlp_unpacked[3](mlp_input)
-        
+            outputs_hyp = self.bert(
+                hyp_input_ids,
+                attention_mask=hyp_attention_mask,
+                token_type_ids=token_type_ids,
+                position_ids=position_ids,
+                inputs_embeds=inputs_embeds,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+                head_z=head_z,
+                head_layer_z=head_layer_z,
+                intermediate_z=intermediate_z,
+                mlp_z=mlp_z,
+                hidden_z=hidden_z
+            )
+
+
+            return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+
+
+
+            hyp_out = outputs_hyp.last_hidden_state[:,0,:]
+            pre_out = outputs_pre.last_hidden_state[:,0,:]
+            diffs = pre_out - hyp_out
+            prods = pre_out * hyp_out
+
+            mlp_input = torch.cat([pre_out, hyp_out,diffs,prods],dim=1)
+
+
+            mlp_input = self.bn(mlp_input)
+            mlp_input = self.dropout(mlp_input)
+
+            mlp_unpacked = list(self.mlp)
+
+            if final_mlp_inp_z is not None:
+                #print("MULT BY ZS Input (3072->1024)", final_mlp_inp_z.shape)
+                mlp_input *= final_mlp_inp_z #apply mask of 3072, to mlp_input(shaoe is.  16x3072 )
+
+            pre_final_layer_reps=mlp_input
+            mlp_input = mlp_unpacked[0](mlp_input)
+
+            mlp_input = mlp_unpacked[1](mlp_input)
+            mlp_input = mlp_unpacked[2](mlp_input)
+            final_layer_reps=mlp_input
+
+            if final_mlp_hidden_z is not None:
+                #print("MULT BY ZS Hidden (1024->3): ", final_mlp_hidden_z.shape)
+                mlp_input *= final_mlp_hidden_z
+            logits = mlp_unpacked[3](mlp_input)
+
   
         
-        loss = None
-        
-       
-        if labels is not None:
-            if self.num_labels == 1:
-                #  We are doing regression
-                loss_fct = MSELoss()
-                loss = loss_fct(logits.view(-1), labels.view(-1))
-            else:
-                loss_fct = CrossEntropyLoss()
-                loss = loss_fct(
-                    logits.view(-1, self.num_labels), labels.view(-1))
+            loss = None
 
-        if not return_dict:
-            combined_hidden_states = (pre_outputs.hidden_states, hyp_outputs.hidden_states)
-            combined_attentions = (pre_outputs.attentions, hyp_outputs.attentions)
-            output = (logits,) +  (combined_hidden_states, combined_attentions)
-            return ((loss,) + output) if loss is not None else output
-        
-        return SequenceClassifierOutput(
-            loss=loss,
-            logits=(pre_final_layer_reps, final_layer_reps,logits),
-            hidden_states=(outputs_pre.hidden_states, outputs_hyp.hidden_states),
-            attentions=(outputs_pre.attentions, outputs_hyp.attentions)
-        )
+
+            if labels is not None:
+                if self.num_labels == 1:
+                    #  We are doing regression
+                    loss_fct = MSELoss()
+                    loss = loss_fct(logits.view(-1), labels.view(-1))
+                else:
+                    loss_fct = CrossEntropyLoss()
+                    loss = loss_fct(
+                        logits.view(-1, self.num_labels), labels.view(-1))
+
+            if not return_dict:
+                combined_hidden_states = (pre_outputs.hidden_states, hyp_outputs.hidden_states)
+                combined_attentions = (pre_outputs.attentions, hyp_outputs.attentions)
+                output = (logits,) +  (combined_hidden_states, combined_attentions)
+                return ((loss,) + output) if loss is not None else output
+
+            return SequenceClassifierOutput(
+                loss=loss,
+                logits=(pre_final_layer_reps, final_layer_reps,logits),
+                hidden_states=(outputs_pre.hidden_states, outputs_hyp.hidden_states),
+                attentions=(outputs_pre.attentions, outputs_hyp.attentions)
+            )
     def get_final_reprs(
             self,
             pre_input_ids=None,
