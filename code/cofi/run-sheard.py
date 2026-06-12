@@ -130,7 +130,7 @@ def main():
         Teach_Model = CoFiLlamaForSequenceClassification
         Student_Model = CoFiLlamaForSequenceClassification
     # ======= Load the model params ========
-    base_model_path = "/workspace/CCE_NLI/LLAMA/models/lottery_ticket/Run0.25_1/0_Pruning_Iter/model_best.pth" #os.path.join(training_args.output_dir, 'model_best.pth')
+    base_model_path = os.path.join(training_args.output_dir, 'model_best.pth')
     pretrained_path = os.path.join(data_args.path_to_pretrained, f'{additional_args.model_name}_princeton_MAIN_pretrained_inits.pth')
     if additional_args.model_name in ['bert', 'llama']:
         config = AutoConfig.from_pretrained(
@@ -234,9 +234,8 @@ def main():
     l0_module = None
     
     if additional_args.pruning_type is not None:
-        if additional_args.model_name  == 'llama':
-            l0_module = L0Module_Sheared(config=config,target_sparsity=additional_args.target_sparsity, pruning_modules= additional_args.pruning_type, device=device)
-        else:
+        l0_module = L0Module_Sheared(config=config,target_sparsity=additional_args.target_sparsity, pruning_modules= additional_args.pruning_type, device=device)
+        '''else:
             l0_module = L0Module(config=config,
                                  model_name=additional_args.model_name,
                                  droprate_init=additional_args.droprate_init,
@@ -245,7 +244,7 @@ def main():
                                  pruning_type=additional_args.pruning_type,
                                 
                                  args=training_args,
-                                full_model_size=calculate_parameters(teacher_model)).to(device)
+                                full_model_size=calculate_parameters(teacher_model)).to(device)'''
             
 
 

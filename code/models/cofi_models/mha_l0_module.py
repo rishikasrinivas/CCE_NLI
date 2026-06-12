@@ -133,8 +133,8 @@ class L0Module_Sheared(nn.Module):
 
         super(L0Module_Sheared, self).__init__()
    
-        n_matrix_mlp = 2 if "pythia" in config._name_or_path else 3
-        self.set_model_info(config, n_matrix_mlp=n_matrix_mlp) 
+        self.n_matrix_mlp = 2 if "bert" in config._name_or_path else 3
+        self.set_model_info(config, n_matrix_mlp=self.n_matrix_mlp) 
         
         target_model_cfg= None
         self.target_model_info = None
@@ -191,7 +191,7 @@ class L0Module_Sheared(nn.Module):
         
         self.params_per_head_layer = self.hidden_size * self.hidden_size * 4
         self.params_per_head =  self.params_per_head_layer // self.num_attention_heads
-        self.params_per_mlp_layer = self.hidden_size * self.intermediate_size * n_matrix_mlp
+        self.params_per_mlp_layer = self.hidden_size * self.intermediate_size * self.n_matrix_mlp
         self.params_per_intermediate_dim = self.params_per_mlp_layer // self.intermediate_size
         self.params_finalmlp_layer = self.hidden_size * 4 * self.final_mlp_hidden + (self.final_mlp_hidden* self.out_params)  
         self.params_finalmlp_layer=self.params_finalmlp_layer
@@ -599,7 +599,7 @@ class L0Module_Sheared(nn.Module):
 
         
         final_mlp  = np.outer(mlp_final_input, mlp_final_hidden).sum().item()
-        remaining_model_size = head_nums * self.dim_per_head * 4 + intermediate_nums * 3 + (final_mlp) + (remaining_mlp_hidden * self.out_params)
+        remaining_model_size = head_nums * self.dim_per_head * 4 + intermediate_nums * self.n_matrix_mlp + (final_mlp) + (remaining_mlp_hidden * self.out_params)
         pruned_model_size = self.prunable_model_size - remaining_model_size
 
         results = {}

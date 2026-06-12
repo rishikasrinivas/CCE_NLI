@@ -259,7 +259,7 @@ class LLAMAEntailmentClassifier(BaseModel):
         self.encoder_name = encoder_name
         if pretrained:
             print("Loading PRETRAINED")
-            self.model = LlamaBiModel.from_pretrained(encoder_name, attn_implementation='flash_attention_2').to(device) #for flash atttention
+            self.model = LlamaBiModel.from_pretrained(encoder_name).to(device) #for flash atttention
         else:
             print("Loading UNTRAINED")
             config = AutoConfig.from_pretrained(encoder_name)

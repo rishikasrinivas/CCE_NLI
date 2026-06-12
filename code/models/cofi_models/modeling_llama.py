@@ -149,7 +149,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
             config.hidden_size / config.num_attention_heads)
         self.all_head_size = self.num_attention_heads * self.attention_head_size
         self.pruned_heads = set()
-        self.attn_impl = 'flash'
+        self.attn_impl = 'eager'
     
 
 
@@ -216,58 +216,40 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
 
         dropout_p = 0.0 if not self.training else self.attention_dropout
 
-        if self.attn_impl == "eager":
-            # eager expects [B, H, S, D] and 4D additive mask
-            attn_output, attn_weights = eager_attention_forward(
-                self,
-                query_states,
-                key_states,
-                value_states,
-                attention_mask,
-                dropout=dropout_p,
-                scaling=self.scaling,
-                **kwargs,
-            )
 
-            # eager returns [B, S, H, D]
-            # so head_z can be applied directly
-            if head_z is not None:
-                head_z = head_z.squeeze().to(attn_output.dtype)
-                attn_output = attn_output * head_z.view(1, 1, -1, 1)
+        # eager expects [B, H, S, D] and 4D additive mask
+        attn_output, attn_weights = eager_attention_forward(
+            self,
+            query_states,
+            key_states,
+            value_states,
+            attention_mask,
+            dropout=dropout_p,
+            scaling=self.scaling,
+            **kwargs,
+        )
 
-        else:
-            # flash expects [B, S, H, D]
-            query_states = query_states.transpose(1, 2).to(torch.bfloat16)
-            key_states = key_states.transpose(1, 2).to(torch.bfloat16)
-            value_states = value_states.transpose(1, 2).to(torch.bfloat16)
-
-            # attention_mask must be original 2D padding mask [B, S]
-            attn_output = flash_attn_encoder_forward(
-                query_states,
-                key_states,
-                value_states,
-                attention_mask,
-                dropout_p=dropout_p,
-                softmax_scale=self.scaling,
-            )
-            attn_weights = None
+        # eager returns [B, S, H, D]
+        # so head_z can be applied directly
+        if head_z is not None:
+            head_z = head_z.squeeze()
             
-            # flash returns [B, S, H, D]
-            if head_z is not None:
-                head_z = head_z.squeeze().to(attn_output.dtype)
-                attn_output = attn_output * head_z.view(1, 1, -1, 1)
+            attn_output = attn_output * head_z.view(1, 1, -1, 1)
+
 
         # merge heads
         attn_output = attn_output.reshape(bsz, q_len, -1).contiguous()
 
         # output projection
-        
-        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-            #print("attn_output.dtype bfre oproj", attn_output.dtype)
+        if self.attn_impl == "flash": 
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                #print("attn_output.dtype bfre oproj", attn_output.dtype)
+                attn_output = self.o_proj(attn_output)
+                #print("attn_output.dtype after oproj ", attn_output.dtype)
+        else:
             attn_output = self.o_proj(attn_output)
-            #print("attn_output.dtype after oproj ", attn_output.dtype)
             
-            
+              
         if head_layer_z is not None:
             attn_output = attn_output * head_layer_z
 
@@ -614,7 +596,7 @@ class CoFiLlamaBiModel(LlamaBiModel):
             
             layer_outputs = decoder_layer(
                 hidden_states,
-                attention_mask=padding_mask,
+                attention_mask=attention_mask,
                 position_ids=position_ids,
                 past_key_value=past_key_values,
                 output_attentions=output_attentions,
@@ -764,10 +746,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
 
             load_pruned_model(model, weights)
             trained = True
-            ''''if hasattr(model, 'model'):
-                model.model = model.model.to(torch.bfloat16)
-                print(f"Encoder set to float16")
-            print("teach: after load:", model.model.embed_tokens.weight.dtype)'''
+            
 
             
             return model, trained
@@ -775,12 +754,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             weights = torch.load(kwargs['ckpt'], map_location=kwargs['device'])['state_dict']
             model.load_state_dict(weights, strict=False)
             assert trained==False
-            '''if hasattr(model, 'model'):
-                model.model = model.model.to(torch.bfloat16)
-                print(f"Encoder set to float16")
-            print("stud: after load:", model.model.embed_tokens.weight.dtype)'''
             
-            print("MODEL DTYPE ", model.model.dtype)
             return model , trained
 
         # -----------------------
@@ -799,10 +773,6 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         
         filtered_state = {f'model.{k}':v for k,v in hf_state.items() if f'model.{k}' in model_state.keys()}
         missing, unexpected = model.load_state_dict(filtered_state, strict=False)
-        #print(model_state.keys())
-        print()
-        #print(hf_state.keys())
-        print()
         
         #print(filtered_state.keys())
         print("loaded HF encoder keys:", len(filtered_state))
@@ -812,9 +782,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
 
         Path(kwargs['ckpt']).parent.mkdir(parents=True, exist_ok=True)
         torch.save({'state_dict':model.state_dict()}, kwargs['ckpt'])
-        for k,v in model.state_dict().items():
-            print(k, v.dtype)
-        print(model.model.dtype)
+        
         return model, trained
 
 
@@ -867,7 +835,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         vo_head_dim_z=None,
     ):
         
-        with autocast(dtype=torch.float16):
+        with autocast():
             outputs_pre = self.model(
                 pre_input_ids,
                 attention_mask=pre_attention_mask,
