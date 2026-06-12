@@ -764,10 +764,10 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
 
             load_pruned_model(model, weights)
             trained = True
-            '''if hasattr(model, 'model'):
+            ''''if hasattr(model, 'model'):
                 model.model = model.model.to(torch.bfloat16)
-                print(f"Encoder set to float16")'''
-            print("teach: after load:", model.model.embed_tokens.weight.dtype)
+                print(f"Encoder set to float16")
+            print("teach: after load:", model.model.embed_tokens.weight.dtype)'''
 
             
             return model, trained
