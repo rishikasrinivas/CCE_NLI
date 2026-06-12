@@ -130,7 +130,7 @@ def main():
         Teach_Model = CoFiLlamaForSequenceClassification
         Student_Model = CoFiLlamaForSequenceClassification
     # ======= Load the model params ========
-    base_model_path = os.path.join(training_args.output_dir, 'model_best.pth')
+    base_model_path = "/workspace/CCE_NLI/LLAMA/models/lottery_ticket/Run0.25_1/0_Pruning_Iter/model_best.pth" #os.path.join(training_args.output_dir, 'model_best.pth')
     pretrained_path = os.path.join(data_args.path_to_pretrained, f'{additional_args.model_name}_princeton_MAIN_pretrained_inits.pth')
     if additional_args.model_name in ['bert', 'llama']:
         config = AutoConfig.from_pretrained(
@@ -167,7 +167,8 @@ def main():
                 pretrained_model_name_or_path=base_model_path, #if teacher model alr exists, load that (and that will be at this filepath here) but if teacher model doesnt alr exist another default model will be loaded and trained later (Training checks for same path)
                 ckpt= pretrained_path,
                 config=config,
-                device=device
+                device=device,
+                hf_name = model_args.model_name_or_path
 
             )
             config.do_layer_distill = additional_args.do_layer_distill #! True
@@ -180,7 +181,8 @@ def main():
         teacher_model, trained_teacher = Teach_Model.from_pretrained(
                 pretrained_model_name_or_path=base_model_path,
                 encoder=tokenizer_teacher,
-                device=device
+                device=device,
+                hf_name = model_args.model_name_or_path
 
             )
     if teacher_model:
@@ -200,7 +202,8 @@ def main():
         config=config,
         encoder=tokenizer,
         ckpt= pretrained_path,
-        device=device
+        device=device,
+        hf_name = model_args.model_name_or_path,
         
     ) #! inside the function, we get the original struct  #! CofiBertForSequenceClassification
     print(f'Loaded student model from : {student_path} to {student_model.device}')

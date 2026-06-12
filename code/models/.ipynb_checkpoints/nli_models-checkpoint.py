@@ -259,7 +259,7 @@ class LLAMAEntailmentClassifier(BaseModel):
         self.encoder_name = encoder_name
         if pretrained:
             print("Loading PRETRAINED")
-            self.model = LlamaBiModel.from_pretrained(encoder_name, attn_implementation='flash_attention_2', torch_dtype=torch.bfloat16) #for flash atttention
+            self.model = LlamaBiModel.from_pretrained(encoder_name, attn_implementation='flash_attention_2', torch_dtype=torch.bfloat16).to(device) #for flash atttention
         else:
             print("Loading UNTRAINED")
             config = AutoConfig.from_pretrained(encoder_name)
@@ -294,10 +294,12 @@ class LLAMAEntailmentClassifier(BaseModel):
         )
         self.output_dim = 3
         self.initialize(device)
+   
 
     def forward(self, s1_batch, s2_batch):
         s1enc = self.encode_sentence(s1_batch)
         s2enc = self.encode_sentence(s2_batch)
+       
         
         diffs = s1enc - s2enc
         prods = s1enc * s2enc
@@ -312,6 +314,7 @@ class LLAMAEntailmentClassifier(BaseModel):
     def get_final_reprs(self, s1_batch, s2_batch):
         s1enc = self.encode_sentence(s1_batch)
         s2enc = self.encode_sentence(s2_batch)
+        
         
         diffs = s1enc - s2enc
         prods = s1enc * s2enc
@@ -329,11 +332,13 @@ class LLAMAEntailmentClassifier(BaseModel):
 
     def encode_sentence(self, tokens):
         outputs = self.model(**tokens)
-        hidden = outputs.last_hidden_state
+        hidden = outputs.last_hidden_state #float32
+        
 
         mask = tokens["attention_mask"].unsqueeze(-1).float()  # (B, T, 1)
         reps = (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-9)
-
+        
+        
         return reps
 
 

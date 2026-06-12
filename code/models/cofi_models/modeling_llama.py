@@ -71,6 +71,7 @@ class CoFiLlamaRMSNorm(nn.Module):
         hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
             
         # convert into half-precision if necessary
+   
         if self.weight.dtype in [torch.float16, torch.bfloat16]:
             hidden_states = hidden_states.to(self.weight.dtype)
 
@@ -82,7 +83,55 @@ class CoFiLlamaRMSNorm(nn.Module):
 
        
 
+from flash_attn import flash_attn_varlen_func
+from flash_attn.bert_padding import unpad_input, pad_input
 
+
+def flash_attn_encoder_forward(q, k, v, padding_mask, dropout_p=0.0, softmax_scale=None):
+    """
+    q: [B, S, Hq, D]
+    k: [B, S, Hkv, D]
+    v: [B, S, Hkv, D]
+    padding_mask: [B, S], 1 = real token, 0 = pad
+    """
+
+    padding_mask = padding_mask.bool()
+    B, S = padding_mask.shape
+
+    # Case 1: no padding at all -> fastest path
+    if padding_mask.all():
+        return flash_attn_func(
+            q, k, v,
+            dropout_p=dropout_p,
+            softmax_scale=softmax_scale,
+            causal=False,
+        )
+
+    # Case 2: padding exists -> unpad once
+    qkv = torch.cat([q, k, v], dim=2)
+    qkv_unpad, indices, cu_seqlens, max_seqlen, _ = unpad_input(qkv, padding_mask)
+
+    Hq = q.shape[2]
+    Hkv = k.shape[2]
+
+    q_unpad = qkv_unpad[:, :Hq]
+    k_unpad = qkv_unpad[:, Hq:Hq + Hkv]
+    v_unpad = qkv_unpad[:, Hq + Hkv:Hq + 2 * Hkv]
+
+    out_unpad = flash_attn_varlen_func(
+        q_unpad,
+        k_unpad,
+        v_unpad,
+        cu_seqlens,
+        cu_seqlens,
+        max_seqlen,
+        max_seqlen,
+        dropout_p=dropout_p,
+        softmax_scale=softmax_scale,
+        causal=False,
+    )
+
+    return pad_input(out_unpad, indices, B, S)
 
 class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
     def __init__(self, config, layer_idx):
@@ -107,118 +156,125 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
     def forward(
         self,
         hidden_states: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,  # must be [B, S] for flash
         position_ids: Optional[torch.LongTensor] = None,
         past_key_value: Optional[Cache] = None,
         output_attentions: bool = False,
         use_cache: bool = False,
         cache_position: Optional[torch.LongTensor] = None,
         position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
-        head_z=None,  # Prune KV heads
-        head_layer_z=None,  # Prune entire attention layer
-        hidden_z = None,
+        head_z=None,
+        head_layer_z=None,
+        hidden_z=None,
         qk_head_dim_z=None,
         vo_head_dim_z=None,
         **kwargs,
     ):
-        if self.v_proj is None: #only return none if the final proj is pruned out, othewise just apply the mask and see for youself
+        if self.v_proj is None:
+            return (None, None)
 
-            return (None, None) if output_attentions else (None, None) #shud ret hidden 
+        bsz, q_len, _ = hidden_states.shape
+        input_dtype = hidden_states.dtype
 
-        bsz, q_len, _ = hidden_states.size()
-        
-        
-        # Project to Q, K, V
+        # q has num_attention_heads
         query_states = self.q_proj(hidden_states)
+        query_states = query_states.view(
+            bsz, q_len, self.num_attention_heads, self.head_dim
+        ).transpose(1, 2)
+
+        # k/v have num_key_value_heads for GQA
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
-        
-        if qk_head_dim_z is not None:
-            query_states = query_states.mul(qk_head_dim_z)
-            value_states = value_states.mul(vo_head_dim_z)
-        
-        
-        '''query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
-        value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)'''
-        
 
-        actual_kv_heads = key_states.shape[-1] // self.head_dim      # e.g. 192//64 = 3
-        actual_q_heads  = query_states.shape[-1] // self.head_dim    # e.g. 1536//64 = 24
-        actual_kv_groups = actual_q_heads // actual_kv_heads
-        
-        assert actual_q_heads == actual_kv_heads, f'actual_q_heads={actual_q_heads} actual_kv_heads= {actual_kv_heads}'
-        # Reshape for GQA
-        query_states = query_states.view(bsz, q_len, actual_q_heads, self.head_dim).transpose(1, 2)
-        key_states = key_states.view(bsz, q_len, actual_kv_heads, self.head_dim).transpose(1, 2)
-        value_states = value_states.view(bsz, q_len, actual_kv_heads, self.head_dim).transpose(1, 2)
-        
-        assert actual_q_heads == self.num_heads, f'Calculted Q heads is {actual_q_heads} and self num heads is {self.num_heads}'
-        assert actual_kv_heads == self.num_key_value_heads, f'Calculted KV heads is {actual_kv_heads} and self kv heads is {self.num_key_value_heads}'
-        assert actual_kv_groups == self.num_key_value_groups, f'Calculted KV groups is {actual_kv_groups} and self num kv groups is {self.num_key_value_groups}'
-  
-        # Apply rotary embeddings
+        key_states = key_states.view(
+            bsz, q_len, self.num_key_value_heads, self.head_dim
+        ).transpose(1, 2)
+
+        value_states = value_states.view(
+            bsz, q_len, self.num_key_value_heads, self.head_dim
+        ).transpose(1, 2)
+
+        query_states = query_states.to(input_dtype)
+        key_states = key_states.to(input_dtype)
+        value_states = value_states.to(input_dtype)
+
+        # RoPE
         cos, sin = position_embeddings
-        query_states, key_states = self._apply_rotary_pos_emb(query_states, key_states, cos, sin)
-        
-        # Update cache if needed
-        if past_key_value is not None:
-            cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
-            key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
-        
-        attn_fn = eager_attention_forward if self.attn_impl == 'eager' else flash_attn_func
-        orig_dtype = query_states.dtype
-        query_states = query_states.to(torch.bfloat16)
-        key_states   = key_states.to(torch.bfloat16)
-        value_states = value_states.to(torch.bfloat16)
-
-        attn_output = flash_attn_func(
-            query_states,
-            key_states,
-            value_states,
-            0.0 if not self.training else self.config.attention_dropout,
-            softmax_scale=self.scaling,
-            causal=self.is_causal,
+        query_states, key_states = self._apply_rotary_pos_emb(
+            query_states, key_states, cos, sin
         )
-        attn_output = attn_output.to(orig_dtype)
-        attn_weights = None
-        #print("attn out = ", attn_output.shape) #attn out =  torch.Size([16, 29, 16, 128])
 
-        #In attention pruning the kv heads norm the atttnout is  torch.Size([16, 16, 16, 128]) and head is expanded to torch.Size([1, 16, 1, 1])
-        #torch.Size([16]) 
-        #verify the attnout shpaes are right
-        if head_z is not None:
-            # head_z is over KV heads, need to expand to query heads
-            head_z = head_z.squeeze()
-            #head_z.shaoe=#torch.Size([16])
-            print("head_z_expanded.view(1, 1, -1, 1) ",head_z_expanded.view(1, 1, -1, 1).shape)
-            #head_z_expanded = head_z.repeat_interleave(self.num_key_value_groups)
-            head_z_expanded = head_z.repeat_interleave(actual_kv_groups)
+        if past_key_value is not None:
+            cache_kwargs = {
+                "sin": sin,
+                "cos": cos,
+                "cache_position": cache_position,
+            }
+            key_states, value_states = past_key_value.update(
+                key_states, value_states, self.layer_idx, cache_kwargs
+            )
+
+        dropout_p = 0.0 if not self.training else self.attention_dropout
+
+        if self.attn_impl == "eager":
+            # eager expects [B, H, S, D] and 4D additive mask
+            attn_output, attn_weights = eager_attention_forward(
+                self,
+                query_states,
+                key_states,
+                value_states,
+                attention_mask,
+                dropout=dropout_p,
+                scaling=self.scaling,
+                **kwargs,
+            )
+
+            # eager returns [B, S, H, D]
+            # so head_z can be applied directly
+            if head_z is not None:
+                head_z = head_z.squeeze().to(attn_output.dtype)
+                attn_output = attn_output * head_z.view(1, 1, -1, 1)
+
+        else:
+            # flash expects [B, S, H, D]
+            query_states = query_states.transpose(1, 2).to(torch.bfloat16)
+            key_states = key_states.transpose(1, 2).to(torch.bfloat16)
+            value_states = value_states.transpose(1, 2).to(torch.bfloat16)
+
+            # attention_mask must be original 2D padding mask [B, S]
+            attn_output = flash_attn_encoder_forward(
+                query_states,
+                key_states,
+                value_states,
+                attention_mask,
+                dropout_p=dropout_p,
+                softmax_scale=self.scaling,
+            )
+            attn_weights = None
             
-            #In attention pruning the kv heads norm the atttnout is  torch.Size([16, 16, 16, 128]) and head_z_expanded.view(1, -1, 1, 1).shape = torch.Size([1, 16, 1, 1])
-    
-            
-            attn_output = attn_output * head_z_expanded.view(1, 1, -1, 1)
-        #print("attn out after head = ", attn_output.shape) #attn out after head =  torch.Size([16, 29, 16, 128])
-        attn_output = attn_output.reshape(bsz, q_len, -1)
-        #print("attn out after reshape  = ", attn_output.shape)
-        attn_output = self.o_proj(attn_output)
-        if head_layer_z is not None:
-            #print(f"In attention layer {attn_output.shape} and head layer is {head_layer_z.shape}")
-            
-            attn_output = attn_output.mul(head_layer_z)
-            
-            
-        if hidden_z is not None:
-            #print(f"In attention layer {attn_output.shape} and hidden mask is {hidden_z.shape}")
-            
-            attn_output = attn_output.mul(hidden_z)
-            
-       
-     
+            # flash returns [B, S, H, D]
+            if head_z is not None:
+                head_z = head_z.squeeze().to(attn_output.dtype)
+                attn_output = attn_output * head_z.view(1, 1, -1, 1)
+
+        # merge heads
+        attn_output = attn_output.reshape(bsz, q_len, -1).contiguous()
+
+        # output projection
         
-        return (attn_output, attn_weights) if output_attentions else (attn_output, None )
-    
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            #print("attn_output.dtype bfre oproj", attn_output.dtype)
+            attn_output = self.o_proj(attn_output)
+            #print("attn_output.dtype after oproj ", attn_output.dtype)
+            
+            
+        if head_layer_z is not None:
+            attn_output = attn_output * head_layer_z
+
+        if hidden_z is not None:
+            attn_output = attn_output * hidden_z
+        assert attn_output.dtype == torch.bfloat16
+        return (attn_output, attn_weights)
     def prune_heads(self, heads):
         len_heads = len(heads)
         
@@ -258,16 +314,30 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
  
     
     def _apply_rotary_pos_emb(self, q, k, cos, sin):
-        # Helper method to apply rotary embeddings
+        # Store original dtype
+        orig_dtype = q.dtype
+
+        # Ensure cos/sin match the dtype (they might be float32)
+        cos = cos.to(orig_dtype)
+        sin = sin.to(orig_dtype)
+
+        # Perform rotation
         q_embed = (q * cos) + (self._rotate_half(q) * sin)
         k_embed = (k * cos) + (self._rotate_half(k) * sin)
+
+        # Explicitly cast back to original dtype (safety)
+        q_embed = q_embed.to(orig_dtype)
+        k_embed = k_embed.to(orig_dtype)
+
         return q_embed, k_embed
-    
+
     def _rotate_half(self, x):
+        # Preserve dtype through the operation
+        orig_dtype = x.dtype
         x1 = x[..., : x.shape[-1] // 2]
         x2 = x[..., x.shape[-1] // 2 :]
-        return torch.cat((-x2, x1), dim=-1)
-    
+        result = torch.cat((-x2, x1), dim=-1)
+        return result.to(orig_dtype)  # Force back to original dtype
     
 class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
     def __init__(self, config, layer_idx):
@@ -289,7 +359,7 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         self,
         hidden_states,
         attention_mask=None,
-        position_ids=None,
+        position_ids=None, 
         past_key_value=None,
         output_attentions=False,
         use_cache=False,
@@ -309,8 +379,10 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
         # -------------------------
         # PRE-NORM ATTENTION INPUT
         # -------------------------
+        assert hidden_states.dtype == torch.float32, f'even before layer nrom Input is not float32 is { hidden_states.dtype}'
+        
         attn_input = self.input_layernorm(hidden_states, hidden_z)
-
+        assert hidden_states.dtype == torch.float32, f'Input is not float32'
         attn_out, attn_weights = self.self_attn(
             hidden_states=attn_input,
             attention_mask=attention_mask,
@@ -335,6 +407,7 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
             hidden_states = residual #if attn was pruned out pass forward just what was passed in as input 
         else: 
             hidden_states = residual + attn_out # otherwise add the attn out (ie ignore the layernomr)
+        assert hidden_states.dtype == torch.float32
 
 
         # =========================
@@ -471,12 +544,14 @@ class CoFiLlamaBiModel(LlamaBiModel):
         
         # Input embedding
         if inputs_embeds is None:
+            
             inputs_embeds = self.embed_tokens(input_ids)
+            
             
         # apply hidden mask to embeddings
         if hidden_z is not None:
             inputs_embeds *= hidden_z
-            #print(f"Input embeds shape = {inputs_embeds.shape}")
+            print(f"sfer hidden Input embeds shape = {inputs_embeds.dtype}")
         
         # Position embeddings
         if position_ids is None:
@@ -493,6 +568,8 @@ class CoFiLlamaBiModel(LlamaBiModel):
                 device=inputs_embeds.device
             )
 
+  
+        padding_mask=attention_mask
         # Now call _update_causal_mask (from parent LlamaBiModel)
         attention_mask = self._update_causal_mask(
             attention_mask,
@@ -510,6 +587,8 @@ class CoFiLlamaBiModel(LlamaBiModel):
         
         # Process through layers
         for idx, decoder_layer in enumerate(self.layers):
+            #print(" decoder_layer nip dtype = ", hidden_states.dtype)
+            
         
             if output_hidden_states:  
                 all_hidden_states = all_hidden_states + (hidden_states,)
@@ -533,10 +612,11 @@ class CoFiLlamaBiModel(LlamaBiModel):
                 print(f"layer_mlp_z is {layer_mlp_z.shape}")
             if hidden_z is not None:
                 print(f"Hidden shape is {hidden_z.shape}")'''
+            #print("hidden state bef dec ", hidden_states.dtype)
             
             layer_outputs = decoder_layer(
                 hidden_states,
-                attention_mask=attention_mask,
+                attention_mask=padding_mask,
                 position_ids=position_ids,
                 past_key_value=past_key_values,
                 output_attentions=output_attentions,
@@ -552,9 +632,12 @@ class CoFiLlamaBiModel(LlamaBiModel):
                 vo_head_dim_z=layer_vo_head_dim_z,
                 
                 
+                
+                
             )
             
             hidden_states = layer_outputs[0]
+            #print("hidden state after dec ", hidden_states.dtype)
             
             if output_attentions:
                 all_self_attns = all_self_attns + (layer_outputs[1],)
@@ -592,7 +675,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         self.config=config
         self.model = CoFiLlamaBiModel(config)
    
-        self.tokenizer = AutoTokenizer.from_pretrained('knowledgator/Llama-encoder-1.0B')
+        self.tokenizer = AutoTokenizer.from_pretrained('knowledgator/Sheared-LLaMA-encoder-1.3B')
         if "pad_token" not in self.tokenizer.special_tokens_map:
             num_new_tokens = self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
             if num_new_tokens > 0:
@@ -683,29 +766,57 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
 
             load_pruned_model(model, weights)
             trained = True
+            #if hasattr(model, 'model'):
+                #model.model = model.model.to(torch.bfloat16)
+                #print(f"Encoder set to bfloat16")
+            print("teach: after load:", model.model.embed_tokens.weight.dtype)
+
+            
             return model, trained
         elif os.path.exists(kwargs['ckpt']):
             weights = torch.load(kwargs['ckpt'], map_location=kwargs['device'])['state_dict']
             model.load_state_dict(weights, strict=False)
             assert trained==False
-            return model, trained
+            #if hasattr(model, 'model'):
+                #model.model = model.model.to(torch.bfloat16)
+                #print(f"Encoder set to bfloat16")
+            print("stud: after load:", model.model.embed_tokens.weight.dtype)
+            
+            print("MODEL DTYPE ", model.model.dtype)
+            return model , trained
 
         # -----------------------
         # Load HF pretrained encoder only
         # -----------------------
         print("Loading HF ", kwargs['hf_name'])
-        hf_encoder = LlamaBiModel.from_pretrained(kwargs['hf_name'])
+        
+        hf_encoder = LlamaBiModel.from_pretrained(kwargs["hf_name"], attn_implementation='flash_attention_2').to(kwargs['device'])
 
-        # Filter HF weights to match model (skip classifier / MLP)
-  
+        hf_state = hf_encoder.state_dict()
         model_state = model.state_dict()
-        filtered_state = {k: v for k, v in model_state.items()}
 
-        model.load_state_dict(filtered_state)
+       
+        #lth_trained = torch.load("/workspace/CCE_NLI/LLAMA/models/pretrained/llama_MAIN_pretrained_inits.pth", map_location=kwargs['device'])['state_dict']
+
+        
+        filtered_state = {f'model.{k}':v for k,v in hf_state.items() if f'model.{k}' in model_state.keys()}
+        missing, unexpected = model.load_state_dict(filtered_state, strict=False)
+        #print(model_state.keys())
+        print()
+        #print(hf_state.keys())
+        print()
+        
+        #print(filtered_state.keys())
+        print("loaded HF encoder keys:", len(filtered_state))
+        print("missing:", len(missing))
+        print("unexpected:", len(unexpected))
         from pathlib import Path
 
         Path(kwargs['ckpt']).parent.mkdir(parents=True, exist_ok=True)
         torch.save({'state_dict':model.state_dict()}, kwargs['ckpt'])
+        for k,v in model.state_dict().items():
+            print(k, v.dtype)
+        print(model.model.dtype)
         return model, trained
 
 
@@ -731,7 +842,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
 
     def masked_mean_pool(self, hidden, mask):
         hidden = hidden.last_hidden_state
-        mask = mask.unsqueeze(-1)
+        mask = mask.unsqueeze(-1).float()
 
         return (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-9)
     def forward(
@@ -806,9 +917,9 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         
         
 
-        pre_out= outputs_pre.last_hidden_state.mean(dim=1) #self.masked_mean_pool(outputs_pre, pre_attention_mask) 
+        pre_out= self.masked_mean_pool(outputs_pre, pre_attention_mask) 
         
-        hyp_out =outputs_hyp.last_hidden_state.mean(dim=1) # self.masked_mean_pool(outputs_hyp, hyp_attention_mask)# 
+        hyp_out = self.masked_mean_pool(outputs_hyp, hyp_attention_mask)# 
 
         diffs = pre_out - hyp_out
         prods = pre_out * hyp_out

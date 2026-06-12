@@ -179,7 +179,7 @@ class CoFiTrainer(Trainer):
 
         Trainer.__init__(self, model, args, data_collator, full_train_dataset , full_eval_dataset, tokenizer, model_init, compute_metrics=compute_metrics, **kwargs)
         self.num_workers = 4
-        self.model=model
+        self.model= model
         
         
         
@@ -277,7 +277,7 @@ class CoFiTrainer(Trainer):
                 ]
           
                 if self.model_name != 'bowman':
-                    self.teacher_optimizer = AdamW(self.teacher_model.parameters(),  lr=2e-6, eps=1e-8)  # AdamW optimizer is recommended for BERTAdamW(
+                    self.teacher_optimizer = AdamW(self.teacher_model.parameters(),  lr=2e-5, eps=1e-8)  # AdamW optimizer is recommended for BERTAdamW(
                 else:
                     self.teacher_optimizer = optim.Adam(self.teacher_model.parameters())
                 log_params(teacher_main_model_params, "teacher main params")
@@ -654,6 +654,7 @@ class CoFiTrainer(Trainer):
             with torch.no_grad():
                 # Pass the inputs directly to the model. 
                 # Because we bypass the Trainer's wrapper, your cuda:1 tensors stay on cuda:1!
+                
                 outputs = model(**inputs)
 
                 # Reconstruct the loss, logits, and labels manually to match your loop variables
@@ -1171,7 +1172,6 @@ class CoFiTrainer(Trainer):
 
                 teacher_inputs = {key: inputs[key].to(self.device) for key in teacher_inputs_keys if key in inputs}
                 self.shortens_inputs(teacher_inputs)
-                teacher_inputs = {key: inputs[key].to(self.device) for key in teacher_inputs_keys if key in inputs}
                 teacher_outputs = self.teacher_model(**teacher_inputs)
                 
 
@@ -1181,12 +1181,6 @@ class CoFiTrainer(Trainer):
             
             
             student_outputs = self.model(**inputs)
-
-            # CRITICAL DEBUG
-            if self.global_step % 50 == 0:
-                labels = inputs['labels']
-                teacher_logits = teacher_outputs[1][2]  # Adjust index if needed
-                student_logits = student_outputs[1][2]
 
                
             zs = {key: inputs[key] for key in inputs if "_z" in key}
@@ -1219,18 +1213,11 @@ class CoFiTrainer(Trainer):
         loss.backward()
        
         # Check gradient norms
-        if self.global_step % 50 == 0:
+        if self.global_step % 50000 == 0:
             total_norm = 0
             #norm = self.model.bert.encoder.layer[9].output.LayerNorm
             #if self.start_prune and norm.weight.grad is not None:
-                #print(f"BERT Layer 0 norm weight grad - mean: {norm.weight.grad.abs().mean():.6f} zeros: {norm.weight.grad.eq(0).sum().item()}/{norm.weight.grad.numel()}")
-    
-            for name, param in self.model.named_parameters():
-                if param.grad is not None:
-                    param_norm = param.grad.data.norm(2)
-                    total_norm += param_norm.item() ** 2
-            total_norm = total_norm ** 0.5
-            
+                #print(f"BERT Layer 0 norm weight grad - mean: {norm.weight.grad.abs().mean():.6f} zeros: {norm.weight.grad.eq(0).sum().item()}/{norm.weight.grad.numel()}"
 
                 
             l0_stats = {}
