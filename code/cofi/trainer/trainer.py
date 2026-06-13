@@ -34,7 +34,7 @@ from cofi.utils.utils import *
 import torch.nn as nn
 import torch.optim as optim
 import train_utils
-
+from torch.cuda.amp import autocast
 
 from transformers.utils import logging
 import util
@@ -1303,7 +1303,7 @@ class CoFiTrainer(Trainer):
                 teacher_inputs = {key: inputs[key].to(self.device) for key in teacher_inputs_keys if key in inputs}
                 self.shortens_inputs(teacher_inputs)
                 with torch.no_grad():
-                    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    with autocast():
                         teacher_outputs = self.teacher_model(**teacher_inputs)
 
 
@@ -1314,7 +1314,7 @@ class CoFiTrainer(Trainer):
 
 
             
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            with autocast():
                 student_outputs = self.model(**inputs)
 
             #student_outputs = self.model(**inputs)
