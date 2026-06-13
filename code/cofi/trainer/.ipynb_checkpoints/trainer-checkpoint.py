@@ -188,7 +188,10 @@ class CoFiTrainer(Trainer):
         self.dataset=dataset
         self.additional_args = additional_args
         self.finetuned_teacher = trained_teacher
-        self.l0_module = l0_module.to(device)
+        
+        self.l0_module = l0_module
+        if l0_module is not None:
+            self.l0_module = self.l0_module.to(device)
         self.prepruning_finetune_steps = 100
         self.start_prune = False
         self.teacher_model_dir=teacher_model_dir
@@ -372,7 +375,7 @@ class CoFiTrainer(Trainer):
         self.epoch = 0
         self.total_flos = 0
 
-        epochs_trained = 0
+        epochs_trained = 2
 
         tr_loss = torch.tensor(0.0).to(self.args.device)
         reg_loss = torch.tensor(0.0).to(self.args.device)
@@ -402,13 +405,29 @@ class CoFiTrainer(Trainer):
             self.teacher_model = self.finetune_teacher(self.teacher_model)
             self.finetuned_teacher = True
         self.store_results(self.teacher_model)
-        self.evaluate()
+        
         # training
         print(f"Training for {num_train_epochs} epochs")
         resumed = False
-      
-        for epoch in range(epochs_trained, int(np.ceil(num_train_epochs))): #! 20 epoch
+        
+        
+        pruning_epochs =int(num_train_epochs)//2
+        
+        
+        if epochs_trained < pruning_epochs:
+            resumed = self.resume_from()
+        print(f"Will prune for {pruning_epochs} total, finetune for {num_train_epochs-pruning_epochs}. Have completed {epochs_trained} from ckpt")
+        self.evaluate()
+        for epoch in range(epochs_trained,int(num_train_epochs)): #! 20 epoch
             print(f"Starting epoch {epoch}")
+            if epoch >= pruning_epochs and self.start_prune: #if youve finished the pruning phase and the ckpt says its still pruning
+                self.start_prune=False
+                self.student_optimizer = None
+                self.lr_scheduler = None
+                self.create_optimizer_and_scheduler(lr_steps, self.start_prune)
+            else:
+                print("Using existing optimizer/schedulers/L0")
+            if epoch >= pruning_epochs: assert not self.start_prune, f'Pruning is on when it should be only finetuning'
             epoch_start = time.time()
 
 
@@ -431,7 +450,7 @@ class CoFiTrainer(Trainer):
                 #print(f"right now, glboal step = {self.global_step} and self.prepruning_finetune_steps = {self.prepruning_finetune_steps}" )
                   # in orig foi they say self.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps:
                         # but this is because they train the student first run. we may start with a trained student alr
-                if  using_trained_student and not self.start_prune: #elf.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps: #! before pruning, run 12272 steps
+                if  epoch < pruning_epochs and using_trained_student and not self.start_prune: #elf.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps: #! before pruning, run 12272 steps
                     #use the momentum from the previously saved student (if those states are saved, else load an optimizer from scracth)
                     #resumed = self.resume_from()
                     #if not resumed:
@@ -537,7 +556,7 @@ class CoFiTrainer(Trainer):
                 epoch_pbar.update(1)
                   #they stop when self.args.max_steps > 0 and self.global_step >= self.args.max_steps: and we stop when sparsity is reached 
                     #TODO: check what their max_steps is if its eqiuv to the epochs then its fine with ours 
-                if using_trained_student and self.ready_to_save():
+                if self.args.max_steps > 0 and self.global_step >= self.args.max_steps:
                     print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity} with expected at {self.expected_sparsity}")
                     self.save_model(model, student=False)
                     #wandb.finish()
@@ -569,7 +588,7 @@ class CoFiTrainer(Trainer):
                     }
                 )
             #logging step
-            if self.ready_to_save():
+            if self.args.max_steps > 0 and self.global_step >= self.args.max_steps:
                 print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity} with expected at {self.expected_sparsity}")
                 break
             
@@ -631,8 +650,6 @@ class CoFiTrainer(Trainer):
             self.l0_module.eval()
             zs = self.l0_module.forward(training=False)
 
-        
-        #if zs is not None:
             pruned_model_size_info = self.l0_module.calculate_model_size_LLM(zs)
 
         for ii, inputs  in enumerate(dataloader): #here instead do for ii, (s1,s1l,s2,s2l,labels) in enumerate(dataloader) using the algined w our model appraoch
@@ -838,6 +855,8 @@ class CoFiTrainer(Trainer):
         l0_path = os.path.join(checkpoint_dir, 'l0_module.pt')
         if os.path.exists(l0_path):
             self.l0_module = torch.load(l0_path, map_location=self.device)
+        
+        self.model.load_state_dict(torch.load(os.path.join(checkpoint_dir, 'model_best.pth'))['state_dict'])
 
         return True
        

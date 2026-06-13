@@ -161,7 +161,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
 
         # Evaluate the best model from the finetuning phase
         # CORRECTED: Added model_type to the run_eval call
-        final_acc = train_utils.run_eval(model, dataloaders['val'], args.model_type, 'lottery_ticket')
+        final_acc = train_utils.run_eval(model, dataloaders['val'], args.model_type, 'lottery_ticket', device=device)
         if prune_iter == 0: baseline_acc = final_acc
         final_weights_pruned = prune_utils.percent_pruned_weights(model)
         

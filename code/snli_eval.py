@@ -121,8 +121,8 @@ def main(args):
                 pruned_model.cuda()
             if args.model_type in ['bert', 'llama']:
                 pruned_model_size = calculate_parameters(pruned_model)
-                if folder == '0_Pruning_Iter': og=pruned_model_size
-                final_weights_pruned = 1 - (pruned_model_size / og) 
+                #if folder == '0_Pruning_Iter': og=pruned_model_size
+                final_weights_pruned = 1 - (pruned_model_size / 88204291) 
             else:
                 final_weights_pruned = get_percent_pruned(pruned_model)
             print("sparsity=", final_weights_pruned)
@@ -234,7 +234,6 @@ def parse_args():
     parser.add_argument("--cuda", action="store_true")
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
-
 
 if __name__ == "__main__":
     args = parse_args()

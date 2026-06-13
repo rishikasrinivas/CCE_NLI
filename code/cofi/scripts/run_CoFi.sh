@@ -85,8 +85,8 @@ if [[ $pruning_type == None ]]; then
   learning_rate=${10}
   scheduler_type=none
   output_dir=$pretrained_pruned_model/FT-lr${learning_rate}
-  epochs=20
-  batch_size=64
+  epochs=5
+  batch_size=16
 fi
 
 

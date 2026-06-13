@@ -4,6 +4,7 @@ import models.cofi_models as cofi_models
 import models.nli_models as nli_models
 import cofi.utils.cofi_utils as cofi_utils
 import torch
+torch.multiprocessing.set_sharing_strategy('file_system')
 import util
 import tqdm as tqdm
 from contextlib import nullcontext
@@ -18,7 +19,7 @@ from data.snli import SNLI, pad_collate
 from collections import defaultdict
 import os,fileio
 from transformers import BertTokenizer, BertModel, AdamW, get_linear_schedule_with_warmup, AutoTokenizer
-from torch.cuda.amp import autocast,GradScaler
+from torch.cuda.amp import autocast
 from transformers import AutoTokenizer
 from torch.nn.utils.rnn import pad_sequence
 import glob
@@ -245,6 +246,7 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
     from contextlib import nullcontext # Make sure this is imported
     torch.cuda.empty_cache()
     training = split == "train"
+    #training=False
     model.to(device)
     if training:
         # CORRECTED: Disable autocast for this test
