@@ -375,7 +375,7 @@ class CoFiTrainer(Trainer):
         self.epoch = 0
         self.total_flos = 0
 
-        epochs_trained = 2
+        epochs_trained = 0
 
         tr_loss = torch.tensor(0.0).to(self.args.device)
         reg_loss = torch.tensor(0.0).to(self.args.device)
@@ -416,6 +416,8 @@ class CoFiTrainer(Trainer):
         
         if epochs_trained < pruning_epochs:
             resumed = self.resume_from()
+            if resumed:
+                epochs_trained = self.epoch
         print(f"Will prune for {pruning_epochs} total, finetune for {num_train_epochs-pruning_epochs}. Have completed {epochs_trained} from ckpt")
         self.evaluate()
         for epoch in range(epochs_trained,int(num_train_epochs)): #! 20 epoch
@@ -424,6 +426,7 @@ class CoFiTrainer(Trainer):
                 self.start_prune=False
                 self.student_optimizer = None
                 self.lr_scheduler = None
+                lr_steps = self.t_total - self.global_step
                 self.create_optimizer_and_scheduler(lr_steps, self.start_prune)
             else:
                 print("Using existing optimizer/schedulers/L0")

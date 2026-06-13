@@ -95,7 +95,7 @@ def main():
         #print(f"Before Pruning NLI Eval: {eval_test}")
 
         #===== Pruning =====
-        device = torch.device("cuda:0")
+      
         if args.model_type != 'bowman':
             wanda.prune_wanda(args, model, 'enc', dataloaders, sparsity_ratio, device)
         
@@ -113,7 +113,7 @@ def main():
 
         
         #===== Recording Acc =====
-        eval_test = train_utils.run_eval(model, dataloaders['val'], args.model_type, 'wanda')
+        eval_test = train_utils.run_eval(model, dataloaders['val'], args.model_type, 'wanda', device=device)
         print(f"After Pruning NLI Eval: {eval_test}")
         final_accs.append(eval_test)
       

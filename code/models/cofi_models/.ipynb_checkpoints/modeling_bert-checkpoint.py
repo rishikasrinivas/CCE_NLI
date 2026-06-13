@@ -15,7 +15,7 @@ from transformers.modeling_utils import (apply_chunking_to_forward,
 from transformers import AutoTokenizer
 from transformers.models.bert.modeling_bert import (
     BertAttention, BertEmbeddings, BertEncoder, BertForQuestionAnswering,
-    BertForSequenceClassification, BertLayer, BertModel, BertOutput,
+    BertForSequenceClassification, BertLayer, BertModel, BertOutput, BertSdpaSelfAttention,
     BertSelfAttention, BertSelfOutput, QuestionAnsweringModelOutput)
 from transformers.trainer import Trainer
 from transformers.training_args import TrainingArguments
@@ -593,7 +593,7 @@ class CoFiBertLayer(BertLayer):
 class CoFiBertAttention(BertAttention):
     def __init__(self, config):
         super().__init__(config)
-        self.self = CoFiBertSelfAttention(config)
+        self.self = CoFiBertSdpaSelfAttention(config)
         self.output = CoFiBertSelfOutput(config)
         self.config = config
 
@@ -646,7 +646,82 @@ class CoFiBertAttention(BertAttention):
         return outputs
 
 
-class CoFiBertSelfAttention(BertSelfAttention):
+class CoFiBertSdpaSelfAttention(BertSdpaSelfAttention):
+    """CoFiBERT Self Attention with SDPA support"""
+    def __init__(self, config):
+        super().__init__(config)
+        if config.hidden_size % config.num_attention_heads != 0 and not hasattr(config, "embedding_size"):
+            raise ValueError(
+                "The hidden size (%d) is not a multiple of the number of attention "
+                "heads (%d)" % (config.hidden_size, config.num_attention_heads)
+            )
+        
+        self.config = config
+        self.num_attention_heads = config.num_attention_heads
+        self.attention_head_size = int(config.hidden_size / config.num_attention_heads)
+        self.all_head_size = self.num_attention_heads * self.attention_head_size
+        
+        self.query = nn.Linear(config.hidden_size, self.all_head_size)
+        self.key = nn.Linear(config.hidden_size, self.all_head_size)
+        self.value = nn.Linear(config.hidden_size, self.all_head_size)
+        
+        self.dropout_prob = config.attention_probs_dropout_prob
+        self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
+        
+        self.position_embedding_type = getattr(config, "position_embedding_type", "absolute")
+        self.is_decoder = getattr(config, "is_decoder", False)
+        assert  not self.is_decoder
+        
+        # Check for SDPA compatibility
+        self.require_contiguous_qkv = False
+    
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        head_mask: Optional[torch.FloatTensor] = None,
+        encoder_hidden_states: Optional[torch.FloatTensor] = None,
+        encoder_attention_mask: Optional[torch.FloatTensor] = None,
+        past_key_value: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
+        output_attentions: Optional[bool] = False,
+        head_z: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor]:
+        
+        # Get Q, K, V from parent method (reuse its logic)
+        # But since we can't easily override just the SDPA call, we call parent
+        # and then modify the output
+        
+        if head_z is None:
+            # No pruning, just use parent
+            return super().forward(
+                hidden_states, attention_mask, head_mask, encoder_hidden_states,
+                encoder_attention_mask, past_key_value, output_attentions
+            )
+        
+        # With pruning, we need to get the attention output and apply head_z
+        # Most efficient: call parent, then reshape and apply mask
+        outputs = super().forward(
+            hidden_states, attention_mask, head_mask, encoder_hidden_states,
+            encoder_attention_mask, past_key_value, output_attentions
+        )
+        
+        # Apply head_z to the attention output
+        attn_output = outputs[0]
+        batch_size, seq_len, hidden_size = attn_output.shape
+        
+        # Reshape to separate heads
+        attn_output = attn_output.view(
+            batch_size, seq_len, self.num_attention_heads, -1
+        )
+        
+        attn_output = attn_output * head_z.unsqueeze(0)
+        
+        # Reshape back
+        attn_output = attn_output.view(batch_size, seq_len, -1)
+        
+        return (attn_output,) + outputs[1:]
+    
+'''class CoFiBertSelfAttention(BertSelfAttention):
     def __init__(self, config):
         super().__init__(config)
         if config.hidden_size % config.num_attention_heads != 0 and not hasattr(config, "embedding_size"):
@@ -725,7 +800,7 @@ class CoFiBertSelfAttention(BertSelfAttention):
         outputs = (context_layer, attention_probs) if output_attentions else (
             context_layer,)
         return outputs
-
+'''
 #hidden is applied after dense bfore and after lyr norm
 class CoFiBertSelfOutput(BertSelfOutput):
     def __init__(self, config):
