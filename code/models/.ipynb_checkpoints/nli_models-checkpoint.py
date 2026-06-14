@@ -98,7 +98,8 @@ class Layer:
             name: str,
             weights: torch.nn.Parameter,
             initial_weights: torch.Tensor,
-            pruning_mask: torch.Tensor) -> None:
+            pruning_mask: torch.Tensor,
+            is_pruned: bool) -> None:
         """Initializes a new Layer instance.
 
         Args:
@@ -116,6 +117,7 @@ class Layer:
         self.weights = weights
         self.initial_weights = initial_weights
         self.pruning_mask = pruning_mask
+        self.is_pruned = is_pruned
         
     def set_pruning_mask(self, msk):
         self.pruning_mask = msk
@@ -152,11 +154,11 @@ class BaseModel(torch.nn.Module):
                 
             # Initializes the pruning masks of the layer, which are used for pruning as well as freezing the pruned weights during training
             pruning_mask = torch.ones_like(init_weights, dtype=torch.uint8)
-            pruning_mask.to(device)  # pylint: disable=no-member
+            pruning_mask = pruning_mask.to(device)  # pylint: disable=no-member
             # Adds the layer to the internal list of layers
          
         
-            self.layers.append(Layer(parameter_name, weights, init_weights, pruning_mask))
+            self.layers.append(Layer(parameter_name, weights, init_weights, pruning_mask, is_pruned=False))
         
             
 
@@ -190,8 +192,11 @@ class BaseModel(torch.nn.Module):
                 return layer
         raise LookupError(f'The specified layer "{layer_name}" does not exist.')
 
-    def set_mask(self, layer_name: str, mask: torch.tensor):
-        self.get_layer(layer_name).pruning_mask = mask
+
+    def set_mask(self, layer_name: str, mask: torch.Tensor):
+        layer = self.get_layer(layer_name)
+        layer.pruning_mask = mask.to(device=layer.weights.device, dtype=torch.bool)
+        layer.is_pruned = bool((~layer.pruning_mask).any().item())
         
     def update_layer_weights(self, mask, layer_name: str, new_weights: torch.Tensor) -> None:
         """Updates the weights of the specified layer.

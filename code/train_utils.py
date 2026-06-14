@@ -264,7 +264,8 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
     loss_meter = util.AverageMeter()
     acc_meter = util.AverageMeter()
 
-
+    
+    
     for batch in ranger:
        
         if pruning_method != 'CoFi':
@@ -304,10 +305,13 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
             # CORRECTED: Use standard loss.backward()
             loss.backward()
          
-            if hasattr(model, 'layers'):
+            if hasattr(model, "layers"):
                 for layer in model.layers:
-                    if hasattr(layer.weights, 'grad') and layer.weights.grad is not None:
-                        layer.weights.grad *= layer.pruning_mask.to(device)
+                    if not getattr(layer, "is_pruned", False):
+                        continue
+                    if layer.weights.grad is not None:
+                        layer.weights.grad.masked_fill_(~layer.pruning_mask, 0)
+                        
          
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
            

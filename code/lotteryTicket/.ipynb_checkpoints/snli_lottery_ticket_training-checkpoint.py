@@ -115,14 +115,14 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
             print(f"Alr lt'd {start}")
             state_dict =  torch.load(os.path.join(start), map_location=torch.device('cpu'))['state_dict']
             model.load_state_dict(state_dict) 
-            baseline_acc = train_utils.run_eval(model, dataloaders['val'], args.model_type, 'lottery_ticket')
+            baseline_acc = train_utils.run_eval(model, dataloaders['val'], args.model_type, 'lottery_ticket', device=device)
             model.load_state_dict(base_ckpt['state_dict']) 
             
             
-            for layer in state_dict.keys():
+            '''for layer in state_dict.keys():
                 mask = get_mask(state_dict[layer])
                 base_ckpt['state_dict'][layer] *= mask
-                if not any(kw in layer for kw in ['bias', 'bn', 'embeddings', 'LayerNorm']):
+                if not any(kw in layer for kw in ['bias', 'bn', 'embeddings', 'LayerNorm', 'norm']):
                     model.set_mask(layer, mask)
                 mask = mask.cpu()
             model.load_state_dict(base_ckpt['state_dict']) 
@@ -134,7 +134,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
             # Reload random inits with pruned weights (that were prnued after fting) 0'd out
             model.load_state_dict(base_ckpt['state_dict'])  
             final_weights_pruned = prune_utils.percent_pruned_weights(model)
-            logger.info(f"After appling mask % Pruned: {final_weights_pruned}")
+            logger.info(f"After appling mask % Pruned: {final_weights_pruned}")'''
             model.cpu()
             
             
@@ -151,6 +151,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         prune_metrics_dir = os.path.join(prune_metrics_dir_base, f"{prune_iter}_Pruning_Iter")
         os.makedirs(prune_metrics_dir, exist_ok=True)
 
+        
         # Finetune the model (it will save the best version)
         #EDIT: Adding baseline_acc as an argument
         print(f"Finetuning at iteration : {prune_iter}")

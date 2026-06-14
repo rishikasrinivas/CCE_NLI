@@ -411,7 +411,7 @@ class CoFiTrainer(Trainer):
         resumed = False
         
         
-        pruning_epochs =int(num_train_epochs)//2
+        pruning_epochs =int(num_train_epochs)//2 
         
         
         if epochs_trained < pruning_epochs:
@@ -479,6 +479,10 @@ class CoFiTrainer(Trainer):
                 if self.start_prune:
                     zs = self.l0_module.forward(training=True) #! get the zs
                     self.fill_inputs_with_zs(zs, inputs) #! use the zs
+                elif epoch >= pruning_epochs:
+                    zs = self.l0_module.forward(training=False) #! get the zs
+                    self.fill_inputs_with_zs(zs, inputs) #! use the zs
+                    
               
  
       
@@ -655,7 +659,7 @@ class CoFiTrainer(Trainer):
         disable_tqdm = not self.is_local_process_zero() or self.args.disable_tqdm
 
         zs = None
-        if self.start_prune:
+        if self.start_prune or self.epoch >= 5:
             self.l0_module.eval()
             zs = self.l0_module.forward(training=False)
 
