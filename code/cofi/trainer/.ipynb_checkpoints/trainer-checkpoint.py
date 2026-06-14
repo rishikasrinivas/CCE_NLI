@@ -417,7 +417,7 @@ class CoFiTrainer(Trainer):
         if epochs_trained < pruning_epochs:
             resumed = self.resume_from()
             if resumed:
-                epochs_trained = self.epoch
+                epochs_trained = int(self.epoch)
         print(f"Will prune for {pruning_epochs} total, finetune for {num_train_epochs-pruning_epochs}. Have completed {epochs_trained} from ckpt")
         self.evaluate()
         for epoch in range(epochs_trained,int(num_train_epochs)): #! 20 epoch
@@ -427,7 +427,13 @@ class CoFiTrainer(Trainer):
                 self.student_optimizer = None
                 self.lr_scheduler = None
                 lr_steps = self.t_total - self.global_step
+                assert lr_steps>0, f'total is {self.t_total} and current global is {self.global_step}'
+                
                 self.create_optimizer_and_scheduler(lr_steps, self.start_prune)
+                if self.l0_module is not None:
+                    self.l0_module.eval()
+                    for p in self.l0_module.parameters():
+                        p.requires_grad_(False)
             else:
                 print("Using existing optimizer/schedulers/L0")
             if epoch >= pruning_epochs: assert not self.start_prune, f'Pruning is on when it should be only finetuning'
