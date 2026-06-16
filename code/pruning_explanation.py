@@ -63,9 +63,11 @@ def main(args):
     if args.pruning_method == 'cofi':
         logger.info(f"Loading zs for {args.pruning_method}")
         zs_path= os.path.join(args.model_type.upper(), "models", args.pruning_method, args.filename, '0_Pruning_Iter/zs.pt')
+      
         zs = torch.load(zs_path)
+    print(args.ckpt)
     model,ckpt = train_utils.load_model(model_type=args.model_type, pruning_method=args.pruning_method, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=args.ckpt, device=device, zs=zs)
-    
+    print("Got model")
     # ==== BUILD VOCAB ====
     logger.info(f"Using {ckpt} for vocab (one-time)")
     base_ckpt=torch.load(ckpt, map_location = torch.device(device)) #trained bowman/bert 

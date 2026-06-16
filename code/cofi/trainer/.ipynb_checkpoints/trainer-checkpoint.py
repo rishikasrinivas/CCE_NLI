@@ -322,7 +322,7 @@ class CoFiTrainer(Trainer):
         print("created optimizer")
                 
     def ready_to_save(self):
-        return self.pruned_sparsity >= self.additional_args.target_sparsity and abs(self.expected_sparsity - self.additional_args.target_sparsity) <= self.additional_args.sparsity_epsilon
+        return abs(self.expected_sparsity - self.additional_args.target_sparsity) <= self.additional_args.sparsity_epsilon
     
     def train(self, using_trained_student=True):
         

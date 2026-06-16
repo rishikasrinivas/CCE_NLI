@@ -77,7 +77,7 @@ def main(args):
     print(f"Running on {device}")
     
     logger.info("Instantiating Pruner")
-    pruner = Pruner_(model)
+    pruner = Pruner_(model, device)
 
     logger.info("Starting Pruning")
     return run_prune(
@@ -119,10 +119,10 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
             model.load_state_dict(base_ckpt['state_dict']) 
             
             
-            for layer in state_dict.keys():
+            for layer in pruner.prunable_layers:
                 mask = get_mask(state_dict[layer])
                 base_ckpt['state_dict'][layer] *= mask
-                if not any(kw in layer for kw in ['bias', 'bn', 'embeddings', 'LayerNorm', 'norm']):
+                if not any(kw in layer for kw in ['bias', 'bn', 'embeddings', 'LayerNorm', 'norm', 'embed']):
                     model.set_mask(layer, mask)
                 mask = mask.cpu()
             model.load_state_dict(base_ckpt['state_dict']) 
@@ -133,11 +133,13 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
 
             # Reload random inits with pruned weights (that were prnued after fting) 0'd out
             model.load_state_dict(base_ckpt['state_dict'])  
+           
+            
             final_weights_pruned = prune_utils.percent_pruned_weights(model)
-            logger.info(f"After appling mask % Pruned: {final_weights_pruned}")
+            print(f"After appling mask % Pruned: {final_weights_pruned}")
             model.cpu()
             
-            
+    #model.load_state_dict(torch.load("/workspace/CCE_NLI/LLAMA/models/lottery_ticket/Run1/1_Pruning_Iter/model_best.pth")['state_dict'])
     logger.info(f"Starting pruning from start_idx: {start_idx}")
     for prune_iter in range(start_idx, args.prune_iters):
         logger.info(f"\n--- Pruning Iteration {prune_iter} / {args.prune_iters} ---")

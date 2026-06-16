@@ -784,7 +784,7 @@ def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, sav
     
         activs = build_masks(activations, activation_ranges, settings.NUM_CLUSTERS, save_masks_dir) #how many ones per mask
         
-        
+    return {}
     for cluster_num in range(1,settings.NUM_CLUSTERS+1): 
         if masks_saved:
             print(f"{cluster_num} found : {f'Cluster{cluster_num}masks.pt' in os.listdir(save_masks_dir)}")

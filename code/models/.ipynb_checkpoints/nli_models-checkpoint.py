@@ -157,7 +157,7 @@ class BaseModel(torch.nn.Module):
             pruning_mask = pruning_mask.to(device)  # pylint: disable=no-member
             # Adds the layer to the internal list of layers
          
-        
+            
             self.layers.append(Layer(parameter_name, weights, init_weights, pruning_mask, is_pruned=False))
         
             
@@ -198,7 +198,7 @@ class BaseModel(torch.nn.Module):
         layer.pruning_mask = mask.to(device=layer.weights.device, dtype=torch.bool)
         layer.is_pruned = bool((~layer.pruning_mask).any().item())
         
-    def update_layer_weights(self, mask, layer_name: str, new_weights: torch.Tensor) -> None:
+    def update_layer_weights(self, mask, layer_name: str, new_weights: torch.Tensor, pruned: bool) -> None:
         """Updates the weights of the specified layer.
 
         Args:
@@ -210,9 +210,13 @@ class BaseModel(torch.nn.Module):
         with torch.no_grad():
             # Update the layer weights
             self.state_dict()[layer_name].copy_(new_weights)
-            self.get_layer(layer_name).weights.copy_(new_weights)
+            layer=self.get_layer(layer_name)
+            layer.weights.copy_(new_weights)
     
-            self.get_layer(layer_name).pruning_mask.copy_(mask)
+            layer.pruning_mask.copy_(mask)
+            if pruned:
+                layer.is_pruned=pruned
+                
         
     def get_total_num_weights(self):
         terms =0

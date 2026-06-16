@@ -261,11 +261,11 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
     if model_type in ['bert', 'llama'] and training:
         num_training_steps = len(dataloaders['train']) * total_epochs
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=num_training_steps)
+        
     loss_meter = util.AverageMeter()
     acc_meter = util.AverageMeter()
 
-    
-    
+   
     for batch in ranger:
        
         if pruning_method != 'CoFi':
@@ -302,16 +302,19 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
         if training:
             optimizer.zero_grad()
             
+            
             # CORRECTED: Use standard loss.backward()
             loss.backward()
          
             if hasattr(model, "layers"):
                 for layer in model.layers:
-                    if not getattr(layer, "is_pruned", False):
+                    if not layer.is_pruned:
                         continue
                     if layer.weights.grad is not None:
-                        layer.weights.grad.masked_fill_(~layer.pruning_mask, 0)
                         
+                        layer.weights.grad.masked_fill_(~layer.pruning_mask, 0)
+                    
+                    
          
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
            
@@ -415,10 +418,10 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
         device=device,
         is_cofi=cofi
     )
-    
+    print(ckpt)
     if ckpt and os.path.exists(ckpt): #and not cofi
         if zs or cofi:
-            print(f"Loading zs")
+            print(f"Loading model from {ckpt}")
             model = cofi_utils.load_model_with_zs(ckpt, model, zs=zs, train_data=train, ckpt=ckpt,  encoder=tokenizer, device=device)
         else:
             print(f"Loading from checkpoint (no zs): {ckpt}")
