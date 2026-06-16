@@ -77,7 +77,7 @@ def main(args):
     print(f"Running on {device}")
     
     logger.info("Instantiating Pruner")
-    pruner = Pruner_(model, device)
+    pruner = Pruner_(model)
 
     logger.info("Starting Pruning")
     return run_prune(
