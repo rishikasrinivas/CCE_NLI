@@ -144,7 +144,9 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
     for prune_iter in range(start_idx, args.prune_iters):
         logger.info(f"\n--- Pruning Iteration {prune_iter} / {args.prune_iters} ---")
         logger.info(f"Baseline Accuracy : {baseline_acc}")
-        
+        baseline_acc = 0.8495071639061071
+        baseckpt_acc = train_utils.run_eval(model, dataloaders['val'], args.model_type, 'lottery_ticket', device=device)
+        print(f"After reinitializing, acc is {baseckpt_acc}")
         # Re-initialize the optimizer at the start of each finetuning run
         optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8) if args.model_type in ['bert', 'llama'] else optim.Adam(model.parameters())
         model.to(device)
@@ -167,6 +169,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         final_acc = train_utils.run_eval(model, dataloaders['val'], args.model_type, 'lottery_ticket', device=device)
         if prune_iter == 0: baseline_acc = final_acc
         final_weights_pruned = prune_utils.percent_pruned_weights(model)
+        train_utils.zip_directory(prune_metrics_dir, f'/tutorial/{args.model_type}/lottery_ticket/{prune_iter}_Pruning_Iter')
         
         logger.info(f"Iteration {prune_iter}: Percent Pruned: {final_weights_pruned:.2f}% | Validation Accuracy: {final_acc:.3f}")
         pruned_percents.append(final_weights_pruned)

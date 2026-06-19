@@ -335,6 +335,7 @@ def main():
             tokenizer.save_pretrained(training_args.output_dir)
        
         print(trainer.evaluate())
+    train_utils.zip_directory(training_args.output_dir, f'/tutorial/{additional_args.model_name}/CoFi/Run1/3_Pruning_Iter')
 
     
 

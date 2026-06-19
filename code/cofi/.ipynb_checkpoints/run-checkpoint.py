@@ -342,6 +342,11 @@ def main():
             tokenizer.save_pretrained(training_args.output_dir)
        
         print(trainer.evaluate())
+    
+    train_utils.zip_directory(
+        src_dir=training_args.output_dir,
+        output_zip_path=f"/tutorial/{additional_args.model_name}/cofi_{additional_args.target_sparsity}.zip",
+    )
 
     
 

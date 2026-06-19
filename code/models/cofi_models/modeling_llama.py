@@ -14,7 +14,7 @@ from llm2vec.models.bidirectional_llama import LlamaBiModel, ModifiedLlamaDecode
 from transformers.trainer import Trainer
 from transformers.training_args import TrainingArguments
 from cofi.utils.cofi_utils import *
-from flash_attn import flash_attn_func
+
 from torch.cuda.amp import autocast
 logger = logging.getLogger(__name__)
 
@@ -81,10 +81,6 @@ class CoFiLlamaRMSNorm(nn.Module):
             output = output.mul(hidden_z)
         return output
 
-       
-
-from flash_attn import flash_attn_varlen_func
-from flash_attn.bert_padding import unpad_input, pad_input
 
 
 def flash_attn_encoder_forward(q, k, v, padding_mask, dropout_p=0.0, softmax_scale=None):
@@ -834,83 +830,82 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         qk_head_dim_z=None,
         vo_head_dim_z=None,
     ):
-        
-        with autocast():
-            outputs_pre = self.model(
-                pre_input_ids,
-                attention_mask=pre_attention_mask,
-                position_ids=position_ids,
-                inputs_embeds=inputs_embeds,
-                output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
-                head_z=head_z,
-                head_layer_z=head_layer_z,
-                intermediate_z=intermediate_z,
-                mlp_z=mlp_z,
-                hidden_z=hidden_z,
-                qk_head_dim_z=qk_head_dim_z,
-                vo_head_dim_z=vo_head_dim_z,
+
+        outputs_pre = self.model(
+            pre_input_ids,
+            attention_mask=pre_attention_mask,
+            position_ids=position_ids,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            head_z=head_z,
+            head_layer_z=head_layer_z,
+            intermediate_z=intermediate_z,
+            mlp_z=mlp_z,
+            hidden_z=hidden_z,
+            qk_head_dim_z=qk_head_dim_z,
+            vo_head_dim_z=vo_head_dim_z,
+        )
+
+        outputs_hyp = self.model(
+            hyp_input_ids,
+            attention_mask=hyp_attention_mask,
+            position_ids=position_ids,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            head_z=head_z,
+            head_layer_z=head_layer_z,
+            intermediate_z=intermediate_z,
+            mlp_z=mlp_z,
+            hidden_z=hidden_z,
+            qk_head_dim_z=qk_head_dim_z,
+            vo_head_dim_z=vo_head_dim_z,
+        )
+
+        pre_out = self.masked_mean_pool(outputs_pre, pre_attention_mask).float()
+        hyp_out = self.masked_mean_pool(outputs_hyp, hyp_attention_mask).float()
+
+        diffs = pre_out - hyp_out
+        prods = pre_out * hyp_out
+
+        mlp_input = torch.cat([pre_out, hyp_out, diffs, prods], dim=1).float()
+
+        if final_mlp_inp_z is not None:
+            mlp_input = mlp_input * final_mlp_inp_z.to(
+                device=mlp_input.device,
+                dtype=mlp_input.dtype,
             )
 
-            outputs_hyp = self.model(
-                hyp_input_ids,
-                attention_mask=hyp_attention_mask,
-                position_ids=position_ids,
-                inputs_embeds=inputs_embeds,
-                output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
-                head_z=head_z,
-                head_layer_z=head_layer_z,
-                intermediate_z=intermediate_z,
-                mlp_z=mlp_z,
-                hidden_z=hidden_z,
-                qk_head_dim_z=qk_head_dim_z,
-                vo_head_dim_z=vo_head_dim_z,
+        mlp_input = self.bn(mlp_input)
+        mlp_input = self.dropout(mlp_input)
+
+        mlp_unpacked = list(self.mlp)
+
+        pre_final_layer_reps = mlp_input
+
+        mlp_input = mlp_unpacked[0](mlp_input)
+        mlp_input = mlp_unpacked[1](mlp_input)
+        mlp_input = mlp_unpacked[2](mlp_input)
+
+        final_layer_reps = mlp_input
+
+        if final_mlp_hidden_z is not None:
+            mlp_input = mlp_input * final_mlp_hidden_z.to(
+                device=mlp_input.device,
+                dtype=mlp_input.dtype,
             )
-            
-            pre_out = self.masked_mean_pool(outputs_pre, pre_attention_mask).float()
-            hyp_out = self.masked_mean_pool(outputs_hyp, hyp_attention_mask).float()
 
-            diffs = pre_out - hyp_out
-            prods = pre_out * hyp_out
+        logits = mlp_unpacked[3](mlp_input)
+        pooled_logits = logits
 
-            mlp_input = torch.cat([pre_out, hyp_out, diffs, prods], dim=1).float()
-
-            if final_mlp_inp_z is not None:
-                mlp_input = mlp_input * final_mlp_inp_z.to(
-                    device=mlp_input.device,
-                    dtype=mlp_input.dtype,
-                )
-
-            mlp_input = self.bn(mlp_input)
-            mlp_input = self.dropout(mlp_input)
-
-            mlp_unpacked = list(self.mlp)
-
-            pre_final_layer_reps = mlp_input
-
-            mlp_input = mlp_unpacked[0](mlp_input)
-            mlp_input = mlp_unpacked[1](mlp_input)
-            mlp_input = mlp_unpacked[2](mlp_input)
-
-            final_layer_reps = mlp_input
-
-            if final_mlp_hidden_z is not None:
-                mlp_input = mlp_input * final_mlp_hidden_z.to(
-                    device=mlp_input.device,
-                    dtype=mlp_input.dtype,
-                )
-
-            logits = mlp_unpacked[3](mlp_input)
-            pooled_logits = logits
-
-            loss = None
-            if labels is not None:
-                loss_fct = CrossEntropyLoss()
-                loss = loss_fct(
-                    pooled_logits.view(-1, self.num_labels),
-                    labels.view(-1),
-                )
+        loss = None
+        if labels is not None:
+            loss_fct = CrossEntropyLoss()
+            loss = loss_fct(
+                pooled_logits.view(-1, self.num_labels),
+                labels.view(-1),
+            )
 
         return SequenceClassifierOutputWithPast(
             loss=loss,

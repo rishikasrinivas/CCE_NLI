@@ -89,7 +89,7 @@ def create_dataloaders(max_data, model_type, pruning_method, debug=False):
         os.makedirs(train_batch_dir, exist_ok=True)
         os.makedirs(val_batch_dir, exist_ok=True)
 
-        tokenizer_name = "bert-base-uncased" if model_type == 'bert' else "princeton-nlp/Sheared-LLaMA-1.3B"
+        tokenizer_name = "bert-base-uncased" if model_type == 'bert' else "knowledgator/Sheared-LLaMA-encoder-1.3B"
         tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
         if tokenizer.pad_token is None:
             tokenizer.add_special_tokens({'pad_token': tokenizer.eos_token})
@@ -514,4 +514,26 @@ def run_eval(model, val_loader, model_type, pruning_method, device):
     all_targets = np.concatenate(all_targets, 0)
     acc = (all_preds == all_targets).mean()
     return np.round(acc, 3)
+
+
+from pathlib import Path
+import shutil
+
+def zip_directory(src_dir, output_zip_path):
+    src_dir = Path(src_dir).expanduser().resolve()
+    output_zip_path = Path(output_zip_path).expanduser().resolve()
+
+    output_zip_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # shutil.make_archive wants path without ".zip"
+    archive_base = output_zip_path.with_suffix("")
+
+    zip_path = shutil.make_archive(
+        base_name=str(archive_base),
+        format="zip",
+        root_dir=str(src_dir.parent),
+        base_dir=src_dir.name,
+    )
+
+    return zip_path
 
