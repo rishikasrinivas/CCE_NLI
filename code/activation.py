@@ -60,7 +60,7 @@ def save_features(
     if model_type in ['bert', 'llama']:
         itos=train.itos
 
-        model_name = "bert-base-uncased" if model_type == 'bert' else "knowledgator/Llama-encoder-1.0B"
+        model_name = "bert-base-uncased" if model_type == 'bert' else "knowledgator/Sheared-LLaMA-encoder-1.3B"
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         if tokenizer.pad_token is None:
             tokenizer.pad_token  = tokenizer.eos_token 
