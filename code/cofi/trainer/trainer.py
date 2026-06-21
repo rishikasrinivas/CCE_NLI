@@ -930,7 +930,6 @@ class CoFiTrainer(Trainer):
                 student_pre_layer_output = student_outputs.hidden_states[0][1:] 
                 student_hyp_layer_output = student_outputs.hidden_states[1][1:] 
                 
-
                 
                 
             else:

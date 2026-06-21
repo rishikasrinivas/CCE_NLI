@@ -465,6 +465,7 @@ def extract_features(
             all_states = pickle.load(file)
     except:
         assert model, f"Must define a model"
+
         all_states = activation.save_features(
             model.to(device),
             model_name,
@@ -768,6 +769,7 @@ import pickle
 def clustered_NLI(tok_feats, tok_feats_vocab,states,feats, weights, dataset, save_exp_dir, save_masks_dir, formula_masks, masks_saved, debug):
     activations= torch.from_numpy(np.array(states)).t() #1024x10000
     formula_masks = {}
+    print("creating masks")
     if not masks_saved:
         print("creating masks storing in ",save_masks_dir )#check how many ones per row here
         
@@ -937,7 +939,7 @@ def oldmain():
 
         masks_saved = os.path.exists(save_masks_dir)
         assert masks_saved, f"Cannot find masks in {save_masks_dir}"
-
+        assert args.pruning_method=='CoFi', f'{args.pruning_method}'
         formula_masks = initiate_exp_run(
             model_type=args.model_type, 
             save_exp_dir = save_exp_dir,  
@@ -970,59 +972,63 @@ def main():
     )
     parser.add_argument("--model_type", default="bert", choices=["bowman", "llama", "bert"])
     parser.add_argument("--filename", default="singlecuster_withmask")
+    parser.add_argument("--pruning_method", default="wanda")
     
     
     
     args = parser.parse_args()
 
-    root = os.path.join(args.model_type.upper(), "models", f"{args.filename}")
-    path_to_activations = os.path.join(args.model_type.upper(), "activations", f"{args.filename}")
-    path_to_formula_masks = os.path.join(args.model_type.upper(), "formula_masks",  f"{args.filename}")
+    root = os.path.join(args.model_type.upper(), "models", args.pruning_method, f"{args.filename}")
+    path_to_activations = os.path.join(args.model_type.upper(), "activations", args.pruning_method, f"{args.filename}")
+    path_to_formula_masks = os.path.join(args.model_type.upper(), "formula_masks",  args.pruning_method, f"{args.filename}")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     os.makedirs(path_to_activations, exist_ok=True)
     os.makedirs(path_to_formula_masks, exist_ok=True)
-    
+    print(f"root: {root}\nactivaiton_path: {path_to_activations}\nformulamask: {path_to_formula_masks}\n")
 
       
-    train,val ,dataloaders=train_utils.create_dataloaders(model_type=args.model_type, max_data=None, pruning_method='wanda')
+    train,val ,dataloaders=train_utils.create_dataloaders(model_type=args.model_type, max_data=None, pruning_method=args.pruning_method)
     zs=None
     
-    
-    path_to_model='/workspace/CCE_NLI/BERT/models/lottery_ticket/Run0.25_5/0_Pruning_Iter/model_best.pth'
-    model,_ = train_utils.load_model(model_type=args.model_type, pruning_method='wanda', use_pretrained_weights = True, train=train, ckpt=path_to_model, device=device, zs=zs)
+    for pi in os.listdir(root):
+        if '.pth'  in pi or '.ipy' in pi: continue
+        path_to_model=os.path.join(root, pi, 'model_best.pth')
+        model,_ = train_utils.load_model(model_type=args.model_type, pruning_method=args.pruning_method, use_pretrained_weights = True, train=train, ckpt=path_to_model, device=device, zs=zs)
 
-    # ==== BUILD VOCAB ====
-    vocab = {"itos": train.itos, "stoi": train.stoi}
+        # ==== BUILD VOCAB ====
+        vocab = {"itos": train.itos, "stoi": train.stoi}
 
-    with open(settings.DATA, "r") as f:
-        lines = f.readlines()
+        with open(settings.DATA, "r") as f:
+            lines = f.readlines()
 
-    dataset = analysis.AnalysisDataset(lines, vocab)
-    save_exp_dir = f"./{args.model_type.upper()}/exp/{args.filename}/Expls/"
-    save_masks_dir= f"./{args.model_type.upper()}/exp/{args.filename}/Masks/"
-    activations_dir = f"./{args.model_type.upper()}/activations/{args.filename}"
-    device = 'cuda' if settings.CUDA else 'cpu' 
+        dataset = analysis.AnalysisDataset(lines, vocab)
+        save_exp_dir = f"./{args.model_type.upper()}/exp/{args.pruning_method}/{args.filename}/{pi}/Expls/"
+        save_masks_dir= f"./{args.model_type.upper()}/exp/{args.pruning_method}/{args.filename}/{pi}/Masks/"
+        activations_dir = f"./{args.model_type.upper()}/activations/{args.pruning_method}/{args.filename}/{pi}/"
+        device = 'cuda' if settings.CUDA else 'cpu' 
+        print(f"save_exp_dir: {save_exp_dir}\nsave_masks_dir: {save_masks_dir}\nactivations_dir: {activations_dir}\n")
+        
 
-    masks_saved = os.path.exists(save_masks_dir)
+        masks_saved = os.path.exists(save_masks_dir)
 
-    formula_masks = initiate_exp_run(
-        model_type=args.model_type, 
-        save_exp_dir = save_exp_dir,  
-        save_masks_dir= save_masks_dir, 
-        masks_saved=masks_saved,
-        model_=model, 
-        dataset=dataset, 
-        train=train,
-        activations_dir = activations_dir, 
-        device='cpu', 
-        validation=dataloaders['val'],
-        is_cofi=False
-    )
+        formula_masks = initiate_exp_run(
+            model_type=args.model_type, 
+            save_exp_dir = save_exp_dir,  
+            save_masks_dir= save_masks_dir, 
+            masks_saved=masks_saved,
+            model_=model, 
+            dataset=dataset, 
+            train=train,
+            activations_dir = activations_dir, 
+            device='cpu', 
+            validation=dataloaders['val'],
+            is_cofi=args.pruning_method=='CoFi'
+        )
 
-    with open(os.path.join(path_to_formula_masks, "formula_masks.json"), "w") as f:
-        json.dump(formula_masks, f)
-    #alignment.calculate_alignment(formula_masks, f"{args.model_type.upper()}/overlap/{args.filename}_formulalen2") 
+        #with open(os.path.join(path_to_formula_masks, pi, "formula_masks.json"), "w") as f:
+            #json.dump(formula_masks, f)
+        #alignment.calculate_alignment(formula_masks, f"{args.model_type.upper()}/overlap/{args.filename}_formulalen2") 
     
     
 

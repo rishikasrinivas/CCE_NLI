@@ -214,7 +214,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
 
 
         # eager expects [B, H, S, D] and 4D additive mask
-        attn_output, attn_weights = eager_attention_forward(
+        '''attn_output, attn_weights = eager_attention_forward(
             self,
             query_states,
             key_states,
@@ -222,9 +222,35 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
             attention_mask,
             dropout=dropout_p,
             scaling=self.scaling,
-            **kwargs,
-        )
+            **kwargs)
+    
+        '''
+        attn_weights=None
+        causal_mask = attention_mask
+        if attention_mask is not None:
+            causal_mask = causal_mask[:, :, :, : key_states.shape[-2]]
+        
+        if query_states.device.type == "cuda" and causal_mask is not None:
+            query_states = query_states.contiguous()
+            key_states = key_states.contiguous()
+            value_states = value_states.contiguous()
 
+        # We dispatch to SDPA's Flash Attention or Efficient kernels via this `is_causal` if statement instead of an inline conditional assignment
+        # in SDPA to support both torch.compile's dynamic shapes and full graph options. An inline conditional prevents dynamic shapes from compiling.
+        is_causal = True if causal_mask is None and q_len > 1 else False
+        attn_output = torch.nn.functional.scaled_dot_product_attention(
+            query_states,
+            key_states,
+            value_states,
+            attn_mask=causal_mask,
+            dropout_p=self.attention_dropout if self.training else 0.0,
+            is_causal=is_causal,
+        )
+        attn_output = attn_output.transpose(1,2).contiguous()
+        #print("SFPA attn out shape ", attn_output.shape) #SFPA attn out shape  torch.Size([32, 16, 29, 128])
+        
+        
+        #print("EAGER OUTPUT SHAP ",attn_output.shape ) #EAGER OUTPUT SHAP  torch.Size([32, 18, 16, 128])
         # eager returns [B, S, H, D]
         # so head_z can be applied directly
         if head_z is not None:
@@ -406,7 +432,7 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
             hidden_states = residual + mlp_out
 
 
-        return (hidden_states, attn_weights) if output_attentions else (hidden_states,)
+        return (hidden_states,)
      
 
 
@@ -514,7 +540,9 @@ class CoFiLlamaBiModel(LlamaBiModel):
    
     ):
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        
         output_hidden_states = output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        
         use_cache = use_cache if use_cache is not None else self.config.use_cache
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
         
@@ -569,6 +597,7 @@ class CoFiLlamaBiModel(LlamaBiModel):
             if output_hidden_states:  
                 all_hidden_states = all_hidden_states + (hidden_states,)
             
+            
             # Get layer-specific masks
             layer_head_z = head_z[idx] if head_z is not None else None
             layer_head_layer_z = head_layer_z[idx] if head_layer_z is not None else None
@@ -615,14 +644,13 @@ class CoFiLlamaBiModel(LlamaBiModel):
             hidden_states = layer_outputs[0]
             #print("hidden state after dec ", hidden_states.dtype)
             
-            if output_attentions:
-                all_self_attns = all_self_attns + (layer_outputs[1],)
         
         # Final norm
         
         
         if output_hidden_states:
             all_hidden_states = all_hidden_states + (hidden_states,)  
+        
         hidden_states = self.norm(hidden_states, hidden_z)
         
 
@@ -758,7 +786,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         # -----------------------
         print("Loading HF ", kwargs['hf_name'])
         
-        hf_encoder = LlamaBiModel.from_pretrained(kwargs["hf_name"], attn_implementation='flash_attention_2').to(kwargs['device'])
+        hf_encoder = LlamaBiModel.from_pretrained(kwargs["hf_name"]).to(kwargs['device'])
 
         hf_state = hf_encoder.state_dict()
         model_state = model.state_dict()
@@ -911,7 +939,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             loss=loss,
             logits=(pre_final_layer_reps, final_layer_reps, pooled_logits),
             hidden_states=(outputs_pre.hidden_states, outputs_hyp.hidden_states),
-            attentions=(outputs_pre.attentions, outputs_hyp.attentions),
+            
         )
     '''def forward(
             self,

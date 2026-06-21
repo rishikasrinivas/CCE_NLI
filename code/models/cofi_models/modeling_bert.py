@@ -177,7 +177,6 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
             position_ids=None,
             inputs_embeds=None,
             labels=None,
-            output_attentions=None,
             output_hidden_states=None,
             return_dict=None,
             head_z=None,
@@ -198,7 +197,6 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
             token_type_ids=token_type_ids,
             position_ids=position_ids,
             inputs_embeds=inputs_embeds,
-            output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             head_z=head_z,
@@ -215,7 +213,6 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
             token_type_ids=token_type_ids,
             position_ids=position_ids,
             inputs_embeds=inputs_embeds,
-            output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             head_z=head_z,
@@ -297,7 +294,6 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
             position_ids=None,
             inputs_embeds=None,
             labels=None,
-            output_attentions=None,
             output_hidden_states=None,
             return_dict=None,
            
@@ -311,7 +307,6 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
             token_type_ids=token_type_ids,
             position_ids=position_ids,
             inputs_embeds=inputs_embeds,
-            output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         ) #! [32, 68, 768]
@@ -323,7 +318,6 @@ class CoFiBertForSequenceClassification(BertForSequenceClassification):
             token_type_ids=token_type_ids,
             position_ids=position_ids,
             inputs_embeds=inputs_embeds,
-            output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
@@ -406,7 +400,7 @@ class CoFiBertModel(BertModel):
         inputs_embeds=None,
         encoder_hidden_states=None,
         encoder_attention_mask=None,
-        output_attentions=None,
+        
         output_hidden_states=None,
         return_dict=None,
         head_layer_z=None,
@@ -418,12 +412,11 @@ class CoFiBertModel(BertModel):
     
         
       
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+       
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
-        assert output_attentions is not None, "output attention is none"
-        assert output_hidden_states is not None, "output_hidden_states is none"
+        
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         if input_ids is not None and inputs_embeds is not None:
@@ -463,7 +456,7 @@ class CoFiBertModel(BertModel):
             embedding_output,
             attention_mask=extended_attention_mask,
             encoder_hidden_states=encoder_hidden_states,
-            output_attentions=True,
+       
             output_hidden_states=True,
             return_dict=return_dict,
             intermediate_z=intermediate_z,
@@ -500,7 +493,7 @@ class CoFiBertEncoder(BertEncoder):
         attention_mask=None,
         encoder_hidden_states=None,
         encoder_attention_mask=None,
-        output_attentions=False,
+        
         output_hidden_states=False,
         return_dict=False,
         head_z=None,
@@ -510,7 +503,7 @@ class CoFiBertEncoder(BertEncoder):
         hidden_z=None
     ):
         all_hidden_states = () if output_hidden_states else None
-        all_attentions = () if output_attentions else None
+        all_attentions = () 
         for i, layer_module in enumerate(self.layer):
             if output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_states,)
@@ -518,7 +511,6 @@ class CoFiBertEncoder(BertEncoder):
             layer_outputs = layer_module(
                 hidden_states,
                 attention_mask,
-                output_attentions,
                 intermediate_z=intermediate_z[i] if intermediate_z is not None else None,
                 head_z=head_z[i] if head_z is not None else None,
                 mlp_z=mlp_z[i] if mlp_z is not None else None,
@@ -526,8 +518,8 @@ class CoFiBertEncoder(BertEncoder):
                 hidden_z=hidden_z
             )
             hidden_states = layer_outputs[0]
-            if output_attentions:
-                all_attentions = all_attentions + (layer_outputs[1],)
+            #if output_attentions:
+                #all_attentions = all_attentions + (layer_outputs[1],)
 
         if output_hidden_states:
             all_hidden_states = all_hidden_states + (hidden_states,)
@@ -549,7 +541,6 @@ class CoFiBertLayer(BertLayer):
         self,
         hidden_states,
         attention_mask=None,
-        output_attentions=False,
         head_z=None,
         head_layer_z=None,
         intermediate_z=None,
@@ -559,7 +550,6 @@ class CoFiBertLayer(BertLayer):
         self_attention_outputs = self.attention(
             hidden_states,
             attention_mask,
-            output_attentions=output_attentions,
             head_z=head_z,
             head_layer_z=head_layer_z,
             hidden_z=hidden_z
@@ -628,7 +618,6 @@ class CoFiBertAttention(BertAttention):
         self,
         hidden_states,
         attention_mask=None,
-        output_attentions=False,
         head_z=None,
         head_layer_z=None,
         hidden_z=None
@@ -636,7 +625,6 @@ class CoFiBertAttention(BertAttention):
         self_outputs = self.self(
             hidden_states,
             attention_mask,
-            output_attentions,
             head_z=head_z,
         )
 
@@ -679,11 +667,11 @@ class CoFiBertSdpaSelfAttention(BertSdpaSelfAttention):
         self,
         hidden_states: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
-        head_mask: Optional[torch.FloatTensor] = None,
+        
         encoder_hidden_states: Optional[torch.FloatTensor] = None,
         encoder_attention_mask: Optional[torch.FloatTensor] = None,
         past_key_value: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-        output_attentions: Optional[bool] = False,
+       
         head_z: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor]:
         
@@ -694,15 +682,15 @@ class CoFiBertSdpaSelfAttention(BertSdpaSelfAttention):
         if head_z is None:
             # No pruning, just use parent
             return super().forward(
-                hidden_states, attention_mask, head_mask, encoder_hidden_states,
-                encoder_attention_mask, past_key_value, output_attentions
+                hidden_states, attention_mask, encoder_hidden_states,
+                encoder_attention_mask, past_key_value, 
             )
         
         # With pruning, we need to get the attention output and apply head_z
         # Most efficient: call parent, then reshape and apply mask
         outputs = super().forward(
-            hidden_states, attention_mask, head_mask, encoder_hidden_states,
-            encoder_attention_mask, past_key_value, output_attentions
+            hidden_states, attention_mask,  encoder_hidden_states,
+            encoder_attention_mask, past_key_value,
         )
         
         # Apply head_z to the attention output
