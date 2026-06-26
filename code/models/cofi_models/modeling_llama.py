@@ -771,6 +771,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             
             return model, trained
         elif os.path.exists(kwargs['ckpt']):
+            print(f"Loading from {kwargs['ckpt']}")
             weights = torch.load(kwargs['ckpt'], map_location=kwargs['device'])['state_dict']
             model.load_state_dict(weights, strict=False)
             assert trained==False

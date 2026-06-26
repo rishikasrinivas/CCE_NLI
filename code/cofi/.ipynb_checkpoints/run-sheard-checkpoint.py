@@ -126,12 +126,12 @@ def main():
     if model_args.model_name_or_path.startswith("bert"):
         Teach_Model = CoFiBertForSequenceClassification 
         Student_Model = CoFiBertForSequenceClassification 
-    elif model_args.model_name_or_path.startswith('knowledgator') or model_args.model_name_or_path.startswith('princ'):
+    elif model_args.model_name_or_path.startswith('knowledgator'):
         Teach_Model = CoFiLlamaForSequenceClassification
         Student_Model = CoFiLlamaForSequenceClassification
     # ======= Load the model params ========
     base_model_path = '/workspace/CCE_NLI/LLAMA/models/lottery_ticket/Run1/' #os.path.join(training_args.output_dir, 'model_best.pth')
-    pretrained_path = os.path.join(data_args.path_to_pretrained, f'{additional_args.model_name}_princeton_MAIN_pretrained_inits.pth')
+    pretrained_path = os.path.join(data_args.path_to_pretrained, f'{additional_args.model_name}_MAIN_pretrained_inits.pth')
     if additional_args.model_name in ['bert', 'llama']:
         config = AutoConfig.from_pretrained(
             model_args.model_name_or_path,
@@ -209,7 +209,7 @@ def main():
         hf_name = model_args.model_name_or_path,
         
     ) #! inside the function, we get the original struct  #! CofiBertForSequenceClassification
-    print(f'Loaded student model from : {student_path} to {student_model.device}')
+    print(f'Loaded student model from : {student_path} to {student_model.device}, trained? {trained_student}')
     LABEL_STOI = {"entailment": 0, "neutral": 1, "contradiction": 2}
     LABEL_ITOS = {v: k for k, v in LABEL_STOI.items()}
     if config:
