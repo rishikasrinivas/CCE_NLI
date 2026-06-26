@@ -214,8 +214,8 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
 
 
         # eager expects [B, H, S, D] and 4D additive mask
-        '''print("query ", query_states.shape) #torch.Size([32, 16, 31, 128])
-        attn_output, attn_weights = eager_attention_forward(
+        #print("query ", query_states.shape) #torch.Size([32, 16, 31, 128])
+        '''attn_output, attn_weights = eager_attention_forward(
             self,
             query_states,
             key_states,
@@ -239,7 +239,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
         # We dispatch to SDPA's Flash Attention or Efficient kernels via this `is_causal` if statement instead of an inline conditional assignment
         # in SDPA to support both torch.compile's dynamic shapes and full graph options. An inline conditional prevents dynamic shapes from compiling.
         is_causal = True if causal_mask is None and q_len > 1 else False
-        assert not is_causal
+     
         attn_output = torch.nn.functional.scaled_dot_product_attention(
             query_states,
             key_states,

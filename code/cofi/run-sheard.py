@@ -130,7 +130,7 @@ def main():
         Teach_Model = CoFiLlamaForSequenceClassification
         Student_Model = CoFiLlamaForSequenceClassification
     # ======= Load the model params ========
-    base_model_path = os.path.join(training_args.output_dir, 'model_best.pth')
+    base_model_path = '/workspace/CCE_NLI/LLAMA/models/lottery_ticket/Run1/' #os.path.join(training_args.output_dir, 'model_best.pth')
     pretrained_path = os.path.join(data_args.path_to_pretrained, f'{additional_args.model_name}_princeton_MAIN_pretrained_inits.pth')
     if additional_args.model_name in ['bert', 'llama']:
         config = AutoConfig.from_pretrained(
@@ -145,6 +145,7 @@ def main():
         if not os.path.exists(os.path.join(data_args.teacher_model_dir, 'config.json')):
             config.save_pretrained(os.path.join(training_args.output_dir, 'config.json'))
             print(f"Saved config to ", os.path.join(data_args.teacher_model_dir, 'config.json'))
+        
         
         tokenizer = AutoTokenizer.from_pretrained(
             model_args.model_name_or_path,
@@ -172,6 +173,7 @@ def main():
 
             )
             config.do_layer_distill = additional_args.do_layer_distill #! True
+            #config.output_hidden_states = True
             
     else:
         tokenizer_teacher = TextEncoder(len(vocab['stoi']))
@@ -187,6 +189,7 @@ def main():
             )
     if teacher_model:
         teacher_model.eval()
+    
         
  
    
@@ -335,7 +338,7 @@ def main():
             tokenizer.save_pretrained(training_args.output_dir)
        
         print(trainer.evaluate())
-    train_utils.zip_directory(training_args.output_dir, f'/tutorial/{additional_args.model_name}/CoFi/Run1/3_Pruning_Iter')
+    train_utils.zip_directory(training_args.output_dir, f'/tutorial/{additional_args.model_name}/CoFi/Run1/{training_args.output_dir.split("/")[-1]}')
 
     
 
