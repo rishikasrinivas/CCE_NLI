@@ -8,7 +8,12 @@ git clone https://github.com/rishikasrinivas/CCE_NLI.git
 git switch cofi_merging
 mkdir DataLoaders
 cd CCE_NLI
+./install_conda_env.sh
+pip install -r requirements.txt
 ./downloads.sh
+
+./scripts/runCoFi llama
+
 ```
 
 To run lottery ticket and wanda pruning

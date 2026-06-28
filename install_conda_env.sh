@@ -3,13 +3,13 @@
 # =========================
 
 # Download installer
-curl -LO https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+curl -LO https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh 
 
 # For Apple Silicon Mac (M1/M2/M3), use:
 # curl -LO https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh
 
 # Run installer
-bash Miniconda3-latest-*.sh
+bash Miniconda3-latest-*.sh -u
 
 # Reload shell
 source ~/.bashrc

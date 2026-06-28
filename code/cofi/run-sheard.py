@@ -229,8 +229,6 @@ def main():
     zs = None
     
     if additional_args.pretrained_pruned_model is not None:
-        #zs = load_zs(additional_args.pretrained_pruned_model)
-        #model = load_model(additional_args.pretrained_pruned_model, Model, zs)
         print(
             f"Model Size after pruning: {calculate_parameters(student_model)}")
 
@@ -302,13 +300,6 @@ def main():
         data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8)
     else:
         data_collator = None
-
-    logger.info(
-        f"************* {len(train)} Training Examples Loaded *************")
-    logger.info(
-        f"************* {len(val)} Evaluation Examples Loaded *************")
-
-    #model.load_state_dict(load_file("/workspace/CoFiPruning/out/MNLI/CoFi/MNLI_sparsity0.95/model.safetensors"))
    
 
     trainer = CoFiTrainer(
@@ -334,11 +325,13 @@ def main():
         trainer.train(using_trained_student=trained_student)
         
         if additional_args.target_sparsity > 0:
-            #trainer.save_model()
             tokenizer.save_pretrained(training_args.output_dir)
        
         print(trainer.evaluate())
-    train_utils.zip_directory(training_args.output_dir, f'/tutorial/{additional_args.model_name}/CoFi/Run1/{training_args.output_dir.split("/")[-1]}')
+        
+    weights_save_dir = f"/tutorial/{additional_args.model_name}/CoFi/{os.path.join(*training_args.output_dir.rstrip('/').split('/')[-2:])}"
+    os.makedir(weights_save_dir, exist_ok=True)
+    train_utils.zip_directory(training_args.output_dir, weights_save_dir)
 
     
 
