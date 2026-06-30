@@ -228,7 +228,7 @@ class CoFiTrainer(Trainer):
         # Initialize wandb at the start of training
         wandb.init(
             project="cofi-llama-distillation",
-            name=f"run_train-student-withdynacache-alpha0.1-{self.additional_args.layer_distill_version}",
+            name=f"llama reloading wole training state",
             config={
                 "layer_distill_version": self.additional_args.layer_distill_version,
                 "learning_rate": self.args.learning_rate,
@@ -428,7 +428,7 @@ class CoFiTrainer(Trainer):
                 epochs_trained = int(self.epoch)
             else:
                 path_to_student = "/".join(self.args.output_dir.split("/")[:-1])
-                os.makedirs(path_to_student, exist_ok=True)
+                os.makedirs(os.path.join(path_to_student, 'student'), exist_ok=True)
                 self.resume_from( os.path.join(path_to_student, 'student')) #load student from path_to_run1/student
                 print(f"Loading state from {os.path.join(path_to_student, 'student')}")
         
@@ -658,7 +658,7 @@ class CoFiTrainer(Trainer):
             train_pbar.update(1)
             if not using_trained_student:
                 print("Trained student to starting point. Saving now")
-                self.save_model(model, student=True, output_dir=path_to_student)
+                self.save_model(model, student=True, output_dir=os.path.join(path_to_student, 'student'))
                 using_trained_student = True
                 wandb.finish()
                 wandb.init(
@@ -911,7 +911,7 @@ class CoFiTrainer(Trainer):
         if not os.path.exists(state_path):
             print(f"No training state found at {checkpoint_dir}, starting fresh")
             return False
-        print(f"Loading state from {state_path}")
+        print(f"RESUMING state from {state_path}")
       
         
         state = torch.load(state_path, map_location=self.device)

@@ -195,7 +195,7 @@ def main():
    
     
 # os.path.join("/".join(training_args.output_dir.split("/")[:-1]), 'student', student_model_new.pth')
-    student_path = os.path.join("/".join(training_args.output_dir.split("/")[:-1]), 'student_model_new.pth') #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth" #"LLAMA/models/CoFi/Run_LTHStarter/25student_cublac1/student_model_drbug.pth" #None #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
+    student_path = os.path.join("/".join(training_args.output_dir.split("/")[:-1]), 'student', 'student_model.pth') #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth" #"LLAMA/models/CoFi/Run_LTHStarter/25student_cublac1/student_model_drbug.pth" #None #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
 
     print(f'Loading student model from : {student_path} to {device}')
     
