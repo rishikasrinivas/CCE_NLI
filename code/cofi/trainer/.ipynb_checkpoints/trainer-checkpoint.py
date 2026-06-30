@@ -426,6 +426,12 @@ class CoFiTrainer(Trainer):
             resumed = self.resume_from()
             if resumed:
                 epochs_trained = int(self.epoch)
+            else:
+                path_to_student = "/".join(self.args.output_dir.split("/")[:-1])
+                os.makedirs(path_to_student, exist_ok=True)
+                self.resume_from( os.path.join(path_to_student, 'student')) #load student from path_to_run1/student
+                print(f"Loading state from {os.path.join(path_to_student, 'student')}")
+        
         print(f"Will prune for {pruning_epochs} total, finetune for {num_train_epochs-pruning_epochs}. Have completed {epochs_trained} from ckpt")
         self.evaluate()
         for epoch in range(epochs_trained,int(num_train_epochs)): #! 20 epoch
@@ -627,7 +633,7 @@ class CoFiTrainer(Trainer):
                    
        
                     #ckpt-ing
-                    if self.global_step % SAVE_EVERY == 0:
+                    if self.global_step % SAVE_EVERY == 0 and using_trained_student:
                         self.save_model(model, student=False)
                         
 
@@ -652,7 +658,7 @@ class CoFiTrainer(Trainer):
             train_pbar.update(1)
             if not using_trained_student:
                 print("Trained student to starting point. Saving now")
-                self.save_model(model, student=True)
+                self.save_model(model, student=True, output_dir=path_to_student)
                 using_trained_student = True
                 wandb.finish()
                 wandb.init(
@@ -905,6 +911,7 @@ class CoFiTrainer(Trainer):
         if not os.path.exists(state_path):
             print(f"No training state found at {checkpoint_dir}, starting fresh")
             return False
+        print(f"Loading state from {state_path}")
       
         
         state = torch.load(state_path, map_location=self.device)
@@ -937,6 +944,8 @@ class CoFiTrainer(Trainer):
         if os.path.exists(l0_path):
             loaded_l0 = torch.load(l0_path, map_location=self.device)
             self.l0_module.load_state_dict(loaded_l0.state_dict())
+        if state.get("scaler") is not None:
+            self.scaler.load_state_dict(state["scaler"])
         
         self.model.load_state_dict(torch.load(os.path.join(checkpoint_dir, 'model_best.pth'))['state_dict'])
 
@@ -954,6 +963,7 @@ class CoFiTrainer(Trainer):
             filename='student_model.pth' if student else 'model_best.pth'
         )
 
+        
         # Save full training state
         training_state = {
             'global_step': self.global_step,
@@ -967,14 +977,24 @@ class CoFiTrainer(Trainer):
             # Saving
             "scaler" : self.scaler.state_dict()
         }
-        torch.save(training_state, os.path.join(output_dir, 'training_state.pth'))
+        if student:
+            training_state_fname = 'training_state_student.pth'
+        else:
+            training_state_fname = 'training_state.pth'
+            
+        torch.save(training_state, os.path.join(output_dir, training_state_fname))
 
         # Save l0 module
         if self.l0_module is not None:
-            torch.save(self.l0_module, os.path.join(output_dir, 'l0_module.pt'))
-            zs = self.l0_module.forward(training=False)
-            torch.save(zs, os.path.join(output_dir, 'zs.pt'))
+            if student:
+                l0_module_fname = 'l0_module_student.pt'
+            else:
+                l0_module_fname = 'l0_module.pt'
+                zs = self.l0_module.forward(training=False)
+                torch.save(zs, os.path.join(output_dir, 'zs.pt'))
 
+            torch.save(self.l0_module, os.path.join(output_dir,l0_module_fname))
+            
     def calculate_layer_distillation_loss(self, teacher_outputs, student_outputs, zs):
 
 

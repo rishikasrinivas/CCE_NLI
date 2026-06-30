@@ -194,8 +194,8 @@ def main():
  
    
     
-
-    student_path = os.path.join("/".join(training_args.output_dir.split("/")[:-1]), 'student_model.pth') #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth" #"LLAMA/models/CoFi/Run_LTHStarter/25student_cublac1/student_model_drbug.pth" #None #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
+# os.path.join("/".join(training_args.output_dir.split("/")[:-1]), 'student', student_model_new.pth')
+    student_path = os.path.join("/".join(training_args.output_dir.split("/")[:-1]), 'student_model_new.pth') #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth" #"LLAMA/models/CoFi/Run_LTHStarter/25student_cublac1/student_model_drbug.pth" #None #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
 
     print(f'Loading student model from : {student_path} to {device}')
     
@@ -209,7 +209,10 @@ def main():
         hf_name = model_args.model_name_or_path,
         
     ) #! inside the function, we get the original struct  #! CofiBertForSequenceClassification
+    #load other stff fromstudent right here?????
     print(f'Loaded student model from : {student_path} to {student_model.device}, trained? {trained_student}')
+    
+    
     LABEL_STOI = {"entailment": 0, "neutral": 1, "contradiction": 2}
     LABEL_ITOS = {v: k for k, v in LABEL_STOI.items()}
     if config:

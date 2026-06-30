@@ -194,8 +194,8 @@ def main():
  
    
     
-
-    student_path = os.path.join("/".join(training_args.output_dir.split("/")[:-1]), 'student_model.pth') #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth" #"LLAMA/models/CoFi/Run_LTHStarter/25student_cublac1/student_model_drbug.pth" #None #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
+# os.path.join("/".join(training_args.output_dir.split("/")[:-1]), 'student', student_model_new.pth')
+    student_path = os.path.join("/".join(training_args.output_dir.split("/")[:-1]), 'student_model_new.pth') #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth" #"LLAMA/models/CoFi/Run_LTHStarter/25student_cublac1/student_model_drbug.pth" #None #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
 
     print(f'Loading student model from : {student_path} to {device}')
     
@@ -209,7 +209,10 @@ def main():
         hf_name = model_args.model_name_or_path,
         
     ) #! inside the function, we get the original struct  #! CofiBertForSequenceClassification
+    #load other stff fromstudent right here?????
     print(f'Loaded student model from : {student_path} to {student_model.device}, trained? {trained_student}')
+    
+    
     LABEL_STOI = {"entailment": 0, "neutral": 1, "contradiction": 2}
     LABEL_ITOS = {v: k for k, v in LABEL_STOI.items()}
     if config:
@@ -229,8 +232,6 @@ def main():
     zs = None
     
     if additional_args.pretrained_pruned_model is not None:
-        #zs = load_zs(additional_args.pretrained_pruned_model)
-        #model = load_model(additional_args.pretrained_pruned_model, Model, zs)
         print(
             f"Model Size after pruning: {calculate_parameters(student_model)}")
 
@@ -302,13 +303,6 @@ def main():
         data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8)
     else:
         data_collator = None
-
-    logger.info(
-        f"************* {len(train)} Training Examples Loaded *************")
-    logger.info(
-        f"************* {len(val)} Evaluation Examples Loaded *************")
-
-    #model.load_state_dict(load_file("/workspace/CoFiPruning/out/MNLI/CoFi/MNLI_sparsity0.95/model.safetensors"))
    
 
     trainer = CoFiTrainer(
@@ -334,11 +328,13 @@ def main():
         trainer.train(using_trained_student=trained_student)
         
         if additional_args.target_sparsity > 0:
-            #trainer.save_model()
             tokenizer.save_pretrained(training_args.output_dir)
        
         print(trainer.evaluate())
-    train_utils.zip_directory(training_args.output_dir, f'/tutorial/{additional_args.model_name}/CoFi/Run1/{training_args.output_dir.split("/")[-1]}')
+        
+    weights_save_dir = f"/tutorial/{additional_args.model_name}/CoFi/{os.path.join(*training_args.output_dir.rstrip('/').split('/')[-2:])}"
+    os.makedir(weights_save_dir, exist_ok=True)
+    train_utils.zip_directory(training_args.output_dir, weights_save_dir)
 
     
 
