@@ -333,7 +333,7 @@ def main():
         print(trainer.evaluate())
         
     weights_save_dir = f"/tutorial/{additional_args.model_name}/CoFi/{os.path.join(*training_args.output_dir.rstrip('/').split('/')[-2:])}"
-    os.makedir(weights_save_dir, exist_ok=True)
+    os.makedirs(weights_save_dir, exist_ok=True)
     train_utils.zip_directory(training_args.output_dir, weights_save_dir)
 
     
