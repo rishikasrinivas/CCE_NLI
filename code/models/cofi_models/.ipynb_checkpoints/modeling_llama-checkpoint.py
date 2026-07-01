@@ -214,6 +214,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
 
 
         # eager expects [B, H, S, D] and 4D additive mask
+        #print("query ", query_states.shape) #torch.Size([32, 16, 31, 128])
         '''attn_output, attn_weights = eager_attention_forward(
             self,
             query_states,
@@ -222,7 +223,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
             attention_mask,
             dropout=dropout_p,
             scaling=self.scaling,
-            **kwargs)
+            **kwargs) #attn out torch.Size([32, 34, 16, 128])
     
         '''
         attn_weights=None
@@ -238,6 +239,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
         # We dispatch to SDPA's Flash Attention or Efficient kernels via this `is_causal` if statement instead of an inline conditional assignment
         # in SDPA to support both torch.compile's dynamic shapes and full graph options. An inline conditional prevents dynamic shapes from compiling.
         is_causal = True if causal_mask is None and q_len > 1 else False
+     
         attn_output = torch.nn.functional.scaled_dot_product_attention(
             query_states,
             key_states,
@@ -252,10 +254,10 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
         
         #print("EAGER OUTPUT SHAP ",attn_output.shape ) #EAGER OUTPUT SHAP  torch.Size([32, 18, 16, 128])
         # eager returns [B, S, H, D]
+        # eager returns [B, S, H, D]
         # so head_z can be applied directly
         if head_z is not None:
             head_z = head_z.squeeze()
-            
             attn_output = attn_output * head_z.view(1, 1, -1, 1)
 
 
@@ -263,13 +265,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
         attn_output = attn_output.reshape(bsz, q_len, -1).contiguous()
 
         # output projection
-        if self.attn_impl == "flash": 
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                #print("attn_output.dtype bfre oproj", attn_output.dtype)
-                attn_output = self.o_proj(attn_output)
-                #print("attn_output.dtype after oproj ", attn_output.dtype)
-        else:
-            attn_output = self.o_proj(attn_output)
+        attn_output = self.o_proj(attn_output)
             
               
         if head_layer_z is not None:
@@ -775,6 +771,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
             
             return model, trained
         elif os.path.exists(kwargs['ckpt']):
+            print(f"Loading from {kwargs['ckpt']}")
             weights = torch.load(kwargs['ckpt'], map_location=kwargs['device'])['state_dict']
             model.load_state_dict(weights, strict=False)
             assert trained==False

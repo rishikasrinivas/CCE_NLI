@@ -34,8 +34,7 @@ from cofi.utils.utils import *
 import torch.nn as nn
 import torch.optim as optim
 import train_utils
-from torch.cuda.amp import autocast
-
+from torch.cuda.amp import autocast, GradScaler
 from transformers.utils import logging
 import util
 logger = logging.get_logger(__name__)
@@ -205,7 +204,7 @@ class CoFiTrainer(Trainer):
         self.model_name = model_name
         self.pruned_sparsity = 0.0
         self.expected_sparsity= 1.0 #make sure the expected-pruned check doesn't say > epsilon 
-
+        self.scaler = GradScaler(enabled=True)
         self.device=device
         print("initiaalt student on ", self.device)
         self.model.to(self.device)
@@ -229,7 +228,7 @@ class CoFiTrainer(Trainer):
         # Initialize wandb at the start of training
         wandb.init(
             project="cofi-llama-distillation",
-            name=f"run_train-student-withdynacache-alpha0.1-{self.additional_args.layer_distill_version}",
+            name=f"llama reloading wole training state",
             config={
                 "layer_distill_version": self.additional_args.layer_distill_version,
                 "learning_rate": self.args.learning_rate,
@@ -251,23 +250,31 @@ class CoFiTrainer(Trainer):
                     f"{des}, number of params: {sum(p.nelement() for p in grouped_parameters['params'])}, weight_decay: {grouped_parameters['weight_decay']}, lr: {grouped_parameters['lr']}")
 
         if self.student_optimizer is None or self.teacher_optimizer is None:
-            no_decay = ["bias", "LayerNorm.weight"]
-            
 
-            
             if self.student_optimizer is None:
-                student_main_model_params = [
+                no_decay = ["bias", "LayerNorm.weight", 'layernorm.weight']
+                freeze_keywords = ["embeddings", 'embed_tokens']
+
+                main_model_params = [
                     {
-                        "params": [p for n, p in self.model.named_parameters() ],
+                        "params": [p for n, p in self.model.named_parameters() if not any(nd in n for nd in no_decay) and not any(fk in n for fk in freeze_keywords)],
                         "weight_decay": self.args.weight_decay,
                         "lr": self.args.learning_rate
                     },
+                    {
+                        "params": [p for n, p in self.model.named_parameters() if any(nd in n for nd in no_decay) and not any(fk in n for fk in freeze_keywords)],
+                        "weight_decay": 0.0,
+                        "lr": self.args.learning_rate
+                    },
                 ]
-                if self.model_name != 'bowman':
-                    self.student_optimizer = AdamW(self.model.parameters(), lr=self.args.learning_rate, eps=1e-8)  # AdamW optimizer is recommended for BERTAdamW(
-                else:
-                    self.student_optimizer = optim.Adam(self.model.parameters())
-                log_params(student_main_model_params, "student main params")
+                log_params(main_model_params, "main params")
+                self.student_optimizer = AdamW(
+                    main_model_params,
+                    betas=(self.args.adam_beta1, self.args.adam_beta2),
+                    eps=self.args.adam_epsilon,
+                )
+
+
 
             if self.teacher_optimizer is None:
             
@@ -405,6 +412,7 @@ class CoFiTrainer(Trainer):
             self.teacher_model = self.finetune_teacher(self.teacher_model)
             self.finetuned_teacher = True
         self.store_results(self.teacher_model)
+        print("Acc for student")
         
         # training
         print(f"Training for {num_train_epochs} epochs")
@@ -418,6 +426,12 @@ class CoFiTrainer(Trainer):
             resumed = self.resume_from()
             if resumed:
                 epochs_trained = int(self.epoch)
+            else:
+                path_to_student = "/".join(self.args.output_dir.split("/")[:-1])
+                os.makedirs(os.path.join(path_to_student, 'student'), exist_ok=True)
+                self.resume_from( os.path.join(path_to_student, 'student')) #load student from path_to_run1/student
+                print(f"Loading state from {os.path.join(path_to_student, 'student')}")
+        
         print(f"Will prune for {pruning_epochs} total, finetune for {num_train_epochs-pruning_epochs}. Have completed {epochs_trained} from ckpt")
         self.evaluate()
         for epoch in range(epochs_trained,int(num_train_epochs)): #! 20 epoch
@@ -501,19 +515,76 @@ class CoFiTrainer(Trainer):
                         and(step + 1) == len(epoch_iterator)
                 ):
                     
-                    torch.nn.utils.clip_grad_norm_(
-                        model.parameters(), self.args.max_grad_norm)
+                    self.scaler.unscale_(self.student_optimizer)
+
+                    if self.start_prune:
+                        self.scaler.unscale_(self.l0_optimizer)
+                        self.scaler.unscale_(self.lagrangian_optimizer)
+                        l0_stats = {}
+
+                        for name, p in self.l0_module.named_parameters():
+                            if p.grad is not None:
+                                l0_stats[f"l0/{name}_norm"] = p.grad.norm().item()
+                                l0_stats[f"l0/{name}_max"] = p.grad.abs().max().item()
+                        wandb.log({**l0_stats})
                     
+
+                    
+                    grad_norm = None
+
+                    try:
+                        grad_norm = torch.nn.utils.clip_grad_norm_(
+                            model.parameters(),
+                            self.args.max_grad_norm
+                        )
+
+                        wandb.log({
+                            "train/grad_norm": grad_norm.item(),
+                            "train/max_grad_norm": self.args.max_grad_norm,
+                            "train/step": self.global_step,
+                        })
+
+                    except RuntimeError as e:
+                        bad_grads = {}
+
+                        for name, p in model.named_parameters():
+                            if p.grad is not None and not torch.isfinite(p.grad).all():
+                                g = p.grad.detach()
+                                bad_grads[f"bad_grad/{name}_nan"] = torch.isnan(g).sum().item()
+                                bad_grads[f"bad_grad/{name}_inf"] = torch.isinf(g).sum().item()
+                                bad_grads[f"bad_grad/{name}_max_abs"] = g.nan_to_num().abs().max().item()
+
+                        wandb.log({
+                            "train/nonfinite_grad_norm": 1,
+                            "train/step": self.global_step,
+                            **bad_grads,
+                        })
+
+                        print("Non-finite gradient norm before optimizer step")
+                        print(e)
+                        sys.exit(1)
+                    
+                    '''
                     self.student_optimizer.step()
 
                     if self.l0_module is not None and self.l0_optimizer is not None:
                         self.l0_optimizer.step()
-                        self.lagrangian_optimizer.step()
+                        self.lagrangian_optimizer.step()'''
+                    
+                    #replace vanilla optimizer strep with scalars to prevent 0 grads
+                    self.scaler.step(self.student_optimizer)
+
+                    # Do not step stale L0 optimizers during post-pruning finetuning.
+                    if self.start_prune:
+                        self.scaler.step(self.l0_optimizer)
+                        self.scaler.step(self.lagrangian_optimizer)
+
+                    self.scaler.update()
 
                     if self.lr_scheduler is not None:
                         self.lr_scheduler.step()
 
-                    if self.l0_module is not None:
+                    if self.l0_module is not None and self.start_prune: #dont touch zs if no pruning
                         self.l0_module.constrain_parameters()
 
                     model.zero_grad()
@@ -562,7 +633,7 @@ class CoFiTrainer(Trainer):
                    
        
                     #ckpt-ing
-                    if self.global_step % SAVE_EVERY == 0:
+                    if self.global_step % SAVE_EVERY == 0 and using_trained_student:
                         self.save_model(model, student=False)
                         
 
@@ -587,7 +658,7 @@ class CoFiTrainer(Trainer):
             train_pbar.update(1)
             if not using_trained_student:
                 print("Trained student to starting point. Saving now")
-                self.save_model(model, student=True)
+                self.save_model(model, student=True, output_dir=os.path.join(path_to_student, 'student'))
                 using_trained_student = True
                 wandb.finish()
                 wandb.init(
@@ -840,6 +911,7 @@ class CoFiTrainer(Trainer):
         if not os.path.exists(state_path):
             print(f"No training state found at {checkpoint_dir}, starting fresh")
             return False
+        print(f"RESUMING state from {state_path}")
       
         
         state = torch.load(state_path, map_location=self.device)
@@ -863,11 +935,17 @@ class CoFiTrainer(Trainer):
             self.l0_optimizer.load_state_dict(state['l0_optimizer'])
         if state['lagrangian_optimizer'] and self.lagrangian_optimizer:
             self.lagrangian_optimizer.load_state_dict(state['lagrangian_optimizer'])
+            # Saving
+        if state.get("scaler"):
+            self.scaler.load_state_dict(state["scaler"])
 
         # Reload l0 module
         l0_path = os.path.join(checkpoint_dir, 'l0_module.pt')
         if os.path.exists(l0_path):
-            self.l0_module = torch.load(l0_path, map_location=self.device)
+            loaded_l0 = torch.load(l0_path, map_location=self.device)
+            self.l0_module.load_state_dict(loaded_l0.state_dict())
+        if state.get("scaler") is not None:
+            self.scaler.load_state_dict(state["scaler"])
         
         self.model.load_state_dict(torch.load(os.path.join(checkpoint_dir, 'model_best.pth'))['state_dict'])
 
@@ -885,6 +963,7 @@ class CoFiTrainer(Trainer):
             filename='student_model.pth' if student else 'model_best.pth'
         )
 
+        
         # Save full training state
         training_state = {
             'global_step': self.global_step,
@@ -895,15 +974,27 @@ class CoFiTrainer(Trainer):
             'lagrangian_optimizer': self.lagrangian_optimizer.state_dict() if self.lagrangian_optimizer else None,
             'start_prune': self.start_prune,
             'prepruning_finetune_steps': self.prepruning_finetune_steps,
+            # Saving
+            "scaler" : self.scaler.state_dict()
         }
-        torch.save(training_state, os.path.join(output_dir, 'training_state.pth'))
+        if student:
+            training_state_fname = 'training_state_student.pth'
+        else:
+            training_state_fname = 'training_state.pth'
+            
+        torch.save(training_state, os.path.join(output_dir, training_state_fname))
 
         # Save l0 module
         if self.l0_module is not None:
-            torch.save(self.l0_module, os.path.join(output_dir, 'l0_module.pt'))
-            zs = self.l0_module.forward(training=False)
-            torch.save(zs, os.path.join(output_dir, 'zs.pt'))
+            if student:
+                l0_module_fname = 'l0_module_student.pt'
+            else:
+                l0_module_fname = 'l0_module.pt'
+                zs = self.l0_module.forward(training=False)
+                torch.save(zs, os.path.join(output_dir, 'zs.pt'))
 
+            torch.save(self.l0_module, os.path.join(output_dir,l0_module_fname))
+            
     def calculate_layer_distillation_loss(self, teacher_outputs, student_outputs, zs):
 
 
@@ -945,6 +1036,7 @@ class CoFiTrainer(Trainer):
             
             #orig: a single pre + hyp concatentation passed into bert and each layers hidden state given
             #ours: 2 inputs so outputs are hidden state pre hidden state hyp so for each layer msle lossfor pres and hyps
+            #TODO MAKE EACH COM .FLOAT() BEFORE
             if self.additional_args.layer_distill_version == 2 or self.model_name=='bowman':
                 for layer_num, (t_layer_o, s_layer_o) in enumerate(zip(teacher_pre_layer_output, student_pre_layer_output)):
                     s_layer_o = self.model.layer_transformation(s_layer_o)
@@ -1004,8 +1096,11 @@ class CoFiTrainer(Trainer):
 
                 l=[]
                 for t_pre_layer_o, t_hyp_layer_o in zip(specified_teacher_layer_reps_pre,specified_teacher_layer_reps_hyp) :
-
+                    t_pre_layer_o=t_pre_layer_o.float()
+                    t_hyp_layer_o=t_hyp_layer_o.float()
                     for s_pre_layer_o, s_hyp_layer_o in zip(transformed_s_layer_o_pre, transformed_s_layer_o_hyp): #! student: 12x[32,113,768]
+                        s_pre_layer_o = s_pre_layer_o.float()
+                        s_hyp_layer_o = s_hyp_layer_o.float()
                         l.append(mse_loss(t_pre_layer_o, s_pre_layer_o)+ mse_loss(t_hyp_layer_o,s_hyp_layer_o))
 
                 #now dp lloss for mlp
@@ -1021,7 +1116,7 @@ class CoFiTrainer(Trainer):
                     existing_layers = existing_layers.to(layerwiseloss.device)
 
                 
-                layer_loss = mse_loss(student_pre_final_layer_reps, teacher_pre_final_layer_reps) + mse_loss(student_final_layer_reps, teacher_final_layer_reps) #mlp loss
+                layer_loss = mse_loss(student_pre_final_layer_reps.float(), teacher_pre_final_layer_reps.float()) + mse_loss(student_final_layer_reps.float(), teacher_final_layer_reps.float()) #mlp loss
                 #! no ordering restriction specified
                 if self.additional_args.layer_distill_version == 3:
                     alignment = torch.argmin(layerwiseloss, dim=1)
@@ -1067,8 +1162,8 @@ class CoFiTrainer(Trainer):
         )
         distill_loss = layer_loss
 
-        student_logits = student_outputs.logits[2]
-        teacher_logits = teacher_outputs.logits[2]
+        student_logits = student_outputs.logits[2].float()
+        teacher_logits = teacher_outputs.logits[2].float()
 
         ce_distill_loss = F.kl_div(
             input=F.log_softmax(
@@ -1355,10 +1450,14 @@ class CoFiTrainer(Trainer):
             #if zs: assert zs['hidden_z'] is not None 
     
            
-            
-            distill_loss, distill_ce_loss, loss = self.calculate_distillation_loss(
-                teacher_outputs, student_outputs, zs)
-
+            with torch.autocast(device_type="cuda", enabled=False):
+                distill_loss, distill_ce_loss, loss = self.calculate_distillation_loss(
+                    teacher_outputs,
+                    student_outputs,
+                    zs,
+                )
+                loss = loss.float()
+           
             # More debug
             #if self.global_step % 50 == 0:
                 #print(f"Distill layer loss: {distill_loss.item() if distill_loss is not None else 'None':.4f}")
@@ -1378,26 +1477,26 @@ class CoFiTrainer(Trainer):
         if self.args.gradient_accumulation_steps > 1:
             loss = loss / self.args.gradient_accumulation_steps
 
-        loss.backward()
+        #loss.backward()
+        
+        #addung scaler 
+        if not torch.isfinite(loss):
+            raise RuntimeError(f"Nonfinite forward loss at step {self.global_step}: {loss}")
+        self.scaler.scale(loss).backward()
        
         # Check gradient norms
-        if self.global_step % 50000 == 0:
+        if self.global_step % 5000 == 0:
             total_norm = 0
             #norm = self.model.bert.encoder.layer[9].output.LayerNorm
             #if self.start_prune and norm.weight.grad is not None:
                 #print(f"BERT Layer 0 norm weight grad - mean: {norm.weight.grad.abs().mean():.6f} zeros: {norm.weight.grad.eq(0).sum().item()}/{norm.weight.grad.numel()}"
 
                 
-            l0_stats = {}
-
-            for name, p in self.l0_module.named_parameters():
-                if p.grad is not None:
-                    l0_stats[f"l0/{name}_norm"] = p.grad.norm().item()
-                    l0_stats[f"l0/{name}_max"] = p.grad.abs().max().item()
+            
             
             wandb.log({
                 # Your existing metrics
-                **l0_stats,
+
          
                 
                 "train/distill_layer_loss": distill_loss.item() if distill_loss is not None else float('inf'),
@@ -1414,6 +1513,12 @@ class CoFiTrainer(Trainer):
 
 
             })
+            for n, p in self.model.named_parameters():
+                if p.grad is not None:
+                    wandb.log({
+                        f"weights/{n}_norm": p.data.norm().item(),
+                        f"grads/{n}_norm": p.grad.norm().item(),
+                    })
 
         return {"loss": loss.detach().cpu(),
                 "lagrangian_loss": lagrangian_loss.detach().cpu() if lagrangian_loss is not None else None,
