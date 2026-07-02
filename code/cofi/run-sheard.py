@@ -130,8 +130,9 @@ def main():
         Teach_Model = CoFiLlamaForSequenceClassification
         Student_Model = CoFiLlamaForSequenceClassification
     # ======= Load the model params ========
-    base_model_path = '/workspace/CCE_NLI/LLAMA/models/lottery_ticket/Run1/' #os.path.join(training_args.output_dir, 'model_best.pth')
+    base_model_path = os.path.join(data_args.teacher_model_dir, '0_Pruning_Iter', 'model_best.pth')
     pretrained_path = os.path.join(data_args.path_to_pretrained, f'{additional_args.model_name}_MAIN_pretrained_inits.pth')
+    print(f"Loding teacher from {base_model_path}")
     if additional_args.model_name in ['bert', 'llama']:
         config = AutoConfig.from_pretrained(
             model_args.model_name_or_path,
