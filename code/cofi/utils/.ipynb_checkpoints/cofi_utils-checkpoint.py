@@ -594,7 +594,10 @@ def load_pruned_model(model, weights):
  
     #prune_model_with_z(zs, model)
 
-    model.load_state_dict(weights, strict=False)
+    result = model.load_state_dict(weights, strict=False)
+
+    print("Missing teacher keys:", result.missing_keys)
+    print("Unexpected teacher keys:", result.unexpected_keys)
     
 
     #print("Missing ", missing, "\nUn ", unexpected)
