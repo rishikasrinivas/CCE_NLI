@@ -947,7 +947,10 @@ class CoFiTrainer(Trainer):
         if state.get("scaler") is not None:
             self.scaler.load_state_dict(state["scaler"])
         
-        self.model.load_state_dict(torch.load(os.path.join(checkpoint_dir, 'model_best.pth'))['state_dict'])
+        if 'student' in checkpoint_dir:
+            self.model.load_state_dict(torch.load(os.path.join(checkpoint_dir, 'student_model.pth'))['state_dict'])
+        else:
+            self.model.load_state_dict(torch.load(os.path.join(checkpoint_dir, 'model_best.pth'))['state_dict'])
 
         return True
        
