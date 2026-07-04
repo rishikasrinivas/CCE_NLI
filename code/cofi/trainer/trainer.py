@@ -226,9 +226,17 @@ class CoFiTrainer(Trainer):
         import wandb
 
         # Initialize wandb at the start of training
+        
+        if 'bert' in teacher_model_dir.lower():
+            name='bert-cofi' 
+        elif 'bowman' in teacher_model_dir.lower():
+            name='bowman-cofi' 
+        else:
+            name='llama-cofi'
+            
         wandb.init(
-            project="cofi-llama-distillation",
-            name=f"llama reloading wole training state",
+            project=f"{name}-distillation",
+            name=name,
             config={
                 "layer_distill_version": self.additional_args.layer_distill_version,
                 "learning_rate": self.args.learning_rate,
@@ -560,12 +568,6 @@ class CoFiTrainer(Trainer):
                         print(e)
                         sys.exit(1)
                     
-                    '''
-                    self.student_optimizer.step()
-
-                    if self.l0_module is not None and self.l0_optimizer is not None:
-                        self.l0_optimizer.step()
-                        self.lagrangian_optimizer.step()'''
                     
                     #replace vanilla optimizer strep with scalars to prevent 0 grads
                     self.scaler.step(self.student_optimizer)
@@ -658,8 +660,8 @@ class CoFiTrainer(Trainer):
                 using_trained_student = True
                 wandb.finish()
                 wandb.init(
-                    project="cofi-llama-distillation",
-                    name=f"run_prune-student-withdynacache-alpha0.1-{self.additional_args.layer_distill_version}",
+                    project=f"{name}",
+                    name=name,
                     config={
                         "layer_distill_version": self.additional_args.layer_distill_version,
                         "learning_rate": self.args.learning_rate,
@@ -752,7 +754,8 @@ class CoFiTrainer(Trainer):
                 # Pass the inputs directly to the model. 
                 # Because we bypass the Trainer's wrapper, your cuda:1 tensors stay on cuda:1!
                 
-                outputs = model(**inputs)
+                with autocast():
+                    outputs = model(**inputs)
 
                 # Reconstruct the loss, logits, and labels manually to match your loop variables
                 loss = outputs.loss if hasattr(outputs, "loss") else None

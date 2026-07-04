@@ -185,8 +185,8 @@ def update_llama_params(model, zs):
          
             
             # Your classification head MLP
-            model.mlp[0].weight.data = \
-                model.mlp[0].weight.data.mul(torch.cat([hidden_z for _ in range(4)]))
+            #model.mlp[0].weight.data = \
+                #model.mlp[0].weight.data.mul(torch.cat([hidden_z for _ in range(4)]))
         #print("MLP")
         if 'final_mlp_hidden_z' in zs:
             final_mlp_hidden_z = zs['final_mlp_hidden_z'].cpu().clone()
@@ -365,6 +365,18 @@ def prune_model_with_z(zs, model):
             index = torch.LongTensor(hidden_zs.squeeze().nonzero().squeeze().tolist())
             index = index.to(model.device)
             
+            retained_hidden_z = hidden_zs.to(
+                device=model.device,
+                dtype=next(model.parameters()).dtype,
+            ).index_select(0, index)
+
+            model.register_buffer(
+                "physical_hidden_z",
+                retained_hidden_z.detach().clone(),
+            )
+
+            
+            
             
             # Prune embeddings
             llama.embed_tokens.weight = torch.nn.parameter.Parameter(
@@ -410,6 +422,7 @@ def prune_model_with_z(zs, model):
                     # down_proj outputs hidden_dim (dim=0, like BERT's output.dense)
                     llama.layers[layer].mlp.down_proj = \
                         prune_layer(llama.layers[layer].mlp.down_proj, index, dim=0)
+            
         print("final")             
         if 'final_mlp_hidden_z' in zs:
             concat_index = torch.cat([index + (i * hidden_zs.shape[0]) for i in range(4)])
