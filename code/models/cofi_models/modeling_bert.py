@@ -627,7 +627,6 @@ class CoFiBertAttention(BertAttention):
             attention_mask,
             head_z=head_z,
         )
-
         attention_output = self.output(
             self_outputs[0], hidden_states, head_layer_z=head_layer_z, hidden_z=hidden_z)
         outputs = (attention_output,) + self_outputs[1:]
@@ -678,9 +677,12 @@ class CoFiBertSdpaSelfAttention(BertSdpaSelfAttention):
         # Get Q, K, V from parent method (reuse its logic)
         # But since we can't easily override just the SDPA call, we call parent
         # and then modify the output
+        if self.value is None:
+            return (None, None) 
         
         if head_z is None:
             # No pruning, just use parent
+            print(f"Input to bert is of shape , {hidden_states.shape}")
             return super().forward(
                 hidden_states, attention_mask, encoder_hidden_states,
                 encoder_attention_mask, past_key_value, 

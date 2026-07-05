@@ -16,7 +16,41 @@ def initialize_layer_transformation(model):
     model.layer_transformation.weight.data.copy_(
         torch.eye(len(model.layer_transformation.weight)))
     model.layer_transformation.bias.data.fill_(0)
+def summarize_zs(zs, head_dim=128):
+    hidden = int(zs["hidden_z"].squeeze().ne(0).sum())
+    final_hidden = int(
+        zs["final_mlp_hidden_z"].squeeze().ne(0).sum()
+    )
 
+    heads = []
+    intermediates = []
+
+    for layer in range(len(zs["head_z"])):
+        attention_enabled = bool(
+            zs["head_layer_z"][layer].squeeze().ne(0)
+        )
+
+        num_heads = int(
+            zs["head_z"][layer].squeeze().ne(0).sum()
+        )
+
+        heads.append(num_heads if attention_enabled else 0)
+
+        mlp_enabled = bool(zs["mlp_z"][layer].squeeze().ne(0))
+        intermediate = int(
+            zs["intermediate_z"][layer].squeeze().ne(0).sum()
+        )
+
+        intermediates.append(
+            intermediate if mlp_enabled else 0
+        )
+
+    print("Physical hidden keep:", hidden)
+    print("Physical classifier input:", hidden * 4)
+    print("Physical classifier hidden:", final_hidden)
+    print("Physical heads:", heads)
+    print("Physical intermediate:", intermediates)
+    
 def load_model_with_zs(model_path, model, zs=None, encoder=None, **kwargs):
     if '.pth' in model_path:
         root="/".join(model_path.split("/")[:-1])
@@ -42,17 +76,21 @@ def load_model_with_zs(model_path, model, zs=None, encoder=None, **kwargs):
 
     print(f"Model Size before pruning: {calculate_parameters(model)}")
 
+    summarize_zs(zs)
     if model.model_name == 'bowman':
         update_LSTM_params(model, zs)
         prune_hidden_mlp(zs,model)
     elif model.model_name=='llama':
+        
+        
         update_llama_params(model, zs) #changes weights
-        prune_model_with_z(zs, model) #changes strucutre
+        model = prune_model_with_z(zs, model) #changes strucutre
     else:
         update_bert_params(model, zs) #changes weights
-        prune_model_with_z(zs, model) #changes strucutre
+        model = prune_model_with_z(zs, model) #changes strucutre
         
     print(f"Model Size after pruning: {calculate_parameters(model)}")
+   
     return model
 
 
@@ -106,21 +144,14 @@ def update_llama_params(model, zs):
             for layer in range(num_layers):
                 
                 head_z = zs["head_z"][layer].cpu().squeeze().clone()
-                #print("Layers shape fo head is ", zs["head_z"][layer].shape, "and interleaving", dims_per_head)
                 head_z = torch.repeat_interleave(head_z, dims_per_head)
-                #print("headz k", layer, llama.layers[layer].self_attn.k_proj.weight.data.shape, head_z.shape)
-
-                # v_proj instead of value  head_z.reshape(_1,1 ) so head_z is (1,256) then * llama.layers[layer].self_attn.v_proj.weight.data whihc is 256x2048 no llama.layers[layer].self_attn.v_proj.weight.data needs to be 256x2048 so 2048x256 elem wise 1x256
-               
                 llama.layers[layer].self_attn.v_proj.weight.data = \
-                    llama.layers[layer].self_attn.v_proj.weight.data.mul(head_z.reshape(-1,1))
-                # No bias
-                llama.layers[layer].self_attn.v_proj.weight.data = llama.layers[layer].self_attn.v_proj.weight.transpose(0, 1).data.mul(head_z).transpose(0, 1)
+                    llama.layers[layer].self_attn.v_proj.weight.data.transpose(0,1).mul(head_z).transpose(0,1)
+            
                 
                 
                 if "head_layer_z" in zs:
                     head_layer_z = zs["head_layer_z"][layer].cpu()
-                    # o_proj instead of attention.output.dense
                     llama.layers[layer].self_attn.o_proj.weight.data = \
                         llama.layers[layer].self_attn.o_proj.weight.transpose(0, 1).data.mul(head_layer_z).transpose(0, 1)
                     # No bias
@@ -130,16 +161,10 @@ def update_llama_params(model, zs):
             hidden_z = zs["hidden_z"].cpu().squeeze().clone()
             
             # LLaMA only has word embeddings (no position/token_type embeddings like BERT)
-            print('embed ', llama.embed_tokens.weight.data.shape, hidden_z.shape)
             llama.embed_tokens.weight.data = \
                 llama.embed_tokens.weight.data.mul(hidden_z)
             
-            for layer in range(24):
-                # Attention projections
-                #print('k ', layer, llama.layers[layer].self_attn.k_proj.weight.data.shape, hidden_z.shape)
-                #print('q ', llama.layers[layer].self_attn.k_proj.weight.data.shape, hidden_z.shape)
-                #print('v ', llama.layers[layer].self_attn.v_proj.weight.data.shape, hidden_z.shape)
-                #print('o ', layer, llama.layers[layer].self_attn.o_proj.weight.data.transpose(0, 1).shape, hidden_z.shape)
+            for layer in range(num_layers):
                 llama.layers[layer].self_attn.k_proj.weight.data = \
                     llama.layers[layer].self_attn.k_proj.weight.data.mul(hidden_z)
                 llama.layers[layer].self_attn.q_proj.weight.data = \
@@ -157,13 +182,11 @@ def update_llama_params(model, zs):
                     llama.layers[layer].mlp.up_proj.weight.data.mul(hidden_z)
                 llama.layers[layer].mlp.down_proj.weight.data = \
                     llama.layers[layer].mlp.down_proj.weight.data.transpose(0, 1).mul(hidden_z).transpose(0, 1)
-            
-            # No pooler in LLaMA
-            # No qa_outputs (unless you added it)
+         
             
             # Your classification head MLP
-            model.mlp[0].weight.data = \
-                model.mlp[0].weight.data.mul(torch.cat([hidden_z for _ in range(4)]))
+            #model.mlp[0].weight.data = \
+                #model.mlp[0].weight.data.mul(torch.cat([hidden_z for _ in range(4)]))
         #print("MLP")
         if 'final_mlp_hidden_z' in zs:
             final_mlp_hidden_z = zs['final_mlp_hidden_z'].cpu().clone()
@@ -173,7 +196,6 @@ def update_llama_params(model, zs):
 def update_bert_params(model, zs):
     bert = model.bert if hasattr(model, "bert") else model.model
 
-    print(f"pdateing bert params. Bert is on {model.device}")
     config = model.config
     hidden_dims = config.hidden_size
     num_heads = config.num_attention_heads
@@ -235,8 +257,6 @@ def prune_model_with_z(zs, model):
         return None, None
     concat_index=None
     
-    
-    #print("238")
     if "head_z" in zs:
         head_z = zs.get("head_z", None)
         head_layer_z = zs.get("head_layer_z", None)
@@ -255,7 +275,7 @@ def prune_model_with_z(zs, model):
     llama = model.model if hasattr(model, "model") else None
    
     assert (hasattr(model, "model") and llama is not None) or (hasattr(model, "bert") and bert is not None)
-    
+    num_layers = model.config.num_hidden_layers
     #print("intermediate")
     kept_intermediate_dims = None
     if "intermediate_z" in zs:
@@ -340,30 +360,22 @@ def prune_model_with_z(zs, model):
 
     elif hasattr(model, "model"):
    
-        '''if 'head_z' in zs:
-            head_z=zs['head_z']
-            print(head_z.shape)
-            head_index = head_z.squeeze()
-            head_index = head_index.to(model.device)
-            print("head ", head_index)
-            for layer in range(0, 22):  # You have 22 layers (0-21)
-                print(llama.layers[layer])
-                # Attention projections - all take hidden_dim as input (dim=1)
-                if llama.layers[layer].self_attn.k_proj is not None:
-                    llama.layers[layer].self_attn.k_proj = \
-                        prune_layer(llama.layers[layer].self_attn.k_proj, head_index, dim=0)
-                if llama.layers[layer].self_attn.v_proj is not None:
-                    llama.layers[layer].self_attn.v_proj = \
-                        prune_layer(llama.layers[layer].self_attn.v_proj, head_index, dim=0)'''
-            
-            
         if "hidden_z" in zs:
             hidden_zs = zs["hidden_z"]
-            print("343 cofi utils ",  hidden_zs.shape)
             index = torch.LongTensor(hidden_zs.squeeze().nonzero().squeeze().tolist())
             index = index.to(model.device)
-            print("343 cofi utils ",  len(index)) #shuld be 2044
-            print("Model: ", model)
+            
+            retained_hidden_z = hidden_zs.to(
+                device=model.device,
+                dtype=next(model.parameters()).dtype,
+            ).index_select(0, index)
+
+            model.register_buffer(
+                "physical_hidden_z",
+                retained_hidden_z.detach().clone(),
+            )
+
+            
             
             
             # Prune embeddings
@@ -376,15 +388,11 @@ def prune_model_with_z(zs, model):
                 llama.norm.weight.index_select(0, index))
             llama.norm.normalized_shape = (len(index),)
             
-            for layer in range(0, 24):  # You have 22 layers (0-21)
+            for layer in range(0, num_layers):  # You have 22 layers (0-21)
                 prune_layer_norm_llama(layer, index)
                 
                 # Attention projections - all take hidden_dim as input (dim=1)
                 if llama.layers[layer].self_attn.q_proj is not None:
-                    #print("NON MLP q", llama.layers[layer].self_attn.q_proj.weight.data.shape, index)
-                    #print("NON MLP k", llama.layers[layer].self_attn.k_proj.weight.data.shape, index)
-                    #print("NON MLP v", llama.layers[layer].self_attn.v_proj.weight.data.shape, index)
-                    
                     if llama.layers[layer].self_attn.q_proj is not None:
                         llama.layers[layer].self_attn.q_proj = \
                             prune_layer(llama.layers[layer].self_attn.q_proj, index, dim=1)
@@ -414,6 +422,7 @@ def prune_model_with_z(zs, model):
                     # down_proj outputs hidden_dim (dim=0, like BERT's output.dense)
                     llama.layers[layer].mlp.down_proj = \
                         prune_layer(llama.layers[layer].mlp.down_proj, index, dim=0)
+            
         print("final")             
         if 'final_mlp_hidden_z' in zs:
             concat_index = torch.cat([index + (i * hidden_zs.shape[0]) for i in range(4)])
@@ -445,55 +454,11 @@ def prune_model_with_z(zs, model):
     if hasattr(model, 'mlp'):
         if 'final_mlp_hidden_z' in zs:
             model = prune_hidden_mlp(zs, model, concat_index)
-            print("success")
 
     if kept_intermediate_dims is not None:
-        print(model, type(model), hasattr(model, "bert"))
         prune_intermediate_layers(model, kept_intermediate_dims)
-    #for layer in range(0, model.config.num_hidden_layers):
-        '''if hasattr(model, 'bert'):
-            print("Layer:", layer)
-            if bert.encoder.layer[layer].attention.self.query is not None:
-                print("query:", bert.encoder.layer[layer].attention.self.query.weight.shape)
-                print("key:", bert.encoder.layer[layer].attention.self.key.weight.shape)
-            else:
-                print("query:", None)
-                print("key:", None)
-            if bert.encoder.layer[layer].attention.self.value is not None:
-                print("value:", bert.encoder.layer[layer].attention.self.value.weight.shape)
-                print("output:", bert.encoder.layer[layer].attention.output.dense.weight.shape)
-            else:
-                print("value:", None)
-                print("output:", None)
-            if bert.encoder.layer[layer].intermediate.dense is not None:
-                print("up:", bert.encoder.layer[layer].intermediate.dense.weight.shape)
-                print("down:", bert.encoder.layer[layer].output.dense.weight.shape)
-            else:
-                print("up", None)
-                print("down", None)
-        else:
-            if llama.layers[layer].self_attn.q_proj is not None:
-                print("query:", llama.layers[layer].self_attn.q_proj.weight.shape)
-                print("key:", llama.layers[layer].self_attn.k_proj.weight.shape)
-            else:
-                print("query:", None)
-                print("key:", None)
-            if llama.layers[layer].self_attn.v_proj is not None:
-                print("value:", llama.layers[layer].self_attn.v_proj.weight.shape)
-                print("output:", llama.layers[layer].self_attn.o_proj.weight.shape)
-            else:
-                print("value:", None)
-                print("output:", None)
-            if llama.layers[layer].mlp.gate_proj is not None:
-                print("gate:",llama.layers[layer].mlp.gate_proj.weight.shape)
-                print("up:", llama.layers[layer].mlp.up_proj.weight.shape)
-                print("down:", llama.layers[layer].mlp.down_proj.weight.shape)
-            else:
-                print("gate:",None)
-                print("up", None)
-                print("down", None)'''
-    print("3072:",model.mlp[0].weight.shape)
-    print("1024:", model.mlp[3].weight.shape)
+
+    return model
             
 
 def prune_hidden_mlp(zs, model, concat_index=None):
@@ -501,14 +466,10 @@ def prune_hidden_mlp(zs, model, concat_index=None):
 
     try:
         if concat_index is not None:
-            model.mlp[0] = prune_linear_layer(model.mlp[0], concat_index, dim=1) #3072
-        print(f"Pruning mlp now first layer is: {model.mlp[0]}, {len(fin_index)}")
-        
-        '''this lineis where we pruned the 1024 in 2048->1024'''
-        model.mlp[0] = prune_linear_layer(model.mlp[0], fin_index, dim=0) #1024 in 3072x1024
-        print(f"Pruning mlp now first layer is: {model.mlp[0]}, {len(fin_index)}")
-        model.mlp[3] = prune_linear_layer(model.mlp[3], fin_index, dim=1) #1024 in 1024x3 ebcause we pruned the 1024 from the 3072x1024 and now dims need to match between 3072x1024 and 1024x3 ot pass the ou[ut of former into latter
-        print(f"Pruning mlp now first layer is: {model.mlp[3]}, {len(fin_index)}")
+            model.mlp[0] = prune_linear_layer(model.mlp[0], concat_index, dim=1) 
+        model.mlp[0] = prune_linear_layer(model.mlp[0], fin_index, dim=0) 
+       
+        model.mlp[3] = prune_linear_layer(model.mlp[3], fin_index, dim=1)
     except:
         return
     return model
@@ -538,6 +499,7 @@ def prune_intermediate_layers(model, keep_dims):
                 llama.layers[layer].mlp.gate_proj = prune_linear_layer(llama.layers[layer].mlp.gate_proj, index=torch.LongTensor(keep_dims[layer]).to(device), dim=0)
                 llama.layers[layer].mlp.up_proj = prune_linear_layer(llama.layers[layer].mlp.up_proj, index=torch.LongTensor(keep_dims[layer]).to(device), dim=0)
                 llama.layers[layer].mlp.down_proj = prune_linear_layer(llama.layers[layer].mlp.down_proj, index=torch.LongTensor(keep_dims[layer]).to(device), dim=1)
+    
             
 
 
@@ -594,10 +556,7 @@ def load_pruned_model(model, weights):
  
     #prune_model_with_z(zs, model)
 
-    model.load_state_dict(weights, strict=False)
-    
-
-    #print("Missing ", missing, "\nUn ", unexpected)
+    result = model.load_state_dict(weights, strict=False)
     return model
 
 def get_full_model_size(model_class, model_name):

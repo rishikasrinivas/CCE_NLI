@@ -20,13 +20,19 @@ for run in {1..3}; do
     for index in "${!sparsities[@]}"; do
         iteration=$((index + 1))
         sparsity="${sparsities[$index]}"
+        output_dir="/workspace/CCE_NLI/${model}/models/CoFi/Run${run}/${iteration}_Pruning_Iter"
 
+        if [[ -f "${output_dir}/model_best.pth" ]]; then
+            echo "Skipping ${output_dir}: model_best.pth found"
+            continue
+        fi
+        
         echo "Starting Run${run}, iteration ${iteration}, sparsity ${sparsity}"
-
+        
         CUDA_VISIBLE_DEVICES=0 python3 code/cofi/run-sheard.py \
             --model_name llama \
             --path_to_pretrained LLAMA/models/pretrained/ \
-            --teacher_model_dir "/workspace/CCE_NLI/LLAMA/models/lottery_ticket/Run${run}/" \
+            --teacher_model_dir "/workspace/CCE_NLI/LLAMA/models/lottery_ticket/Run1/" \
             --data_debug 100 \
             --output_dir "/workspace/CCE_NLI/LLAMA/models/CoFi/Run${run}/${iteration}_Pruning_Iter" \
             --logging_steps 100 \

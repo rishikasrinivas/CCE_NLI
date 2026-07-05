@@ -145,7 +145,7 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
             config.hidden_size / config.num_attention_heads)
         self.all_head_size = self.num_attention_heads * self.attention_head_size
         self.pruned_heads = set()
-        self.attn_impl = 'eager'
+        self.attn_impl = 'sdpa'
     
 
 
@@ -168,31 +168,42 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
     ):
         if self.v_proj is None:
             return (None, None)
+        
+        query_states = self.q_proj(hidden_states)
+        key_states = self.k_proj(hidden_states)
+        value_states = self.v_proj(hidden_states)
+        
+        q_width = query_states.shape[-1]
+        k_width = key_states.shape[-1]
+        v_width = value_states.shape[-1]
+        
+        
+        num_q_heads = q_width // self.head_dim
+        num_k_heads = k_width // self.head_dim
+        num_v_heads = v_width // self.head_dim
 
         bsz, q_len, _ = hidden_states.shape
         input_dtype = hidden_states.dtype
 
-        # q has num_attention_heads
-        query_states = self.q_proj(hidden_states)
-        query_states = query_states.view(
-            bsz, q_len, self.num_attention_heads, self.head_dim
-        ).transpose(1, 2)
-
-        # k/v have num_key_value_heads for GQA
-        key_states = self.k_proj(hidden_states)
-        value_states = self.v_proj(hidden_states)
-
-        key_states = key_states.view(
-            bsz, q_len, self.num_key_value_heads, self.head_dim
-        ).transpose(1, 2)
-
-        value_states = value_states.view(
-            bsz, q_len, self.num_key_value_heads, self.head_dim
-        ).transpose(1, 2)
-
         query_states = query_states.to(input_dtype)
         key_states = key_states.to(input_dtype)
         value_states = value_states.to(input_dtype)
+        
+        # q has num_attention_heads
+        
+        query_states = query_states.view(
+            bsz, q_len, num_q_heads, self.head_dim
+        ).transpose(1, 2)
+
+        key_states = key_states.view(
+            bsz, q_len, num_k_heads, self.head_dim
+        ).transpose(1, 2)
+
+        value_states = value_states.view(
+            bsz, q_len, num_v_heads, self.head_dim
+        ).transpose(1, 2)
+
+        
 
         # RoPE
         cos, sin = position_embeddings
@@ -304,10 +315,10 @@ class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
            
         
         # Update hyper params and store pruned heads
-        self.self.num_attention_heads = self.self.num_attention_heads - \
+        self.num_attention_heads = self.num_attention_heads - \
             len(heads)
-        self.self.all_head_size = self.self.attention_head_size * \
-            self.self.num_attention_heads
+        self.all_head_size = self.attention_head_size * \
+            self.num_attention_heads
         self.pruned_heads = self.pruned_heads.union(heads)
 
 
@@ -421,7 +432,7 @@ class CoFiModifiedLlamaDecoderLayer(ModifiedLlamaDecoderLayer):
             mlp_z=mlp_z,
             hidden_z=hidden_z,
         )
-        if mlp_out.sum().eq(0).item():
+        if mlp_out is None or mlp_out.sum().eq(0).item():
             hidden_states = residual # if mlp pruned ignore the layer norm use the result from the outout the self attn (whatever ended up after self attn whether it was just residual or also self attn)
 
         else:
@@ -449,6 +460,7 @@ class CoFiModifiedLlamaMLP(nn.Module):
         self.act_fn = nn.SiLU()
 
     def forward(self, x, intermediate_z=None, mlp_z=None, hidden_z=None):
+        if self.gate_proj is None: return None
         gate = self.gate_proj(x)
         
         up = self.up_proj(x)
@@ -614,6 +626,7 @@ class CoFiLlamaBiModel(LlamaBiModel):
             if hidden_z is not None:
                 print(f"Hidden shape is {hidden_z.shape}")'''
             #print("hidden state bef dec ", hidden_states.dtype)
+            
             
             layer_outputs = decoder_layer(
                 hidden_states,

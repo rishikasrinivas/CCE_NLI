@@ -226,9 +226,17 @@ class CoFiTrainer(Trainer):
         import wandb
 
         # Initialize wandb at the start of training
+        
+        if 'bert' in teacher_model_dir.lower():
+            name='bert-cofi' 
+        elif 'bowman' in teacher_model_dir.lower():
+            name='bowman-cofi' 
+        else:
+            name='llama-cofi'
+            
         wandb.init(
-            project="cofi-llama-distillation",
-            name=f"llama reloading wole training state",
+            project=f"{name}-distillation",
+            name=name,
             config={
                 "layer_distill_version": self.additional_args.layer_distill_version,
                 "learning_rate": self.args.learning_rate,
@@ -411,26 +419,22 @@ class CoFiTrainer(Trainer):
         if not self.finetuned_teacher:
             self.teacher_model = self.finetune_teacher(self.teacher_model)
             self.finetuned_teacher = True
-        self.store_results(self.teacher_model)
-        print("Acc for student")
-        
+        self.teacher_model.eval()
+        print(f"Teacher training mode: {self.teacher_model.training}")
+        # at the very start of training_step, step 0 only
+    
+ 
         # training
         print(f"Training for {num_train_epochs} epochs")
-        resumed = False
-        
-        
-        pruning_epochs =int(num_train_epochs)//2 
-        
-        
-        if epochs_trained < pruning_epochs:
-            resumed = self.resume_from()
-            if resumed:
-                epochs_trained = int(self.epoch)
-            else:
-                path_to_student = "/".join(self.args.output_dir.split("/")[:-1])
-                os.makedirs(os.path.join(path_to_student, 'student'), exist_ok=True)
-                self.resume_from( os.path.join(path_to_student, 'student')) #load student from path_to_run1/student
-                print(f"Loading state from {os.path.join(path_to_student, 'student')}")
+        pruning_epochs =int(num_train_epochs)//2
+        resumed = self.resume_from()
+        if resumed:
+            epochs_trained = int(self.epoch)
+        else:
+            path_to_student = "/".join(self.args.output_dir.split("/")[:-1])
+            os.makedirs(os.path.join(path_to_student, 'student'), exist_ok=True)
+            self.resume_from( os.path.join(path_to_student, 'student')) #load student from path_to_run1/student
+            print(f"Loading state from {os.path.join(path_to_student, 'student')}")
         
         print(f"Will prune for {pruning_epochs} total, finetune for {num_train_epochs-pruning_epochs}. Have completed {epochs_trained} from ckpt")
         self.evaluate()
@@ -564,12 +568,6 @@ class CoFiTrainer(Trainer):
                         print(e)
                         sys.exit(1)
                     
-                    '''
-                    self.student_optimizer.step()
-
-                    if self.l0_module is not None and self.l0_optimizer is not None:
-                        self.l0_optimizer.step()
-                        self.lagrangian_optimizer.step()'''
                     
                     #replace vanilla optimizer strep with scalars to prevent 0 grads
                     self.scaler.step(self.student_optimizer)
@@ -662,8 +660,8 @@ class CoFiTrainer(Trainer):
                 using_trained_student = True
                 wandb.finish()
                 wandb.init(
-                    project="cofi-llama-distillation",
-                    name=f"run_prune-student-withdynacache-alpha0.1-{self.additional_args.layer_distill_version}",
+                    project=f"{name}",
+                    name=name,
                     config={
                         "layer_distill_version": self.additional_args.layer_distill_version,
                         "learning_rate": self.args.learning_rate,
@@ -947,7 +945,10 @@ class CoFiTrainer(Trainer):
         if state.get("scaler") is not None:
             self.scaler.load_state_dict(state["scaler"])
         
-        self.model.load_state_dict(torch.load(os.path.join(checkpoint_dir, 'model_best.pth'))['state_dict'])
+        if 'student' in checkpoint_dir:
+            self.model.load_state_dict(torch.load(os.path.join(checkpoint_dir, 'student_model.pth'))['state_dict'])
+        else:
+            self.model.load_state_dict(torch.load(os.path.join(checkpoint_dir, 'model_best.pth'))['state_dict'])
 
         return True
        
@@ -977,17 +978,14 @@ class CoFiTrainer(Trainer):
             # Saving
             "scaler" : self.scaler.state_dict()
         }
-        if student:
-            training_state_fname = 'training_state_student.pth'
-        else:
-            training_state_fname = 'training_state.pth'
+        training_state_fname = 'training_state.pth'
             
         torch.save(training_state, os.path.join(output_dir, training_state_fname))
 
         # Save l0 module
         if self.l0_module is not None:
             if student:
-                l0_module_fname = 'l0_module_student.pt'
+                l0_module_fname = 'l0_module.pt'
             else:
                 l0_module_fname = 'l0_module.pt'
                 zs = self.l0_module.forward(training=False)
@@ -1183,29 +1181,15 @@ class CoFiTrainer(Trainer):
             loss = loss + self.additional_args.distill_loss_alpha * distill_loss.float()
 
         return distill_loss, ce_distill_loss, loss.float()
-    '''def calculate_distillation_loss(self, teacher_outputs, student_outputs, zs):
-        layer_loss = self.calculate_layer_distillation_loss(teacher_outputs, student_outputs, zs)
-        distill_loss = layer_loss
-
-        ce_distill_loss = F.kl_div(
-            input=F.log_softmax(
-                student_outputs[1][2] / self.additional_args.distill_temp, dim=-1), #! logits: [32,3]
-            target=F.softmax(
-                teacher_outputs[1][2]  / self.additional_args.distill_temp, dim=-1), #! distill_temp: 2.0
-            reduction="batchmean") * (self.additional_args.distill_temp ** 2)
-        
-        loss = self.additional_args.distill_ce_loss_alpha * ce_distill_loss
-        if distill_loss is not None:
-            loss += self.additional_args.distill_loss_alpha * distill_loss
-        #print("Layer loss: ", layer_loss, "Total loss" ,loss, "KL Div",  ce_distill_loss)
-      
-        return distill_loss, ce_distill_loss, loss'''
 
 
     def store_results(self,teacher):
 
-
-        initial_acc = train_utils.run_eval(teacher,self.full_eval_dataloader,self.model_name, pruning_method='CoFi', device=self.device)
+        print(f"Before store_results - teacher.bn.running_mean[:3]: {teacher.bn.running_mean[:3]}")
+        initial_acc = train_utils.run_eval(teacher, self.full_eval_dataloader, self.model_name, pruning_method='CoFi', device=self.device)
+        print(f"After store_results - teacher.bn.running_mean[:3]: {teacher.bn.running_mean[:3]}")
+        print(f"After store_results - teacher training mode: {teacher.training}")
+        #initial_acc = train_utils.run_eval(teacher,self.full_eval_dataloader,self.model_name, pruning_method='CoFi', device=self.device)
         import json
         file_path='./initial_accs.json'
 
@@ -1254,11 +1238,6 @@ class CoFiTrainer(Trainer):
     def finetune_teacher(self,teacher):
         save_teacher_dir= f'0_Pruning_Iter'
         teacher_model_path=os.path.join(self.teacher_model_dir, save_teacher_dir)
-        #Load from safensors (not uniform for all pruning iters though)
-        '''if save_teacher_dir in os.listdir(self.teacher_model_dir) and 'model.safetensors' in os.listdir(teacher_model_path):
-            print(f"Reloading Finetuning SNLI teacher model ")
-            state_dict = load_file(os.path.join(teacher_model_path,'model.safetensors'))
-            self.teacher_model.load_state_dict(state_dict)'''
             
         # Load rfrm pth (deal)
         if os.path.exists(teacher_model_path) and 'model_best.pth' in  os.listdir(teacher_model_path):
@@ -1270,10 +1249,7 @@ class CoFiTrainer(Trainer):
             self.teacher_model.load_state_dict(state_dict, strict=False)
             for n,p in self.teacher_model.named_parameters():
                 p.requires_grad = False
-              
-            self.store_results(self.teacher_model)
-            
-           
+    
 
             return self.teacher_model
         
