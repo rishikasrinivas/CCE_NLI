@@ -36,11 +36,11 @@ for i in {8..9}; do
     #     --ckpt "LLAMA/models/lottery_ticket/Run0.25_$i/0_Pruning_Iter/model_best.pth"
     
     #echo "Running pruning explanation for iteration $i"
-    #python3 code/pruning_explanation.py \
-    #    --model_type llama \
-    #    --pruning_method lottery_ticket \
-    #    --ckpt "LLAMA/models/lottery_ticket/Run0.25_$i/0_Pruning_Iter/model_best.pth" \
-    #    --filename "Run0.25_$i"
+    python3 code/pruning_explanation.py \
+        --model_type llama \
+        --pruning_method lottery_ticket \
+        --ckpt "LLAMA/models/lottery_ticket/Run1/0_Pruning_Iter/model_best.pth" \
+        --filename "Run1"
     
     
 done
