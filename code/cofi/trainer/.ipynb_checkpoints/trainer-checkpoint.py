@@ -228,15 +228,15 @@ class CoFiTrainer(Trainer):
         # Initialize wandb at the start of training
         
         if 'bert' in teacher_model_dir.lower():
-            name='bert-cofi' 
+            self.wanda_project_name='bert-cofi' 
         elif 'bowman' in teacher_model_dir.lower():
-            name='bowman-cofi' 
+            self.wanda_project_name='bowman-cofi' 
         else:
-            name='llama-cofi'
+            self.wanda_project_name='llama-cofi'
             
         wandb.init(
-            project=f"{name}-distillation",
-            name=name,
+            project=f"{self.wanda_project_name}-distillation",
+            name=self.wanda_project_name,
             config={
                 "layer_distill_version": self.additional_args.layer_distill_version,
                 "learning_rate": self.args.learning_rate,
@@ -433,8 +433,12 @@ class CoFiTrainer(Trainer):
         else:
             path_to_student = "/".join(self.args.output_dir.split("/")[:-1])
             os.makedirs(os.path.join(path_to_student, 'student'), exist_ok=True)
-            self.resume_from( os.path.join(path_to_student, 'student')) #load student from path_to_run1/student
+            using_trained_student=self.resume_from( os.path.join(path_to_student, 'student')) #load student from path_to_run1/student
             print(f"Loading state from {os.path.join(path_to_student, 'student')}")
+            if using_trained_student: 
+                epochs_trained = 0
+            else:
+                epochs_trained = -1
         
         print(f"Will prune for {pruning_epochs} total, finetune for {num_train_epochs-pruning_epochs}. Have completed {epochs_trained} from ckpt")
         self.evaluate()
@@ -660,8 +664,8 @@ class CoFiTrainer(Trainer):
                 using_trained_student = True
                 wandb.finish()
                 wandb.init(
-                    project=f"{name}",
-                    name=name,
+                    project=f"{self.name}",
+                    name=self.wanda_project_name,
                     config={
                         "layer_distill_version": self.additional_args.layer_distill_version,
                         "learning_rate": self.args.learning_rate,
@@ -754,7 +758,8 @@ class CoFiTrainer(Trainer):
                 # Pass the inputs directly to the model. 
                 # Because we bypass the Trainer's wrapper, your cuda:1 tensors stay on cuda:1!
                 
-                outputs = model(**inputs)
+                with autocast():
+                    outputs = model(**inputs)
 
                 # Reconstruct the loss, logits, and labels manually to match your loop variables
                 loss = outputs.loss if hasattr(outputs, "loss") else None
@@ -992,6 +997,12 @@ class CoFiTrainer(Trainer):
                 torch.save(zs, os.path.join(output_dir, 'zs.pt'))
 
             torch.save(self.l0_module, os.path.join(output_dir,l0_module_fname))
+            
+        # zip to pvc
+        print("Saving to PVC")
+        weights_save_dir = f"/tutorial/{self.model_name}/CoFi/{os.path.join(*self.args.output_dir.rstrip('/').split('/')[-2:])}"
+        os.makedirs(weights_save_dir, exist_ok=True)
+        train_utils.zip_directory(self.args.output_dir, weights_save_dir)
             
     def calculate_layer_distillation_loss(self, teacher_outputs, student_outputs, zs):
 
