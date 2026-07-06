@@ -657,7 +657,7 @@ class CoFiTrainer(Trainer):
                 using_trained_student = True
                 wandb.finish()
                 wandb.init(
-                    project=f"{self.name}",
+                    project=f"{self.wanda_project_name}",
                     name=self.wanda_project_name,
                     config={
                         "layer_distill_version": self.additional_args.layer_distill_version,
