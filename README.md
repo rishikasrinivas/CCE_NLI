@@ -7,7 +7,9 @@ To run pruning: Upload model_best.pth to directory CCE_NLI and snli_1.0 to CCE_N
 git clone https://github.com/rishikasrinivas/CCE_NLI.git
 git switch cofi_merging
 mkdir DataLoaders
+wget https://huggingface.co/ccenli/llama/resolve/main/dataloaders.tar.gz
 tar -xvzf dataloaders.tar.gz
+
 cd CCE_NLI
 
 # if conda is not installed
