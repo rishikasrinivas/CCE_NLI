@@ -7,6 +7,7 @@ To run pruning: Upload model_best.pth to directory CCE_NLI and snli_1.0 to CCE_N
 git clone https://github.com/rishikasrinivas/CCE_NLI.git
 git switch cofi_merging
 mkdir DataLoaders
+tar -xvzf dataloaders.tar.gz
 cd CCE_NLI
 
 # if conda is not installed
@@ -26,7 +27,11 @@ pip install -U llm2vec
 
 
 # for llama cofi
-wget (llama_student)
-./scripts/runCofi.sh llama
+wget https://huggingface.co/ccenli/llama/resolve/main/llama_student_cofi.tar.gz
+tar -xvzf llama_student_cofi.tar.gz
+./scripts/runCofi.sh llama <starting sparsity> <device number> 
+
+#device number = 0 if on 1st gpu, 1 if on 2nd, etc
+#starting sparsity options are 0.25, 0.4375, 0.57812, 0.68359, 0.7627. if it crashes specify which sparsity to restart from
 
 ```
