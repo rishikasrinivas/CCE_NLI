@@ -433,7 +433,7 @@ class CoFiTrainer(Trainer):
         if resumed:
             epochs_trained = int(self.epoch)
         else:
-            path_to_student = "/".join(self.args.output_dir.split("/")[:-1])
+            path_to_student = "/".join(self.args.output_dir.split("/")[:-2])
             os.makedirs(os.path.join(path_to_student, 'student'), exist_ok=True)
             using_trained_student=self.resume_from( os.path.join(path_to_student, 'student')) #load student from path_to_run1/student
             print(f"Loading state from {os.path.join(path_to_student, 'student')}")
