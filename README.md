@@ -29,10 +29,15 @@ pip install -U llm2vec
 
 
 # for llama cofi
+#load the student model 
 wget https://huggingface.co/ccenli/llama/resolve/main/llama_student_cofi.tar.gz
 tar -xvzf llama_student_cofi.tar.gz
-./scripts/runCofi.sh llama <starting sparsity> <device number> 
 
+#load the teacher model 
+wget https://huggingface.co/ccenli/llama/resolve/main/llama_dense.tar.gz
+tar -xvzf llama_dense.tar.gz -C ../
+
+./scripts/runCofi.sh llama <starting sparsity> <device number> 
 #device number = 0 if on 1st gpu, 1 if on 2nd, etc
 #starting sparsity options are 0.25, 0.4375, 0.57812, 0.68359, 0.7627. if it crashes specify which sparsity to restart from
 
