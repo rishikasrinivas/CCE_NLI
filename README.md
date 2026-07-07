@@ -1,8 +1,6 @@
 # CCE_NLI
 
 
-To run pruning: Upload model_best.pth to directory CCE_NLI and snli_1.0 to CCE_NLI/data (both uploaded here: https://drive.google.com/drive/folders/1D9onWZBu8aJWnRABIkyIPmeIYHUb50Ky?usp=sharing)
-
 ```
 git clone https://github.com/rishikasrinivas/CCE_NLI.git
 git switch cofi_merging
