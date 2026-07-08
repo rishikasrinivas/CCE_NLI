@@ -196,7 +196,7 @@ def main():
    
     
 # os.path.join("/".join(training_args.output_dir.split("/")[:-1]), 'student', student_model_new.pth')
-    student_path = os.path.join("/".join(training_args.output_dir.split("/")[:-1]), 'student', 'student_model.pth') #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth" #"LLAMA/models/CoFi/Run_LTHStarter/25student_cublac1/student_model_drbug.pth" #None #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
+    student_path = os.path.join("/".join(training_args.output_dir.split("/")[:-2]), 'student', 'student_model.pth') #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth" #"LLAMA/models/CoFi/Run_LTHStarter/25student_cublac1/student_model_drbug.pth" #None #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
 
     print(f'Loading student model from : {student_path} to {device}')
     
@@ -333,9 +333,7 @@ def main():
        
         print(trainer.evaluate())
         
-    weights_save_dir = f"/tutorial/{additional_args.model_name}/CoFi/{os.path.join(*training_args.output_dir.rstrip('/').split('/')[-2:])}"
-    os.makedirs(weights_save_dir, exist_ok=True)
-    train_utils.zip_directory(training_args.output_dir, weights_save_dir)
+    
 
     
 

@@ -228,15 +228,15 @@ class CoFiTrainer(Trainer):
         # Initialize wandb at the start of training
         
         if 'bert' in teacher_model_dir.lower():
-            name='bert-cofi' 
+            self.wanda_project_name='bert-cofi' 
         elif 'bowman' in teacher_model_dir.lower():
-            name='bowman-cofi' 
+            self.wanda_project_name='bowman-cofi' 
         else:
-            name='llama-cofi'
+            self.wanda_project_name='llama-cofi'
             
         wandb.init(
-            project=f"{name}-distillation",
-            name=name,
+            project=f"{self.wanda_project_name}-distillation",
+            name=self.wanda_project_name,
             config={
                 "layer_distill_version": self.additional_args.layer_distill_version,
                 "learning_rate": self.args.learning_rate,
@@ -419,22 +419,28 @@ class CoFiTrainer(Trainer):
         if not self.finetuned_teacher:
             self.teacher_model = self.finetune_teacher(self.teacher_model)
             self.finetuned_teacher = True
+            
         self.teacher_model.eval()
-        print(f"Teacher training mode: {self.teacher_model.training}")
+        assert not self.teacher_model.training, f'Teacher not supposed to be in training mode. call self.teacher_model.eval()'
         # at the very start of training_step, step 0 only
-    
  
         # training
         print(f"Training for {num_train_epochs} epochs")
         pruning_epochs =int(num_train_epochs)//2
         resumed = self.resume_from()
+        
+        # if countinuing from a checkpoint just continue pruning otherwise try to load the student 
         if resumed:
             epochs_trained = int(self.epoch)
         else:
-            path_to_student = "/".join(self.args.output_dir.split("/")[:-1])
+            path_to_student = "/".join(self.args.output_dir.split("/")[:-2])
             os.makedirs(os.path.join(path_to_student, 'student'), exist_ok=True)
-            self.resume_from( os.path.join(path_to_student, 'student')) #load student from path_to_run1/student
+            using_trained_student=self.resume_from( os.path.join(path_to_student, 'student')) #load student from path_to_run1/student
             print(f"Loading state from {os.path.join(path_to_student, 'student')}")
+            if using_trained_student: 
+                epochs_trained = 0 #start pruning
+            else:
+                epochs_trained = -1 # leave 1 epoch to start pruning
         
         print(f"Will prune for {pruning_epochs} total, finetune for {num_train_epochs-pruning_epochs}. Have completed {epochs_trained} from ckpt")
         self.evaluate()
@@ -473,14 +479,9 @@ class CoFiTrainer(Trainer):
             
             
             for step, inputs in enumerate(epoch_iterator):
-                #print(f"Can only start pruning at {self.global_step} == {self.prepruning_finetune_steps}")
-                #print(f"right now, glboal step = {self.global_step} and self.prepruning_finetune_steps = {self.prepruning_finetune_steps}" )
-                  # in orig foi they say self.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps:
-                        # but this is because they train the student first run. we may start with a trained student alr
-                if  epoch < pruning_epochs and using_trained_student and not self.start_prune: #elf.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps: #! before pruning, run 12272 steps
-                    #use the momentum from the previously saved student (if those states are saved, else load an optimizer from scracth)
-                    #resumed = self.resume_from()
-                    #if not resumed:
+              # in orig foi they say self.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps:
+                    # but this is because they train the student first run. we may start with a trained student alr
+                if  epoch < pruning_epochs and using_trained_student and not self.start_prune: 
                     print("Pruning")
                     self.start_prune = True
                     self.global_step = self.prepruning_finetune_steps
@@ -532,10 +533,8 @@ class CoFiTrainer(Trainer):
                                 l0_stats[f"l0/{name}_max"] = p.grad.abs().max().item()
                         wandb.log({**l0_stats})
                     
-
-                    
+                    # gradient clipping and error if encountering NANs
                     grad_norm = None
-
                     try:
                         grad_norm = torch.nn.utils.clip_grad_norm_(
                             model.parameters(),
@@ -641,11 +640,9 @@ class CoFiTrainer(Trainer):
                 if self.args.max_steps > 0 and self.global_step >= self.args.max_steps:
                     print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity} with expected at {self.expected_sparsity}")
                     self.save_model(model, student=False)
-                    #wandb.finish()
+                
                 
                     break
-                #else:
-                    #print(f"Not ready to save because target sparsity =  {self.additional_args.target_sparsity}: and we're at at {self.pruned_sparsity} with expected at {self.expected_sparsity} and {abs(self.expected_sparsity - self.pruned_sparsity)} is not less than {self.additional_args.sparsity_epsilon}")
 
             epoch_end = time.time()
             # wandb.log({'epoch':epoch})
@@ -660,8 +657,8 @@ class CoFiTrainer(Trainer):
                 using_trained_student = True
                 wandb.finish()
                 wandb.init(
-                    project=f"{name}",
-                    name=name,
+                    project=f"{self.wanda_project_name}",
+                    name=self.wanda_project_name,
                     config={
                         "layer_distill_version": self.additional_args.layer_distill_version,
                         "learning_rate": self.args.learning_rate,
@@ -693,9 +690,6 @@ class CoFiTrainer(Trainer):
             prediction_loss_only if prediction_loss_only is not None else self.args.prediction_loss_only
         )
         
-        
-        
-        print("Is iterable:", hasattr(dataloader, '__iter__'))
         # disable output hidden states and attention during evaluation
         if self.model_name != 'bowman': # bc bowman doesnt have this attr
             self.model.config.output_hidden_states = False
@@ -718,9 +712,6 @@ class CoFiTrainer(Trainer):
         all_preds = None
         all_labels = None
         model.eval()
-
-
-
 
         if self.args.past_index >= 0:
             self._past = None
@@ -811,7 +802,7 @@ class CoFiTrainer(Trainer):
             labels = nested_numpify(labels_host)
             all_labels = labels if all_labels is None else nested_concat(
                 all_labels, labels, padding_index=-100)
-            print("all labels ", all_labels.shape)
+           
             
   
         if self.compute_metrics is not None and all_preds is not None and all_labels is not None:
@@ -852,18 +843,14 @@ class CoFiTrainer(Trainer):
         logger.warning("EVALUATING")
         eval_output = self.prediction_loop(
             self.full_eval_dataloader, description="Evaluation")
-        #train_output = self.prediction_loop(
-            #self.full_train_dataloader, description="Evaluation", training=True)
 
         self.log(eval_output.metrics)
-        # wandb.log(output.metrics)
         eval_output.metrics["step"] = self.global_step
         logger.info(f"Evaluating: {eval_output.metrics}")
   
         eval_score = 0
         
         name = glue_tasks['snli']
-        print("Name is ", name)
         if isinstance(name, str):
             if name in eval_output.metrics:
                 eval_score = eval_output.metrics[name]
@@ -881,7 +868,6 @@ class CoFiTrainer(Trainer):
         if self.start_saving_best:
             self.pruned_sparsity= eval_output.metrics['pruned_model_sparsity']
             self.expected_sparsity = eval_output.metrics['expected_sparsity']
-            print(f"======{self.ready_to_save()}========")
             if self.ready_to_save():
                 
                 best_so_far = self.eval_counter.update(self.epoch, self.global_step, eval_score)
@@ -912,7 +898,6 @@ class CoFiTrainer(Trainer):
             return False
         print(f"RESUMING state from {state_path}")
       
-        
         state = torch.load(state_path, map_location=self.device)
 
         self.global_step = state['global_step']
@@ -993,6 +978,10 @@ class CoFiTrainer(Trainer):
                 torch.save(zs, os.path.join(output_dir, 'zs.pt'))
 
             torch.save(self.l0_module, os.path.join(output_dir,l0_module_fname))
+            
+        # zip to pvc
+        print(f"Saving Zipped Version to {self.args.output_dir}")
+        train_utils.zip_directory(self.args.output_dir, self.args.output_dir)
             
     def calculate_layer_distillation_loss(self, teacher_outputs, student_outputs, zs):
 

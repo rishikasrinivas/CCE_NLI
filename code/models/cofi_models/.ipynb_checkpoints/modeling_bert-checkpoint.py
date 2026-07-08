@@ -682,7 +682,6 @@ class CoFiBertSdpaSelfAttention(BertSdpaSelfAttention):
         
         if head_z is None:
             # No pruning, just use parent
-            print(f"Input to bert is of shape , {hidden_states.shape}")
             return super().forward(
                 hidden_states, attention_mask, encoder_hidden_states,
                 encoder_attention_mask, past_key_value, 
