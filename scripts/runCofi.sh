@@ -20,7 +20,7 @@ case "$model" in
     llama)
         model_dir="LLAMA"
         model_name_or_path="knowledgator/Sheared-LLaMA-encoder-1.3B"
-        reg_learning_rate="1.0"
+        reg_learning_rate="0.01"
         ;;
     bert)
         model_dir="BERT"
@@ -51,7 +51,7 @@ if (( start_index == -1 )); then
     exit 2
 fi
 
-for run in {2..3}; do
+for run in {1..3}; do
     seed="${seeds[$((run - 1))]}"
 
     for index in "${!sparsities[@]}"; do

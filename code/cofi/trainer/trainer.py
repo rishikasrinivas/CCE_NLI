@@ -37,6 +37,8 @@ import train_utils
 from torch.cuda.amp import autocast, GradScaler
 from transformers.utils import logging
 import util
+import random
+
 logger = logging.get_logger(__name__)
  
 glue_tasks = {"cola": "matthews_correlation",
@@ -60,6 +62,9 @@ import wandb
 from torch.nn.utils.rnn import pad_sequence
 import torch
 SAVE_EVERY=10000
+
+
+    
 def llm_padding_collator(features):
     # Initialize batch dict
 
@@ -303,29 +308,29 @@ class CoFiTrainer(Trainer):
             
                
 
-            if build_l0_optimizer and self.l0_module is not None:
-                l0_params = [{
-                    "params": [p for n, p in self.l0_module.named_parameters() if "lambda" not in n],
-                    "weight_decay": 0.0,
-                    "lr": self.additional_args.reg_learning_rate
-                }]
-                
-                log_params(l0_params, "l0 reg params")
-                self.l0_optimizer = AdamW(l0_params,
-                                          betas=(self.args.adam_beta1,
-                                                 self.args.adam_beta2),
-                                          eps=self.args.adam_epsilon, )
+        if build_l0_optimizer and self.l0_module is not None:
+            l0_params = [{
+                "params": [p for n, p in self.l0_module.named_parameters() if "lambda" not in n],
+                "weight_decay": 0.0,
+                "lr": self.additional_args.reg_learning_rate
+            }]
 
-                lagrangian_params = [{
-                    "params": [p for n, p in self.l0_module.named_parameters() if "lambda" in n],
-                    "weight_decay": 0.0,
-                    "lr": -self.additional_args.reg_learning_rate
-                }]
-                log_params(lagrangian_params, "l0 reg lagrangian params")
-                self.lagrangian_optimizer = AdamW(lagrangian_params,
-                                                    betas=(self.args.adam_beta1,
-                                                            self.args.adam_beta2),
-                                                    eps=self.args.adam_epsilon)
+            log_params(l0_params, "l0 reg params")
+            self.l0_optimizer = AdamW(l0_params,
+                                      betas=(self.args.adam_beta1,
+                                             self.args.adam_beta2),
+                                      eps=self.args.adam_epsilon, )
+
+            lagrangian_params = [{
+                "params": [p for n, p in self.l0_module.named_parameters() if "lambda" in n],
+                "weight_decay": 0.0,
+                "lr": -self.additional_args.reg_learning_rate
+            }]
+            log_params(lagrangian_params, "l0 reg lagrangian params")
+            self.lagrangian_optimizer = AdamW(lagrangian_params,
+                                                betas=(self.args.adam_beta1,
+                                                        self.args.adam_beta2),
+                                                eps=self.args.adam_epsilon)
 
         if self.lr_scheduler is None:
             if self.additional_args.scheduler_type == "linear":
@@ -340,6 +345,8 @@ class CoFiTrainer(Trainer):
         return abs(self.expected_sparsity - self.additional_args.target_sparsity) <= self.additional_args.sparsity_epsilon
     
     def train(self, using_trained_student=True):
+        student_deterministic_seed = 57
+        run_seed = self.args.seed
         
         
         
@@ -425,28 +432,40 @@ class CoFiTrainer(Trainer):
         # at the very start of training_step, step 0 only
  
         # training
-        print(f"Training for {num_train_epochs} epochs")
-        pruning_epochs =int(num_train_epochs)//2
-        resumed = self.resume_from()
-        
-        # if countinuing from a checkpoint just continue pruning otherwise try to load the student 
-        if resumed:
-            epochs_trained = int(self.epoch)
+        # No resume path. Either load existing student weights, or train deterministic student epoch.
+        resumed = False
+        path_to_student = "/".join(self.args.output_dir.split("/")[:-2])
+        student_dir = os.path.join(path_to_student, "student")
+        student_path = os.path.join(student_dir, "student_model.pth")
+        os.makedirs(student_dir, exist_ok=True)
+
+        if os.path.exists(student_path):
+            print(f"Loading student weights only from {student_path}")
+            ckpt = torch.load(student_path, map_location=self.device)
+            self.model.load_state_dict(ckpt["state_dict"], strict=True)
+            self.model.to(self.device)
+
+            using_trained_student = True
+            epochs_trained = 0
+
+            # After student is loaded, pruning should follow the run seed.
+            
+
         else:
-            path_to_student = "/".join(self.args.output_dir.split("/")[:-2])
-            os.makedirs(os.path.join(path_to_student, 'student'), exist_ok=True)
-            using_trained_student=self.resume_from( os.path.join(path_to_student, 'student')) #load student from path_to_run1/student
-            print(f"Loading state from {os.path.join(path_to_student, 'student')}")
-            if using_trained_student: 
-                epochs_trained = 0 #start pruning
-            else:
-                epochs_trained = -1 # leave 1 epoch to start pruning
-        
+            print("No saved student found. Training first student epoch deterministically.")
+            
+
+            using_trained_student = False
+            epochs_trained = -1
+            
+        pruning_epochs =int(num_train_epochs)//2 
         print(f"Will prune for {pruning_epochs} total, finetune for {num_train_epochs-pruning_epochs}. Have completed {epochs_trained} from ckpt")
         self.evaluate()
+        
         for epoch in range(epochs_trained,int(num_train_epochs)): #! 20 epoch
             print(f"Starting epoch {epoch}")
-            if epoch >= pruning_epochs and self.start_prune: #if youve finished the pruning phase and the ckpt says its still pruning
+            #resume stuff (if resuming the if applies only)
+            '''if epoch >= pruning_epochs and self.start_prune: #that first epoh after pruning where it needs to start fintuning
                 self.start_prune=False
                 self.student_optimizer = None
                 self.lr_scheduler = None
@@ -461,6 +480,7 @@ class CoFiTrainer(Trainer):
             else:
                 print("Using existing optimizer/schedulers/L0")
             if epoch >= pruning_epochs: assert not self.start_prune, f'Pruning is on when it should be only finetuning'
+            '''
             epoch_start = time.time()
 
 
@@ -545,6 +565,7 @@ class CoFiTrainer(Trainer):
                             "train/grad_norm": grad_norm.item(),
                             "train/max_grad_norm": self.args.max_grad_norm,
                             "train/step": self.global_step,
+                            "debug/scaler_scale": self.scaler.get_scale(),
                         })
 
                     except RuntimeError as e:
@@ -559,7 +580,8 @@ class CoFiTrainer(Trainer):
 
                         wandb.log({
                             "train/nonfinite_grad_norm": 1,
-                            "train/step": self.global_step,
+                            
+ 
                             **bad_grads,
                         })
 
@@ -575,7 +597,7 @@ class CoFiTrainer(Trainer):
                     if self.start_prune:
                         self.scaler.step(self.l0_optimizer)
                         self.scaler.step(self.lagrangian_optimizer)
-
+                    
                     self.scaler.update()
 
                     if self.lr_scheduler is not None:
@@ -651,13 +673,49 @@ class CoFiTrainer(Trainer):
 
             epoch_pbar.close()
             train_pbar.update(1)
+            '''if not using_trained_student:
+                print("Trained deterministic student to starting point. Saving now")
+                self.save_model(model, student=True, output_dir=student_dir)
+                using_trained_student = True
+
+                # Switch back to this run's seed for pruning.
+                util.set_training_seed(run_seed, deterministic=False)
+
+                # Reset pruning optimizers/scheduler/scaler so pruning starts fresh under run seed.
+                self.start_prune = False
+                self.global_step = 0
+                self.epoch = 0
+                self.student_optimizer = None
+                self.lr_scheduler = None
+                self.l0_optimizer = None
+                self.lagrangian_optimizer = None
+                self.scaler = GradScaler(enabled=True)
+
+                self.create_optimizer_and_scheduler(
+                    self.t_total,
+                    build_l0_optimizer=False,
+                )
+
+                wandb.finish()
+                wandb.init(
+                    project=f"{self.wanda_project_name}-pruning_round",
+                    name=self.wanda_project_name,
+                    config={
+                        "layer_distill_version": self.additional_args.layer_distill_version,
+                        "learning_rate": self.args.learning_rate,
+                        "batch_size": self.args.per_device_train_batch_size,
+                        "num_layers": 22,
+                    }
+                )
+    
+            '''
             if not using_trained_student:
                 print("Trained student to starting point. Saving now")
                 self.save_model(model, student=True, output_dir=os.path.join(path_to_student, 'student'))
                 using_trained_student = True
                 wandb.finish()
                 wandb.init(
-                    project=f"{self.wanda_project_name}",
+                    project=f"{self.wanda_project_name}-pruning_round",
                     name=self.wanda_project_name,
                     config={
                         "layer_distill_version": self.additional_args.layer_distill_version,
@@ -750,7 +808,7 @@ class CoFiTrainer(Trainer):
 
                 # Reconstruct the loss, logits, and labels manually to match your loop variables
                 loss = outputs.loss if hasattr(outputs, "loss") else None
-
+                
                 # Match your specific structure: logits[0][2] is extracted below in your loop
                 # Hugging Face models return custom objects; extract the underlying tuple/tensor
                 logits = outputs.logits if hasattr(outputs, "logits") else outputs 
@@ -896,7 +954,7 @@ class CoFiTrainer(Trainer):
         if not os.path.exists(state_path):
             print(f"No training state found at {checkpoint_dir}, starting fresh")
             return False
-        print(f"RESUMING state from {state_path}")
+        print(f"RESUMING state from {state_path}. Will start/resume with pruning")
       
         state = torch.load(state_path, map_location=self.device)
 
@@ -907,8 +965,8 @@ class CoFiTrainer(Trainer):
 
         # Recreate optimizers first, then load state
         self.create_optimizer_and_scheduler(
-            self.t_total - self.global_step,
-            build_l0_optimizer=self.start_prune
+            self.t_total,
+            build_l0_optimizer=True  #means pruning starting/resuming
         )
 
         if state['student_optimizer']:
@@ -920,16 +978,16 @@ class CoFiTrainer(Trainer):
         if state['lagrangian_optimizer'] and self.lagrangian_optimizer:
             self.lagrangian_optimizer.load_state_dict(state['lagrangian_optimizer'])
             # Saving
-        if state.get("scaler"):
-            self.scaler.load_state_dict(state["scaler"])
+        if state.get("scaler"): self.scaler.load_state_dict(state["scaler"])
+        
 
         # Reload l0 module
         l0_path = os.path.join(checkpoint_dir, 'l0_module.pt')
         if os.path.exists(l0_path):
             loaded_l0 = torch.load(l0_path, map_location=self.device)
             self.l0_module.load_state_dict(loaded_l0.state_dict())
-        if state.get("scaler") is not None:
-            self.scaler.load_state_dict(state["scaler"])
+       
+        
         
         if 'student' in checkpoint_dir:
             self.model.load_state_dict(torch.load(os.path.join(checkpoint_dir, 'student_model.pth'))['state_dict'])
@@ -983,6 +1041,29 @@ class CoFiTrainer(Trainer):
         print(f"Saving Zipped Version to {self.args.output_dir}")
         train_utils.zip_directory(self.args.output_dir, self.args.output_dir)
             
+    def stable_mse(t, s, name=""):
+        t = t.float()
+        s = s.float()
+
+        if not torch.isfinite(t).all() or not torch.isfinite(s).all():
+            print(f"Nonfinite tensor before MSE: {name}")
+            print("teacher finite:", torch.isfinite(t).all().item())
+            print("student finite:", torch.isfinite(s).all().item())
+            print("teacher max:", t.nan_to_num().abs().max().item())
+            print("student max:", s.nan_to_num().abs().max().item())
+            raise RuntimeError(f"Nonfinite hidden state before layer MSE: {name}")
+
+        loss = mse_loss(t, s)
+
+        if not torch.isfinite(loss):
+            print(f"Nonfinite MSE: {name}")
+            print("teacher max:", t.abs().max().item())
+            print("student max:", s.abs().max().item())
+            print("teacher std:", t.std().item())
+            print("student std:", s.std().item())
+            raise RuntimeError(f"Nonfinite layer MSE: {name}")
+
+        return loss
     def calculate_layer_distillation_loss(self, teacher_outputs, student_outputs, zs):
 
 
@@ -1054,10 +1135,10 @@ class CoFiTrainer(Trainer):
                     specified_teacher_layers[0] = max(2, specified_teacher_layers[0])
                 else:
                     if hasattr(self.model, 'bert'): #bert
-                        specified_teacher_layers = [2, 5, 8, 11]
+                        last_aligned_layer = 22  
                     elif hasattr(self.model, 'model'): #llama
-                        
-                        specified_teacher_layers = [2,5,8,11]
+                        last_aligned_layer = 24
+                    specified_teacher_layers = [2,5,8,11]
                         
                 #logger.warning(f"sampled teacher layers: {specified_teacher_layers}")
                 
@@ -1110,7 +1191,7 @@ class CoFiTrainer(Trainer):
                     alignment = torch.argmin(layerwiseloss, dim=1)
                 #! added the ordering restriction -> to choose the min loss in 4 student layers
                 elif self.additional_args.layer_distill_version in (3, 4, 5, 6):
-                    last_aligned_layer = 24
+                    
                     alignment = []
                     for search_index in range(len(specified_teacher_layers)-1, -1, -1):
                         indexes = layerwiseloss[search_index].sort()[1]
