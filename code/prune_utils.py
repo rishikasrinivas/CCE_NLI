@@ -68,7 +68,7 @@ def run_expls(
     path_to_activation_masks = os.path.join(args.model_type.upper(), "exp", args.pruning_method, args.filename, 'Masks')
     path_to_activations = os.path.join(args.model_type.upper(), "activations", args.pruning_method, args.filename)
     path_to_formula_masks = os.path.join(args.model_type.upper(), "formula_masks", args.pruning_method, args.filename)
-    logger.info(f"Loading weights from {path_to_weights}")
+    print(f"Loading weights from {path_to_weights}")
     os.makedirs(path_to_explanations, exist_ok=True)
     os.makedirs(path_to_activation_masks, exist_ok=True)
     os.makedirs(path_to_activations, exist_ok=True)
@@ -76,10 +76,10 @@ def run_expls(
     
     # Gets the ckpt and numeric pruning iter
     for prune_iter in range(0, len(os.listdir(path_to_weights)) +1):
-        prune_metrics_dir  = f"{prune_iter}_Pruning_Iter"
+        prune_metrics_dir  = f"4_Pruning_Iter"
         
         if prune_metrics_dir not in os.listdir(path_to_weights): 
-            logger.info(f"{prune_metrics_dir} is not a valid directory. Skipping")
+            print(f"{prune_metrics_dir} is not a valid directory in {path_to_weights}. Skipping")
             continue
         
         filepath = os.path.join(path_to_weights, prune_metrics_dir,"model_best.pth" )
@@ -94,21 +94,23 @@ def run_expls(
         #TODO: need to reload model load_model with zs from cofi utils and load zs (as demoed in calc_pruning)
         #model.load_state_dict(torch.load(filepath, map_location=torch.device(device))['state_dict'], strict=False) #loading the already finetuned weights
         zs=None
-        if args.pruning_method == 'CoFi' and prune_iter>0:
+        if args.pruning_method == 'CoFi':
             
-            zs_path= os.path.join(path_to_weights, f'{prune_iter}_Pruning_Iter/zs.pt')
-            zs = torch.load(zs_path)
+            zs_path= os.path.join(path_to_weights,prune_metrics_dir, 'zs.pt')
+            zs = torch.load(zs_path, map_location=device)
         
-        model,ckpt = train_utils.load_model(model_type=args.model_type, pruning_method=args.pruning_method, train=train, ckpt=os.path.join(path_to_weights, f'{prune_iter}_Pruning_Iter', 'model_best.pth'), device=device, zs=zs)
+        model,ckpt = train_utils.load_model(model_type=args.model_type, pruning_method=args.pruning_method, train=train, ckpt=os.path.join(path_to_weights, prune_metrics_dir, 'model_best.pth'), device=device, zs=zs)
         if prune_iter==0:
             original_model_size=calculate_parameters(model)
-        original_model_size=88204291
+        original_model_size=1222643715
 
             
         
         # === Recording Accs and Pruned Percents
         if args.pruning_method == 'CoFi':
             pruned_model_size = calculate_parameters(model)
+            print(f"Pruned model size = {pruned_model_size}")
+          
             final_weights_pruned = 1 - (pruned_model_size / original_model_size)  
             
         else:

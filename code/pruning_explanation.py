@@ -60,16 +60,16 @@ def main(args):
     
     
     zs=None
-    if args.pruning_method == 'cofi':
+    if args.pruning_method.lower() == 'cofi':
         logger.info(f"Loading zs for {args.pruning_method}")
-        zs_path= os.path.join(args.model_type.upper(), "models", args.pruning_method, args.filename, '0_Pruning_Iter/zs.pt')
-      
-        zs = torch.load(zs_path)
+        zs_path= os.path.join("/".join(args.ckpt.split("/")[:-1]),'zs.pt')
+        print(f"expanding on {device}")
+        zs = torch.load(zs_path, map_location=device)
     print(args.ckpt)
     model,ckpt = train_utils.load_model(model_type=args.model_type, pruning_method=args.pruning_method, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=args.ckpt, device=device, zs=zs)
     print("Got model")
     # ==== BUILD VOCAB ====
-    logger.info(f"Using {ckpt} for vocab (one-time)")
+    print(f"Using {ckpt} for vocab (one-time)")
     base_ckpt=torch.load(ckpt, map_location = torch.device(device)) #trained bowman/bert 
         
     vocab = {"itos": train.itos, "stoi": train.stoi}
@@ -79,7 +79,7 @@ def main(args):
     
     dataset = analysis.AnalysisDataset(lines, vocab)
     
-    logger.info(f"Starting explanations")
+    print(f"Starting explanations")
     all_fm_masks = prune_utils.run_expls(args, model,dataset, dataloaders,device, train=train,debug=args.debug, logger=logger)
     
     #alignment.calculate_alignment(all_fm_masks, path_to_overlap)  
