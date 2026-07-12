@@ -428,7 +428,7 @@ class CoFiTrainer(Trainer):
             self.teacher_model.eval()
             assert not self.teacher_model.training, f'Teacher not supposed to be in training mode. call self.teacher_model.eval()'
       
-        is_finetune_run = self.teacher_model is None and not self.additional_args.do_layer_distill
+        self.is_finetune_run = self.teacher_model is None and not self.additional_args.do_layer_distill
         num_prune_epochs = num_train_epochs
 
         resume_status = self.resume_from(num_prune_epochs=num_prune_epochs)
@@ -453,7 +453,7 @@ class CoFiTrainer(Trainer):
             raise RuntimeError("Finetune command got a checkpoint from before pruning finished.")
 
         else:  # "missing"
-            if is_finetune_run:
+            if self.is_finetune_run:
                 # FT command has no FT checkpoint yet, so initialize from completed pruning checkpoint.
                 prune_dir = self.args.output_dir  # or whatever dir your pruning cmd saved to
 
@@ -530,7 +530,7 @@ class CoFiTrainer(Trainer):
                     self.create_optimizer_and_scheduler(lr_steps, self.start_prune)
                     
                     logger.info("Starting l0 regularization!")
-                assert not self.start_prune
+                assert not self.start_prune if self.is_finetune_run else  self.start_prune, f'self.start_prune={self.start_prune} and self.is_finetune_run-{self.is_finetune_run}'
                 
                 if self.start_prune:
                     zs = self.l0_module.forward(training=True) #! get the zs
@@ -984,7 +984,7 @@ class CoFiTrainer(Trainer):
         # Only restore optimizers for the matching active run.
         self.create_optimizer_and_scheduler(
             self.t_total - self.global_step,
-            build_l0_optimizer=(self.start_prune and not is_finetune_run),
+            build_l0_optimizer=(self.start_prune and not self.is_finetune_run),
         )
 
         if state.get("student_optimizer") and self.student_optimizer:
@@ -996,7 +996,7 @@ class CoFiTrainer(Trainer):
         if state.get("scaler"):
             self.scaler.load_state_dict(state["scaler"])
 
-        if not is_finetune_run and self.start_prune:
+        if not self.is_finetune_run and self.start_prune:
             if state.get("l0_optimizer") and self.l0_optimizer:
                 self.l0_optimizer.load_state_dict(state["l0_optimizer"])
             if state.get("lagrangian_optimizer") and self.lagrangian_optimizer:
@@ -1296,7 +1296,7 @@ class CoFiTrainer(Trainer):
 
     def training_step(self, model: torch.nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> List[torch.Tensor]:
         model.train()
-        assert self.l0_module is None
+        assert self.l0_module is None if self.is_finetune_run else self.l0_module is not None, f'self.is_finetune_run ={self.is_finetune_run}, self.l0_module={self.l0_module} '
         if self.l0_module is not None:
     
             self.l0_module.train()
