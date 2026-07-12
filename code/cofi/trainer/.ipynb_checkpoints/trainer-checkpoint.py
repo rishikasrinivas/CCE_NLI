@@ -983,7 +983,7 @@ class CoFiTrainer(Trainer):
         
         # Only restore optimizers for the matching active run.
         self.create_optimizer_and_scheduler(
-            self.t_total,
+            self.t_total - self.global_step,
             build_l0_optimizer=(self.start_prune and not is_finetune_run),
         )
 
