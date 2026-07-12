@@ -429,7 +429,7 @@ class CoFiTrainer(Trainer):
             assert not self.teacher_model.training, f'Teacher not supposed to be in training mode. call self.teacher_model.eval()'
       
         is_finetune_run = self.teacher_model is None and not self.additional_args.do_layer_distill
-        num_prune_epochs = int(num_train_epochs) // 2
+        num_prune_epochs = num_train_epochs
 
         resume_status = self.resume_from(num_prune_epochs=num_prune_epochs)
 

@@ -97,7 +97,7 @@ for run in {1..3}; do
             --per_device_eval_batch_size 32 \
             --learning_rate 2e-5 \
             --reg_learning_rate "$reg_learning_rate" \
-            --num_train_epochs 10 \
+            --num_train_epochs 3 \
             --overwrite_output_dir \
             --save_steps 0 \
             --eval_steps 500 \
@@ -136,7 +136,7 @@ for run in {1..3}; do
             --per_device_eval_batch_size 32 \
             --learning_rate 2e-5 \
             --reg_learning_rate "$reg_learning_rate" \
-            --num_train_epochs 6 \
+            --num_train_epochs 3 \
             --overwrite_output_dir \
             --save_steps 0 \
             --eval_steps 500 \
