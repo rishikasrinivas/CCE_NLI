@@ -480,7 +480,7 @@ class CoFiTrainer(Trainer):
                 student_dir = os.path.join(path_to_student, "student")
                 os.makedirs(student_dir, exist_ok=True)
 
-                student_status = self.resume_from(student_dir, load_optimizer=False)
+                student_status = self.resume_from(student_dir)
                 print(f"Loading state from {student_dir}")
 
                 if student_status == "resumed":
