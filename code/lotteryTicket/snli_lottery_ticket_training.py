@@ -144,7 +144,7 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
     for prune_iter in range(start_idx, args.prune_iters):
         logger.info(f"\n--- Pruning Iteration {prune_iter} / {args.prune_iters} ---")
         logger.info(f"Baseline Accuracy : {baseline_acc}")
-        baseline_acc = 0.8495071639061071
+        baseline_acc=0.856
         baseckpt_acc = train_utils.run_eval(model, dataloaders['val'], args.model_type, 'lottery_ticket', device=device)
         print(f"After reinitializing, acc is {baseckpt_acc}")
         # Re-initialize the optimizer at the start of each finetuning run
@@ -160,8 +160,8 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
         #EDIT: Adding baseline_acc as an argument
         print(f"Finetuning at iteration : {prune_iter}")
         model = train_utils.finetune_pruned_model(
-            model, args.model_type, 'lottery_ticket', optimizer, criterion, dataloaders, 
-            args.finetune_epochs, prune_metrics_dir, baseline_acc, device
+                model, args.model_type, 'lottery_ticket', optimizer, criterion, dataloaders, 
+                args.finetune_epochs, prune_metrics_dir, baseline_acc, device
         )
 
         # Evaluate the best model from the finetuning phase

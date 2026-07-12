@@ -13,9 +13,9 @@ for i in {4..5}; do
     else
         python3 code/lotteryTicket/snli_lottery_ticket_training.py \
             --model_type bert \
-            --filename "Run0.25_{$i}_DELETE" \
+            --filename "Run1" \
             --finetune_epochs 3 \
-            --restart_from_ckpt "BERT/models/lottery_ticket/Run0.25_4/0_Pruning_Iter/model_best.pth" \
+            --restart_from_ckpt "BERT/models/lottery_ticket/Run1/0_Pruning_Iter/model_best.pth" \
             --start_idx 1 \
             --pretrained_ckpt BERT/models/pretrained/bert_MAIN_pretrained_inits.pth
     fi

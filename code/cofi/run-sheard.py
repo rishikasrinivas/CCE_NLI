@@ -120,7 +120,8 @@ def main():
         num_labels = len(set(train.labels))
     
     t_name=data_args.task_name
-    teacher_model = None
+    trained_teacher=None
+    teacher_model=None
     config=None
     print("model pretrained path ", model_args.model_name_or_path)
     if model_args.model_name_or_path.startswith("bert"):
@@ -163,6 +164,7 @@ def main():
             config.output_attentions = True
             config.output_hidden_states = True
             
+        
         if additional_args.do_distill:
         
             teacher_model, trained_teacher = Teach_Model.from_pretrained(
@@ -190,17 +192,16 @@ def main():
             )
     if teacher_model:
         teacher_model.eval()
-    
-        
- 
-   
-    
-# os.path.join("/".join(training_args.output_dir.split("/")[:-1]), 'student', student_model_new.pth')
-    student_path = os.path.join("/".join(training_args.output_dir.split("/")[:-2]), 'student', 'student_model.pth') #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth" #"LLAMA/models/CoFi/Run_LTHStarter/25student_cublac1/student_model_drbug.pth" #None #"/workspace/CCE_NLI/LLAMA/models/CoFi/Run_LTHStarter/STUDENT-alpha0.1-v4-dynacache/student_model.pth"
 
+
+    #load an untrained student model which we need to initially finetune before pruning
+    if additional_args.pretrained_pruned_model is not None:
+        student_path = additional_args.pretrained_pruned_model
+    else:
+        student_path = os.path.join("/".join(training_args.output_dir.split("/")[:-2]), 'student', 'student_model.pth')
+    
     print(f'Loading student model from : {student_path} to {device}')
     
-    #load an untrained student model which we need to initially finetune before pruning
     student_model, trained_student = Student_Model.from_pretrained(
         pretrained_model_name_or_path= student_path, # if student model is alr trained itll be here otherwise a default model will be loaded and finetuned
         config=config,
@@ -212,6 +213,10 @@ def main():
     ) #! inside the function, we get the original struct  #! CofiBertForSequenceClassification
     #load other stff fromstudent right here?????
     print(f'Loaded student model from : {student_path} to {student_model.device}, trained? {trained_student}')
+    if additional_args.pretrained_pruned_model is not None: #from args menas the model is already pruned:
+        print(f"LOADING ZS FROM {os.path.join(training_args.output_dir,'zs.pt')}")
+        zs = torch.load(os.path.join(training_args.output_dir,'zs.pt'), map_location=device)
+        student_model = load_model_with_zs(training_args.output_dir, student_model, zs=zs, train_data=train, ckpt=training_args.output_dir,  encoder=tokenizer, device=device)
     
     
     LABEL_STOI = {"entailment": 0, "neutral": 1, "contradiction": 2}
@@ -224,6 +229,8 @@ def main():
     label_to_id = LABEL_STOI
     
     # initialize the layer transformation matrix to be an identity matrix
+    assert not additional_args.do_layer_distill if  additional_args.pretrained_pruned_model is not None else additional_args.do_layer_distill, f'Using pruned model: {additional_args.pretrained_pruned_model} - distillatino is on {additional_args.do_layer_distill}'
+    
     if additional_args.do_layer_distill:
         initialize_layer_transformation(student_model)
 
@@ -232,12 +239,14 @@ def main():
 
     zs = None
     
+    
     if additional_args.pretrained_pruned_model is not None:
         print(
             f"Model Size after pruning: {calculate_parameters(student_model)}")
 
     l0_module = None
     
+    assert additional_args.pruning_type is None if additional_args.pretrained_pruned_model is not None else additional_args.pruning_type is not None #if ur using a pruned model, pruning_type should be None
     if additional_args.pruning_type is not None:
         l0_module = L0Module_Sheared(config=config,target_sparsity=additional_args.target_sparsity, pruning_modules= additional_args.pruning_type, device=device)
         '''else:
@@ -331,7 +340,7 @@ def main():
         if additional_args.target_sparsity > 0:
             tokenizer.save_pretrained(training_args.output_dir)
        
-        print(trainer.evaluate())
+        #print(trainer.evaluate())
         
     
 

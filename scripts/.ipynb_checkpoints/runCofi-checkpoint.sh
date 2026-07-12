@@ -20,7 +20,7 @@ case "$model" in
     llama)
         model_dir="LLAMA"
         model_name_or_path="knowledgator/Sheared-LLaMA-encoder-1.3B"
-        reg_learning_rate="1.0"
+        reg_learning_rate="0.01"
         ;;
     bert)
         model_dir="BERT"
@@ -51,7 +51,7 @@ if (( start_index == -1 )); then
     exit 2
 fi
 
-for run in {2..3}; do
+for run in {1..3}; do
     seed="${seeds[$((run - 1))]}"
 
     for index in "${!sparsities[@]}"; do
@@ -66,7 +66,7 @@ for run in {2..3}; do
 
         if [[ -f "${output_dir}/model_best.pth" ]]; then
             echo "Skipping ${output_dir}: model_best.pth found"
-            continue
+            
         fi
 
         echo "Starting Run${run}"
@@ -76,6 +76,9 @@ for run in {2..3}; do
         echo "Physical GPU: ${gpu}"
         echo "Output: ${output_dir}"
 
+        
+            
+        # fientuning 
         CUDA_VISIBLE_DEVICES="$gpu" python3 code/cofi/run-sheard.py \
             --model_name "$model" \
             --using_untrained_student False \
@@ -114,5 +117,34 @@ for run in {2..3}; do
             --prepruning_finetune_epochs 1 \
             --lagrangian_warmup_epochs 2 \
             --device cuda
+        
+        CUDA_VISIBLE_DEVICES="$gpu" python3 code/cofi/run-sheard.py \
+            --model_name "$model" \
+            --using_untrained_student False \
+            --path_to_pretrained "${model_dir}/models/pretrained/" \
+            --teacher_model_dir "/workspace/CCE_NLI/${model_dir}/models/lottery_ticket/Run1/" \
+            --data_debug 100 \
+            --output_dir "$output_dir" \
+            --logging_steps 100 \
+            --task_name SNLI \
+            --model_name_or_path "$model_name_or_path" \
+            --ex_name "SNLI_sparsity${sparsity}" \
+            --do_train \
+            --do_eval \
+            --max_seq_length 128 \
+            --per_device_train_batch_size 32 \
+            --per_device_eval_batch_size 32 \
+            --learning_rate 2e-5 \
+            --reg_learning_rate "$reg_learning_rate" \
+            --num_train_epochs 6 \
+            --overwrite_output_dir \
+            --save_steps 0 \
+            --eval_steps 500 \
+            --evaluation_strategy steps \
+            --seed "$seed" \
+            --pretrained_pruned_model "${output_dir}/model_best.pth" \
+            --target_sparsity "$sparsity" \
+            --device cuda
+
     done
 done

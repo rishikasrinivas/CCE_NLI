@@ -219,7 +219,8 @@ class CoFiTrainer(Trainer):
             print(f"MOVIG TEACHER TO {self.device}")
             self.teacher_model = self.teacher_model.to(self.device)
         
-            
+        self.is_finetune_run = self.current_run_is_finetune()
+        
         log_level = args.get_process_log_level()
         logging.set_verbosity(log_level)
         logger.setLevel(log_level)
@@ -262,7 +263,7 @@ class CoFiTrainer(Trainer):
                 logger.info(
                     f"{des}, number of params: {sum(p.nelement() for p in grouped_parameters['params'])}, weight_decay: {grouped_parameters['weight_decay']}, lr: {grouped_parameters['lr']}")
 
-        if self.student_optimizer is None or self.teacher_optimizer is None:
+        if self.student_optimizer is None or (self.teacher_model is not None and self.teacher_optimizer is None):
 
             if self.student_optimizer is None:
                 no_decay = ["bias", "LayerNorm.weight", 'layernorm.weight']
@@ -289,7 +290,7 @@ class CoFiTrainer(Trainer):
 
 
 
-            if self.teacher_optimizer is None:
+            if self.teacher_optimizer is None and self.teacher_model is not None:
             
                 teacher_main_model_params = [
                     {
@@ -345,10 +346,6 @@ class CoFiTrainer(Trainer):
         return abs(self.expected_sparsity - self.additional_args.target_sparsity) <= self.additional_args.sparsity_epsilon
     
     def train(self, using_trained_student=True):
-        student_deterministic_seed = 57
-        run_seed = self.args.seed
-        
-        
         
        
         num_update_steps_per_epoch = len(
@@ -423,64 +420,84 @@ class CoFiTrainer(Trainer):
 
         #Train the teacher model first bc in cofi orig repo they start with a trained teacher but here the frist run teach might not be trained yet so train it
 
-        if not self.finetuned_teacher:
-            self.teacher_model = self.finetune_teacher(self.teacher_model)
-            self.finetuned_teacher = True
-            
-        self.teacher_model.eval()
-        assert not self.teacher_model.training, f'Teacher not supposed to be in training mode. call self.teacher_model.eval()'
-        # at the very start of training_step, step 0 only
- 
-        # training
-        # No resume path. Either load existing student weights, or train deterministic student epoch.
-        resumed = False
-        path_to_student = "/".join(self.args.output_dir.split("/")[:-2])
-        student_dir = os.path.join(path_to_student, "student")
-        student_path = os.path.join(student_dir, "student_model.pth")
-        os.makedirs(student_dir, exist_ok=True)
+        if self.teacher_model is not None:
+            if not self.finetuned_teacher:
+                self.teacher_model = self.finetune_teacher(self.teacher_model)
+                self.finetuned_teacher = True
 
-        if os.path.exists(student_path):
-            print(f"Loading student weights only from {student_path}")
-            ckpt = torch.load(student_path, map_location=self.device)
-            self.model.load_state_dict(ckpt["state_dict"], strict=True)
-            self.model.to(self.device)
+            self.teacher_model.eval()
+            assert not self.teacher_model.training, f'Teacher not supposed to be in training mode. call self.teacher_model.eval()'
+      
+        is_finetune_run = self.teacher_model is None and not self.additional_args.do_layer_distill
+        num_prune_epochs = int(num_train_epochs) // 2
 
-            using_trained_student = True
-            epochs_trained = 0
+        resume_status = self.resume_from(num_prune_epochs=num_prune_epochs)
 
-            # After student is loaded, pruning should follow the run seed.
-            
+        if resume_status == "resumed":
+            epochs_trained = int(self.epoch)
 
-        else:
-            print("No saved student found. Training first student epoch deterministically.")
-            
+        elif resume_status == "init_finetune":
+            epochs_trained = num_prune_epochs
+            self.start_prune = False
+            self.student_optimizer = None
+            self.lr_scheduler = None
+            self.l0_optimizer = None
+            self.lagrangian_optimizer = None
+            self.create_optimizer_and_scheduler(self.t_total, build_l0_optimizer=False)
 
-            using_trained_student = False
-            epochs_trained = -1
-            
+        elif resume_status == "prune_complete":
+            print("Pruning already complete; returning so finetune command can start")
+            return self.model
+
+        elif resume_status == "wrong_phase":
+            raise RuntimeError("Finetune command got a checkpoint from before pruning finished.")
+
+        else:  # "missing"
+            if is_finetune_run:
+                # FT command has no FT checkpoint yet, so initialize from completed pruning checkpoint.
+                prune_dir = self.args.output_dir  # or whatever dir your pruning cmd saved to
+
+                load_status = self.resume_from(
+                    prune_dir,
+                    num_prune_epochs=num_prune_epochs,
+                    load_optimizer=False,
+                )
+
+                if load_status not in ("resumed", "prune_complete"):
+                    raise RuntimeError("Cannot start finetune: no completed pruning checkpoint found.")
+
+                epochs_trained = num_prune_epochs
+                self.start_prune = False
+                self.student_optimizer = None
+                self.lr_scheduler = None
+                self.l0_optimizer = None
+                self.lagrangian_optimizer = None
+                self.create_optimizer_and_scheduler(self.t_total, build_l0_optimizer=False)
+
+            else:
+                # Pruning command has no pruning checkpoint yet, so initialize from pre-pruning student.
+                path_to_student = "/".join(self.args.output_dir.split("/")[:-2])
+                student_dir = os.path.join(path_to_student, "student")
+                os.makedirs(student_dir, exist_ok=True)
+
+                student_status = self.resume_from(student_dir, load_optimizer=False)
+                print(f"Loading state from {student_dir}")
+
+                if student_status == "resumed":
+                    epochs_trained = 0
+                    self.start_prune = True
+                else:
+                    epochs_trained = -1
+                    self.start_prune = False
+                    
         pruning_epochs =int(num_train_epochs)//2 
-        print(f"Will prune for {pruning_epochs} total, finetune for {num_train_epochs-pruning_epochs}. Have completed {epochs_trained} from ckpt")
+        print(f"Will prune/train for {pruning_epochs} total. Have completed {epochs_trained} from ckpt")
         self.evaluate()
         
         for epoch in range(epochs_trained,int(num_train_epochs)): #! 20 epoch
             print(f"Starting epoch {epoch}")
             #resume stuff (if resuming the if applies only)
-            '''if epoch >= pruning_epochs and self.start_prune: #that first epoh after pruning where it needs to start fintuning
-                self.start_prune=False
-                self.student_optimizer = None
-                self.lr_scheduler = None
-                lr_steps = self.t_total - self.global_step
-                assert lr_steps>0, f'total is {self.t_total} and current global is {self.global_step}'
-                
-                self.create_optimizer_and_scheduler(lr_steps, self.start_prune)
-                if self.l0_module is not None:
-                    self.l0_module.eval()
-                    for p in self.l0_module.parameters():
-                        p.requires_grad_(False)
-            else:
-                print("Using existing optimizer/schedulers/L0")
-            if epoch >= pruning_epochs: assert not self.start_prune, f'Pruning is on when it should be only finetuning'
-            '''
+            
             epoch_start = time.time()
 
 
@@ -501,7 +518,7 @@ class CoFiTrainer(Trainer):
             for step, inputs in enumerate(epoch_iterator):
               # in orig foi they say self.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps:
                     # but this is because they train the student first run. we may start with a trained student alr
-                if  epoch < pruning_epochs and using_trained_student and not self.start_prune: 
+                if self.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps: 
                     print("Pruning")
                     self.start_prune = True
                     self.global_step = self.prepruning_finetune_steps
@@ -513,18 +530,14 @@ class CoFiTrainer(Trainer):
                     self.create_optimizer_and_scheduler(lr_steps, self.start_prune)
                     
                     logger.info("Starting l0 regularization!")
-            
+                assert not self.start_prune
                 
                 if self.start_prune:
                     zs = self.l0_module.forward(training=True) #! get the zs
                     self.fill_inputs_with_zs(zs, inputs) #! use the zs
-                elif epoch >= pruning_epochs:
-                    zs = self.l0_module.forward(training=False) #! get the zs
-                    self.fill_inputs_with_zs(zs, inputs) #! use the zs
                     
               
  
-      
                 loss_terms =  self.training_step(model, inputs)
                 tr_loss_step = loss_terms["loss"]
                 lag_loss_step = loss_terms["lagrangian_loss"]
@@ -673,42 +686,7 @@ class CoFiTrainer(Trainer):
 
             epoch_pbar.close()
             train_pbar.update(1)
-            '''if not using_trained_student:
-                print("Trained deterministic student to starting point. Saving now")
-                self.save_model(model, student=True, output_dir=student_dir)
-                using_trained_student = True
-
-                # Switch back to this run's seed for pruning.
-                util.set_training_seed(run_seed, deterministic=False)
-
-                # Reset pruning optimizers/scheduler/scaler so pruning starts fresh under run seed.
-                self.start_prune = False
-                self.global_step = 0
-                self.epoch = 0
-                self.student_optimizer = None
-                self.lr_scheduler = None
-                self.l0_optimizer = None
-                self.lagrangian_optimizer = None
-                self.scaler = GradScaler(enabled=True)
-
-                self.create_optimizer_and_scheduler(
-                    self.t_total,
-                    build_l0_optimizer=False,
-                )
-
-                wandb.finish()
-                wandb.init(
-                    project=f"{self.wanda_project_name}-pruning_round",
-                    name=self.wanda_project_name,
-                    config={
-                        "layer_distill_version": self.additional_args.layer_distill_version,
-                        "learning_rate": self.args.learning_rate,
-                        "batch_size": self.args.per_device_train_batch_size,
-                        "num_layers": 22,
-                    }
-                )
-    
-            '''
+            
             if not using_trained_student:
                 print("Trained student to starting point. Saving now")
                 self.save_model(model, student=True, output_dir=os.path.join(path_to_student, 'student'))
@@ -777,7 +755,7 @@ class CoFiTrainer(Trainer):
         disable_tqdm = not self.is_local_process_zero() or self.args.disable_tqdm
 
         zs = None
-        if self.start_prune or self.epoch >= 5:
+        if self.start_prune:
             self.l0_module.eval()
             zs = self.l0_module.forward(training=False)
 
@@ -922,11 +900,13 @@ class CoFiTrainer(Trainer):
         
 
         # logger.info(f"starting saving best: {self.global_step} {self.start_saving_best}")
-    
+        
         if self.start_saving_best:
-            self.pruned_sparsity= eval_output.metrics['pruned_model_sparsity']
-            self.expected_sparsity = eval_output.metrics['expected_sparsity']
-            if self.ready_to_save():
+            if not self.is_finetune_run:
+                self.pruned_sparsity= eval_output.metrics['pruned_model_sparsity']
+                self.expected_sparsity = eval_output.metrics['expected_sparsity']
+            
+            if self.is_finetune_run or self.ready_to_save():
                 
                 best_so_far = self.eval_counter.update(self.epoch, self.global_step, eval_score)
                 print(f"Best so far: {best_so_far}, eval: {eval_score}")
@@ -948,124 +928,125 @@ class CoFiTrainer(Trainer):
         })
         return eval_output.metrics
 
-    def resume_from(self, checkpoint_dir=None):
+    def current_run_is_finetune(self):
+        return self.teacher_model is None and not self.additional_args.do_layer_distill
+    
+    def resume_from(self, num_prune_epochs=None, checkpoint_dir=None):
+
         checkpoint_dir = checkpoint_dir if checkpoint_dir is not None else self.args.output_dir
-        state_path = os.path.join(checkpoint_dir, 'training_state.pth')
+        state_path = os.path.join(checkpoint_dir, "training_state.pth")
+
         if not os.path.exists(state_path):
             print(f"No training state found at {checkpoint_dir}, starting fresh")
-            return False
-        print(f"RESUMING state from {state_path}. Will start/resume with pruning")
-      
+            return "missing"
+
         state = torch.load(state_path, map_location=self.device)
 
-        self.global_step = state['global_step']
-        self.epoch = state['epoch']
-        self.start_prune = state['start_prune']
-        self.prepruning_finetune_steps = state['prepruning_finetune_steps']
+        self.global_step = state["global_step"]
+        self.epoch = state["epoch"]
+        self.start_prune = state["start_prune"]
+        self.prepruning_finetune_steps = state["prepruning_finetune_steps"]
 
-        # Recreate optimizers first, then load state
+        # Always load weights first.
+        if self.l0_module is not None:
+            l0_path = os.path.join(checkpoint_dir, "l0_module.pt")
+            if os.path.exists(l0_path):
+                loaded_l0 = torch.load(l0_path, map_location=self.device)
+                self.l0_module.load_state_dict(loaded_l0.state_dict())
+
+        if "student" in checkpoint_dir:
+            model_path = os.path.join(checkpoint_dir, "student_model.pth")
+        else:
+            model_path = os.path.join(checkpoint_dir, "model_best.pth")
+
+        
+
+        ckpt_epoch = int(self.epoch)
+
+        self.is_finetune_run = self.current_run_is_finetune()
+
+        if num_prune_epochs is not None:
+            pruning_done = ckpt_epoch >= num_prune_epochs
+
+            if pruning_done and self.is_finetune_run:
+                self.start_prune = False
+                return "init_finetune"
+            
+            if pruning_done and not self.is_finetune_run:
+                print("Pruning already complete; returning so FT command can run")
+                return "prune_complete"
+
+            if not pruning_done and self.is_finetune_run:
+                print("Checkpoint is still in pruning phase; FT run should not resume it")
+                return "wrong_phase"
+        self.model.load_state_dict(torch.load(model_path, map_location=self.device)["state_dict"])
+        
+        # Only restore optimizers for the matching active run.
         self.create_optimizer_and_scheduler(
             self.t_total,
-            build_l0_optimizer=True  #means pruning starting/resuming
+            build_l0_optimizer=(self.start_prune and not is_finetune_run),
         )
 
-        if state['student_optimizer']:
-            self.student_optimizer.load_state_dict(state['student_optimizer'])
-        if state['lr_scheduler']:
-            self.lr_scheduler.load_state_dict(state['lr_scheduler'])
-        if state['l0_optimizer'] and self.l0_optimizer:
-            self.l0_optimizer.load_state_dict(state['l0_optimizer'])
-        if state['lagrangian_optimizer'] and self.lagrangian_optimizer:
-            self.lagrangian_optimizer.load_state_dict(state['lagrangian_optimizer'])
-            # Saving
-        if state.get("scaler"): self.scaler.load_state_dict(state["scaler"])
-        
+        if state.get("student_optimizer") and self.student_optimizer:
+            self.student_optimizer.load_state_dict(state["student_optimizer"])
 
-        # Reload l0 module
-        l0_path = os.path.join(checkpoint_dir, 'l0_module.pt')
-        if os.path.exists(l0_path):
-            loaded_l0 = torch.load(l0_path, map_location=self.device)
-            self.l0_module.load_state_dict(loaded_l0.state_dict())
-       
-        
-        
-        if 'student' in checkpoint_dir:
-            self.model.load_state_dict(torch.load(os.path.join(checkpoint_dir, 'student_model.pth'))['state_dict'])
-        else:
-            self.model.load_state_dict(torch.load(os.path.join(checkpoint_dir, 'model_best.pth'))['state_dict'])
+        if state.get("lr_scheduler") and self.lr_scheduler:
+            self.lr_scheduler.load_state_dict(state["lr_scheduler"])
 
-        return True
+        if state.get("scaler"):
+            self.scaler.load_state_dict(state["scaler"])
+
+        if not is_finetune_run and self.start_prune:
+            if state.get("l0_optimizer") and self.l0_optimizer:
+                self.l0_optimizer.load_state_dict(state["l0_optimizer"])
+            if state.get("lagrangian_optimizer") and self.lagrangian_optimizer:
+                self.lagrangian_optimizer.load_state_dict(state["lagrangian_optimizer"])
+
+        return "resumed"
        
-    def save_model(self, model, student=False, output_dir=None):
+    def save_model(self, model, student=False, output_dir=None, phase=None, phase_complete=False):
         output_dir = output_dir if output_dir is not None else self.args.output_dir
         os.makedirs(output_dir, exist_ok=True)
 
-        # Save model weights
         util.save_checkpoint(
             train_utils.serialize(model, self.model_name, self.dataset),
             is_best=not student,
             exp_dir=output_dir,
-            filename='student_model.pth' if student else 'model_best.pth'
+            filename="student_model.pth" if student else "model_best.pth",
         )
 
-        
-        # Save full training state
+        if phase is None:
+            phase = "finetune" if self.teacher_model is None and not self.additional_args.do_layer_distill else "prune"
+
         training_state = {
-            'global_step': self.global_step,
-            'epoch': self.epoch,
-            'student_optimizer': self.student_optimizer.state_dict() if self.student_optimizer else None,
-            'lr_scheduler': self.lr_scheduler.state_dict() if self.lr_scheduler else None,
-            'l0_optimizer': self.l0_optimizer.state_dict() if self.l0_optimizer else None,
-            'lagrangian_optimizer': self.lagrangian_optimizer.state_dict() if self.lagrangian_optimizer else None,
-            'start_prune': self.start_prune,
-            'prepruning_finetune_steps': self.prepruning_finetune_steps,
-            # Saving
-            "scaler" : self.scaler.state_dict()
+            "global_step": self.global_step,
+            "epoch": self.epoch,
+            "student_optimizer": self.student_optimizer.state_dict() if self.student_optimizer else None,
+            "lr_scheduler": self.lr_scheduler.state_dict() if self.lr_scheduler else None,
+            "l0_optimizer": self.l0_optimizer.state_dict() if self.l0_optimizer else None,
+            "lagrangian_optimizer": self.lagrangian_optimizer.state_dict() if self.lagrangian_optimizer else None,
+            "start_prune": self.start_prune,
+            "prepruning_finetune_steps": self.prepruning_finetune_steps,
+            "phase": phase,
+            "phase_complete": phase_complete,
+            "scaler": self.scaler.state_dict(),
         }
-        training_state_fname = 'training_state.pth'
-            
-        torch.save(training_state, os.path.join(output_dir, training_state_fname))
 
-        # Save l0 module
+        torch.save(training_state, os.path.join(output_dir, "training_state.pth"))
+
         if self.l0_module is not None:
-            if student:
-                l0_module_fname = 'l0_module.pt'
-            else:
-                l0_module_fname = 'l0_module.pt'
+            if not student:
                 zs = self.l0_module.forward(training=False)
-                torch.save(zs, os.path.join(output_dir, 'zs.pt'))
+                torch.save(zs, os.path.join(output_dir, "zs.pt"))
 
-            torch.save(self.l0_module, os.path.join(output_dir,l0_module_fname))
-            
-        # zip to pvc
+            torch.save(self.l0_module, os.path.join(output_dir, "l0_module.pt"))
+
         print(f"Saving Zipped Version to {self.args.output_dir}")
         train_utils.zip_directory(self.args.output_dir, self.args.output_dir)
             
-    def stable_mse(t, s, name=""):
-        t = t.float()
-        s = s.float()
-
-        if not torch.isfinite(t).all() or not torch.isfinite(s).all():
-            print(f"Nonfinite tensor before MSE: {name}")
-            print("teacher finite:", torch.isfinite(t).all().item())
-            print("student finite:", torch.isfinite(s).all().item())
-            print("teacher max:", t.nan_to_num().abs().max().item())
-            print("student max:", s.nan_to_num().abs().max().item())
-            raise RuntimeError(f"Nonfinite hidden state before layer MSE: {name}")
-
-        loss = mse_loss(t, s)
-
-        if not torch.isfinite(loss):
-            print(f"Nonfinite MSE: {name}")
-            print("teacher max:", t.abs().max().item())
-            print("student max:", s.abs().max().item())
-            print("teacher std:", t.std().item())
-            print("student std:", s.std().item())
-            raise RuntimeError(f"Nonfinite layer MSE: {name}")
-
-        return loss
+   
     def calculate_layer_distillation_loss(self, teacher_outputs, student_outputs, zs):
-
+        assert not self.is_finetune_run, f'NO DISTILLATION DURIN FINETUNING'
 
         #print(f"In calculate_layer_distillation_loss in trainer.py\nteacher_outputs: {teacher_outputs}\nstudent_outputs: {student_outputs}")
         layer_loss=0
@@ -1254,46 +1235,7 @@ class CoFiTrainer(Trainer):
         return distill_loss, ce_distill_loss, loss.float()
 
 
-    def store_results(self,teacher):
-
-        print(f"Before store_results - teacher.bn.running_mean[:3]: {teacher.bn.running_mean[:3]}")
-        initial_acc = train_utils.run_eval(teacher, self.full_eval_dataloader, self.model_name, pruning_method='CoFi', device=self.device)
-        print(f"After store_results - teacher.bn.running_mean[:3]: {teacher.bn.running_mean[:3]}")
-        print(f"After store_results - teacher training mode: {teacher.training}")
-        #initial_acc = train_utils.run_eval(teacher,self.full_eval_dataloader,self.model_name, pruning_method='CoFi', device=self.device)
-        import json
-        file_path='./initial_accs.json'
-
-        # Sample Python dictionary
-        results = {
-            self.model_name: initial_acc
-            
-        }
-
-        # Write to JSON file
-
-        # Step 1: Load existing data
-        if os.path.exists(file_path):
-            with open(file_path, "r") as f:
-                try:
-                    data = json.load(f)
-                except json.JSONDecodeError:
-                    data = []  # If file is empty or invalid, start fresh
-        else:
-            data = []
-
-        # Step 2: Append new data
-        if isinstance(data, list):
-            data.append(results)
-        else:
-            # Handle case where JSON root is not a list (optional)
-            data = [data, results]
-
-        # Step 3: Write updated data back to file
-        with open(file_path, "w") as f:
-            json.dump(data, f, indent=4)
-
-        print("Data written to initial_accs.json")
+   
     def shortens_inputs(self, inputs):
         if self.model_name=='bowman': return inputs
         max_length = inputs["pre_attention_mask"].sum(-1).max().item()
@@ -1352,111 +1294,11 @@ class CoFiTrainer(Trainer):
     
 
 
-    '''def training_step(
-        self,
-        model: torch.nn.Module,
-        inputs: Dict[str, Union[torch.Tensor, Any]]
-    ) -> Dict[str, torch.Tensor]:
-        model.train()
-        if self.l0_module is not None:
-            self.l0_module.train()
-
-        inputs = {
-            k: v.to(self.device, non_blocking=True) if torch.is_tensor(v) else v
-            for k, v in inputs.items()
-        }
-
-        distill_loss = None
-        distill_ce_loss = None
-        lagrangian_loss = None
-
-        if self.teacher_model is not None:
-            if self.model_name == "bowman":
-                teacher_inputs_keys = ["s1", "s1len", "s2", "s2len", "labels"]
-            else:
-                teacher_inputs_keys = [
-                    "hyp_input_ids",
-                    "hyp_attention_mask",
-                    "pre_input_ids",
-                    "pre_attention_mask",
-                    "token_type_ids",
-                    "position_ids",
-                    "labels",
-                    "output_attentions",
-                    "output_hidden_states",
-                    "return_dict",
-                ]
-
-            teacher_inputs = {
-                key: inputs[key]
-                for key in teacher_inputs_keys
-                if key in inputs
-            }
-
-            self.shortens_inputs(teacher_inputs)
-            self.shortens_inputs(inputs)
-
-            with torch.no_grad():
-                with torch.autocast(device_type="cuda", dtype=torch.float16):
-                    teacher_outputs = self.teacher_model(**teacher_inputs)
-
-            with torch.autocast(device_type="cuda", dtype=torch.float16):
-                student_outputs = self.model(**inputs)
-
-            zs = {key: inputs[key] for key in inputs if "_z" in key}
-
-            # Important: distillation losses in fp32.
-            with torch.autocast(device_type="cuda", enabled=False):
-                distill_loss, distill_ce_loss, loss = self.calculate_distillation_loss(
-                    teacher_outputs,
-                    student_outputs,
-                    zs,
-                )
-                loss = loss.float()
-
-        else:
-            with torch.autocast(device_type="cuda", dtype=torch.float16):
-                outputs = model(**inputs)
-                loss = outputs.loss if hasattr(outputs, "loss") else self.compute_loss(model, inputs)
-
-        if self.start_prune:
-            lagrangian_loss, _, _ = self.l0_module.lagrangian_regularization(
-                self.global_step - self.prepruning_finetune_steps
-            )
-            loss = loss + lagrangian_loss.float()
-
-        if self.args.gradient_accumulation_steps > 1:
-            loss = loss / self.args.gradient_accumulation_steps
-
-        loss.backward()
-
-        if self.global_step > 0 and self.global_step % 50000 == 0:
-            l0_stats = {}
-
-            if self.l0_module is not None:
-                for name, p in self.l0_module.named_parameters():
-                    if p.grad is not None:
-                        l0_stats[f"l0/{name}_norm"] = p.grad.norm().item()
-                        l0_stats[f"l0/{name}_max"] = p.grad.abs().max().item()
-
-            wandb.log({
-                **l0_stats,
-                "train/distill_layer_loss": distill_loss.item() if distill_loss is not None else float("inf"),
-                "train/distill_ce_loss": distill_ce_loss.item() if distill_ce_loss is not None else float("inf"),
-                "train/total_distill_loss": loss.item(),
-                "train/learning_rate": self.student_optimizer.param_groups[0]["lr"],
-                "train/step": self.global_step,
-            })
-
-        return {
-            "loss": loss.detach(),
-            "lagrangian_loss": lagrangian_loss.detach() if lagrangian_loss is not None else None,
-            "distill_layer_loss": distill_loss.detach() if distill_loss is not None else None,
-            "distill_ce_loss": distill_ce_loss.detach() if distill_ce_loss is not None else None,
-        }'''
     def training_step(self, model: torch.nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> List[torch.Tensor]:
         model.train()
+        assert self.l0_module is None
         if self.l0_module is not None:
+    
             self.l0_module.train()
 
         inputs = {
@@ -1504,13 +1346,6 @@ class CoFiTrainer(Trainer):
                     zs,
                 )
                 loss = loss.float()
-           
-            # More debug
-            #if self.global_step % 50 == 0:
-                #print(f"Distill layer loss: {distill_loss.item() if distill_loss is not None else 'None':.4f}")
-                #print(f"Distill CE loss: {distill_ce_loss.item():.4f}")
-                #print(f"Total distill loss: {loss.item():.4f}")
-                            
                 
         else:
             loss = self.compute_loss(model, inputs)

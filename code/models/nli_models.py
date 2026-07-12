@@ -153,7 +153,7 @@ class BaseModel(torch.nn.Module):
             init_weights=parameter.clone()
                 
             # Initializes the pruning masks of the layer, which are used for pruning as well as freezing the pruned weights during training
-            pruning_mask = torch.ones_like(init_weights, dtype=torch.uint8)
+            pruning_mask = torch.ones_like(init_weights, dtype=torch.bool)
             pruning_mask = pruning_mask.to(device)  # pylint: disable=no-member
             # Adds the layer to the internal list of layers
          
