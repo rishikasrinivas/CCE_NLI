@@ -430,7 +430,7 @@ class CoFiTrainer(Trainer):
       
         self.is_finetune_run = self.teacher_model is None and not self.additional_args.do_layer_distill
         num_prune_epochs = num_train_epochs
-
+        assert num_prune_epochs==3, f'num_prune_epochs={num_prune_epochs}'
         resume_status = self.resume_from(num_prune_epochs=num_prune_epochs)
 
         if resume_status == "resumed":
@@ -490,8 +490,8 @@ class CoFiTrainer(Trainer):
                     epochs_trained = -1
                     self.start_prune = False
                     
-        pruning_epochs =int(num_train_epochs)//2 
-        print(f"Will prune/train for {pruning_epochs} total. Have completed {epochs_trained} from ckpt")
+        
+        print(f"Will prune/train for {num_prune_epochs} total. Have completed {epochs_trained} from ckpt")
         self.evaluate()
         
         for epoch in range(epochs_trained,int(num_train_epochs)): #! 20 epoch
@@ -931,7 +931,7 @@ class CoFiTrainer(Trainer):
     def current_run_is_finetune(self):
         return self.teacher_model is None and not self.additional_args.do_layer_distill
     
-    def resume_from(self, num_prune_epochs=None, checkpoint_dir=None):
+    def resume_from(self, checkpoint_dir=None, num_prune_epochs=None):
 
         checkpoint_dir = checkpoint_dir if checkpoint_dir is not None else self.args.output_dir
         state_path = os.path.join(checkpoint_dir, "training_state.pth")
@@ -967,6 +967,7 @@ class CoFiTrainer(Trainer):
 
         if num_prune_epochs is not None:
             pruning_done = ckpt_epoch >= num_prune_epochs
+            print(f"pruning_done, {pruning_done}")
 
             if pruning_done and self.is_finetune_run:
                 self.start_prune = False
