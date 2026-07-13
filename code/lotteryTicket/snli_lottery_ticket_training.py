@@ -116,16 +116,19 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
             state_dict =  torch.load(os.path.join(start), map_location=torch.device('cpu'))['state_dict']
             model.load_state_dict(state_dict) 
             baseline_acc = train_utils.run_eval(model, dataloaders['val'], args.model_type, 'lottery_ticket', device=device)
-            model.load_state_dict(base_ckpt['state_dict']) 
+            #model.load_state_dict(base_ckpt['state_dict']) 
             
             
             for layer in pruner.prunable_layers:
                 mask = get_mask(state_dict[layer])
-                base_ckpt['state_dict'][layer] *= mask
+                #base_ckpt['state_dict'][layer] *= mask
                 if not any(kw in layer for kw in ['bias', 'bn', 'embeddings', 'LayerNorm', 'norm', 'embed']):
                     model.set_mask(layer, mask)
                 mask = mask.cpu()
-            model.load_state_dict(base_ckpt['state_dict']) 
+            
+            
+            final_weights_pruned = prune_utils.percent_pruned_weights(model)
+            print(f"before repruning appling mask % Pruned: {final_weights_pruned}")
             
             model = pruner.prune() #PRUNE AND SAVE PRUNE MASK
             base_ckpt = apply_mask(model, base_ckpt)
@@ -143,8 +146,9 @@ def run_prune(model, pruner, args, base_ckpt, dataset, optimizer, criterion, dev
     logger.info(f"Starting pruning from start_idx: {start_idx}")
     for prune_iter in range(start_idx, args.prune_iters):
         logger.info(f"\n--- Pruning Iteration {prune_iter} / {args.prune_iters} ---")
-        logger.info(f"Baseline Accuracy : {baseline_acc}")
         baseline_acc=0.856
+        logger.info(f"Baseline Accuracy : {baseline_acc}")
+        
         baseckpt_acc = train_utils.run_eval(model, dataloaders['val'], args.model_type, 'lottery_ticket', device=device)
         print(f"After reinitializing, acc is {baseckpt_acc}")
         # Re-initialize the optimizer at the start of each finetuning run
