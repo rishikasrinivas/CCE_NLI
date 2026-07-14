@@ -45,6 +45,32 @@ task_to_keys = {
 
 logger = logging.getLogger("llm.txt")
 
+def load_pruned_structure_then_weights(model_cls, model_dir, zs_path, config, tokenizer, device, **kwargs):
+    # 1. Build fresh base/dense model
+    model = model_cls(config).to('cpu')
+
+    # 2. Load zs and apply structure pruning
+    zs = torch.load(zs_path, map_location='cpu')
+
+    if model.model_name == "bowman":
+        update_LSTM_params(model, zs)
+        prune_hidden_mlp(zs, model)
+    elif model.model_name == "llama":
+        update_llama_params(model, zs)
+        model = prune_model_with_z(zs, model)
+    else:
+        update_bert_params(model, zs)
+        model = prune_model_with_z(zs, model)
+
+    # 3. Load weights AFTER structure exists
+    ckpt_path = os.path.join(model_dir, "model_best.pth")
+    ckpt = torch.load(ckpt_path, map_location='cpu')
+    result = model.load_state_dict(ckpt["state_dict"], strict=False)
+
+    print("Missing keys:", result.missing_keys)
+    print("Unexpected keys:", result.unexpected_keys)
+
+    return model.to(device)
 
 def main():
     parser = HfArgumentParser(
@@ -202,7 +228,7 @@ def main():
     
     print(f'Loading student model from : {student_path} to {device}')
     
-    student_model, trained_student = Student_Model.from_pretrained(
+    '''student_model, trained_student = Student_Model.from_pretrained(
         pretrained_model_name_or_path= student_path, # if student model is alr trained itll be here otherwise a default model will be loaded and finetuned
         config=config,
         encoder=tokenizer,
@@ -212,13 +238,34 @@ def main():
         
     ) #! inside the function, we get the original struct  #! CofiBertForSequenceClassification
     #load other stff fromstudent right here?????
-    print(f'Loaded student model from : {student_path} to {student_model.device}, trained? {trained_student}')
+    
+    
+    '''
     if additional_args.pretrained_pruned_model is not None: #from args menas the model is already pruned:
-        print(f"LOADING ZS FROM {os.path.join(training_args.output_dir,'zs.pt')}")
-        zs = torch.load(os.path.join(training_args.output_dir,'zs.pt'), map_location=device)
-        student_model = load_model_with_zs(training_args.output_dir, student_model, zs=zs, train_data=train, ckpt=training_args.output_dir,  encoder=tokenizer, device=device)
-    
-    
+        student_model = load_pruned_structure_then_weights(
+            Student_Model,
+            model_dir=training_args.output_dir,
+            zs_path=os.path.join(training_args.output_dir, "zs.pt"),
+            config=config,
+            tokenizer=tokenizer,
+            device=device,
+            hf_name=model_args.model_name_or_path,
+        )
+        trained_student = True
+       
+        
+    else:
+        pass
+        student_model, trained_student = Student_Model.from_pretrained(
+            pretrained_model_name_or_path= student_path, # if student model is alr trained itll be here otherwise a default model will be loaded and finetuned
+            config=config,
+            encoder=tokenizer,
+            ckpt= pretrained_path,
+            device=device,
+            hf_name = model_args.model_name_or_path,
+
+        )
+    print(f'Loaded student model from : {student_path} to {student_model.device}, trained? {trained_student}')
     LABEL_STOI = {"entailment": 0, "neutral": 1, "contradiction": 2}
     LABEL_ITOS = {v: k for k, v in LABEL_STOI.items()}
     if config:

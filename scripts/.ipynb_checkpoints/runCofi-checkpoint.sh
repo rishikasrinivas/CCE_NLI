@@ -20,7 +20,7 @@ case "$model" in
     llama)
         model_dir="LLAMA"
         model_name_or_path="knowledgator/Sheared-LLaMA-encoder-1.3B"
-        reg_learning_rate="0.01"
+        reg_learning_rate="0.5"
         ;;
     bert)
         model_dir="BERT"

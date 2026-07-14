@@ -778,7 +778,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
                 weights[new_key] = weights.pop(old_key)
 
         
-            load_pruned_model(model, weights)
+            
             trained = True
             
 

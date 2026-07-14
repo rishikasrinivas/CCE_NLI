@@ -430,14 +430,14 @@ class CoFiTrainer(Trainer):
       
         self.is_finetune_run = self.teacher_model is None and not self.additional_args.do_layer_distill
         num_prune_epochs = num_train_epochs
-        assert num_prune_epochs==3, f'num_prune_epochs={num_prune_epochs}'
+        assert num_prune_epochs==10, f'num_prune_epochs={num_prune_epochs}'
         resume_status = self.resume_from(num_prune_epochs=num_prune_epochs)
 
         if resume_status == "resumed":
             epochs_trained = int(self.epoch)
 
         elif resume_status == "init_finetune":
-            epochs_trained = num_prune_epochs
+            epochs_trained = 0
             self.start_prune = False
             self.student_optimizer = None
             self.lr_scheduler = None
@@ -493,7 +493,7 @@ class CoFiTrainer(Trainer):
         
         print(f"Will prune/train for {num_prune_epochs} total. Have completed {epochs_trained} from ckpt")
         self.evaluate()
-        
+        epochs_trained = int(epochs_trained)
         for epoch in range(epochs_trained,int(num_train_epochs)): #! 20 epoch
             print(f"Starting epoch {epoch}")
             #resume stuff (if resuming the if applies only)
@@ -966,7 +966,7 @@ class CoFiTrainer(Trainer):
         self.is_finetune_run = self.current_run_is_finetune()
 
         if num_prune_epochs is not None:
-            pruning_done = ckpt_epoch >= num_prune_epochs
+            pruning_done = ckpt_epoch + 1 >= num_prune_epochs
             print(f"pruning_done, {pruning_done}")
 
             if pruning_done and self.is_finetune_run:
@@ -1009,11 +1009,17 @@ class CoFiTrainer(Trainer):
         output_dir = output_dir if output_dir is not None else self.args.output_dir
         os.makedirs(output_dir, exist_ok=True)
 
+        
+        if student:
+            filename="student_model.pth" 
+        else:
+            filename = 'model_best.pth'
+            
         util.save_checkpoint(
             train_utils.serialize(model, self.model_name, self.dataset),
             is_best=not student,
             exp_dir=output_dir,
-            filename="student_model.pth" if student else "model_best.pth",
+            filename=filename,
         )
 
         if phase is None:
