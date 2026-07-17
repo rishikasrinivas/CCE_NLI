@@ -430,6 +430,7 @@ class CoFiTrainer(Trainer):
       
         self.is_finetune_run = self.teacher_model is None and not self.additional_args.do_layer_distill
         num_prune_epochs = num_train_epochs
+        assert self.teacher_model is not None if not self.is_finetune_run else  self.teacher_model is  None, f' self.is_finetune_run={ self.is_finetune_run}'
        
         resume_status = self.resume_from(num_prune_epochs=num_prune_epochs)
 
@@ -443,7 +444,9 @@ class CoFiTrainer(Trainer):
             self.lr_scheduler = None
             self.l0_optimizer = None
             self.lagrangian_optimizer = None
+            self.global_step = 0
             self.create_optimizer_and_scheduler(self.t_total, build_l0_optimizer=False)
+            
             
         elif resume_status == "prune_complete":
             print("Pruning already complete; returning so finetune command can start")
@@ -454,18 +457,7 @@ class CoFiTrainer(Trainer):
 
         else:  # "missing"
             if self.is_finetune_run:
-                # FT command has no FT checkpoint yet, so initialize from completed pruning checkpoint.
-                prune_dir = self.args.output_dir  # or whatever dir your pruning cmd saved to
-
-                load_status = self.resume_from(
-                    prune_dir,
-                    num_prune_epochs=num_prune_epochs,
-                    load_optimizer=False,
-                )
-
-                if load_status not in ("resumed", "prune_complete"):
-                    raise RuntimeError("Cannot start finetune: no completed pruning checkpoint found.")
-
+                
                 epochs_trained = 0
                 self.start_prune = False
                 self.student_optimizer = None
@@ -519,7 +511,7 @@ class CoFiTrainer(Trainer):
             for step, inputs in enumerate(epoch_iterator):
               # in orig foi they say self.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps:
                     # but this is because they train the student first run. we may start with a trained student alr
-                print(f"self.global_step={self.global_step} \nself.prepruning_finetune_steps: = {self.prepruning_finetune_steps} and max is {self.args.max_steps}")
+                
                 if self.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps:
                     print("Pruning")
                     self.start_prune = True
@@ -676,7 +668,7 @@ class CoFiTrainer(Trainer):
                     #TODO: check what their max_steps is if its eqiuv to the epochs then its fine with ours 
                 if self.args.max_steps > 0 and self.global_step >= self.args.max_steps:
                     print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity} with expected at {self.expected_sparsity}")
-                    self.save_model(model, student=False)
+                    self.save_model(model, student=False, save=True)
                     break
                 
                 
@@ -714,7 +706,7 @@ class CoFiTrainer(Trainer):
 
         # wandb.log({'global_step':self.global_step,'training_loss':tr_loss.item() / self.global_step})
         if self.ready_to_save():
-            self.evaluate()
+            self.evaluate(save=True)
         return TrainOutput(self.global_step, tr_loss.item() / self.global_step, None)
     from accelerate.utils import tqdm
     import torch.nn as nn
@@ -870,7 +862,7 @@ class CoFiTrainer(Trainer):
 
         return PredictionOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics)
 
-    def evaluate(self, eval_dataset: Optional[Dataset] = None) -> Tuple[Dict[str, float], List]:
+    def evaluate(self, eval_dataset: Optional[Dataset] = None, save=False) -> Tuple[Dict[str, float], List]:
         
 
         logger.warning("EVALUATING")
@@ -907,7 +899,7 @@ class CoFiTrainer(Trainer):
                 
                 best_so_far = self.eval_counter.update(self.epoch, self.global_step, eval_score)
                 print(f"Best so far: {best_so_far}, eval: {eval_score}")
-                if best_so_far:
+                if best_so_far and save:
                     print("SAVING MODEL")
                     logger.warning(f"Saving the best model so far: [Epoch {int(self.epoch)} | Step: {self.global_step} | Model size: {eval_output.metrics['remaining_params'] if 'remaining_params' in eval_output.metrics else 'Full' } | Score: {round(eval_score, 5)}]")
                     self.save_model(model = self.model, output_dir=self.args.output_dir)
@@ -1052,28 +1044,6 @@ class CoFiTrainer(Trainer):
         zip_path =  train_utils.zip_directory(self.args.output_dir, self.args.output_dir)
         
 
-        # If zip_directory does not return the zip path, infer the common path.
-        if zip_path is None:
-            zip_path = self.args.output_dir.rstrip("/") + ".zip"
-
-        zip_path = os.path.abspath(zip_path)
-        output_dir_abs = os.path.abspath(self.args.output_dir)
-
-        # Delete everything in output_dir except the zip, if the zip was written inside output_dir.
-        
-        for name in os.listdir(self.args.output_dir):
-            path = os.path.join(self.args.output_dir, name)
-
-            if os.path.abspath(path) == zip_path:
-                continue
-
-            if os.path.isdir(path):
-                shutil.rmtree(path)
-            else:
-                os.remove(path)
-
-        print(f"Kept zip only: {zip_path}")
-   
     def calculate_layer_distillation_loss(self, teacher_outputs, student_outputs, zs):
         assert not self.is_finetune_run, f'NO DISTILLATION DURIN FINETUNING'
 
@@ -1415,7 +1385,7 @@ class CoFiTrainer(Trainer):
          
                 
                 "train/distill_layer_loss": distill_loss.item() if distill_loss is not None else float('inf'),
-                "train/distill_ce_loss": distill_ce_loss.item(),
+                "train/distill_ce_loss": distill_ce_loss.item()  if distill_ce_loss is not None else float('inf'),
                 "train/total_distill_loss": loss.item(),
                 "train/gradient_norm": total_norm,
                 "train/learning_rate": self.student_optimizer.param_groups[0]['lr'],

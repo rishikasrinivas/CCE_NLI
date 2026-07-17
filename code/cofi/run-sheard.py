@@ -47,7 +47,7 @@ logger = logging.getLogger("llm.txt")
 
 def load_pruned_structure_then_weights(model, model_dir, zs_path, config, tokenizer, device, **kwargs):
     # 1. Build fresh base/dense model
-    model = model.to('cpu')
+    model = model(config).to('cpu')
 
     # 2. Load zs and apply structure pruning
     zs = torch.load(zs_path, map_location='cpu')
@@ -228,38 +228,47 @@ def main():
     
     print(f'Loading student model from : {student_path} to {device}')
     
-    student_model, trained_student = Student_Model.from_pretrained(
-        pretrained_model_name_or_path= student_path, # if student model is alr trained itll be here otherwise a default model will be loaded and finetuned
-        config=config,
-        encoder=tokenizer,
-        ckpt= pretrained_path,
-        device=device,
-        hf_name = model_args.model_name_or_path,
-        
-    ) #! inside the function, we get the original struct  #! CofiBertForSequenceClassification
-    #load other stff fromstudent right here?????
-    
-    
+    try:
+        print("Loading weights into physially unpruned")
+        student_model, trained_student = Student_Model.from_pretrained(
+            pretrained_model_name_or_path= student_path, # if student model is alr trained itll be here otherwise a default model will be loaded and finetuned
+            config=config,
+            encoder=tokenizer,
+            ckpt= pretrained_path,
+            device=device,
+            hf_name = model_args.model_name_or_path,
 
-    if additional_args.pretrained_pruned_model is not None: #from args menas the model is already pruned:
-    
-        try:
-            print("Trying to loading a pruned model")
-            student_model_ = load_pruned_structure_then_weights(
-                student_model,
-                model_dir=training_args.output_dir,
-                zs_path=os.path.join(training_args.output_dir, "zs.pt"),
-                config=config,
-                tokenizer=tokenizer,
-                device=device,
-                hf_name=model_args.model_name_or_path,
-            )
-            trained_student = True
-            student_model=student_model_
-        except:
-            pass
-       
-   
+        ) #! inside the function, we get the original struct  #! CofiBertForSequenceClassification
+        #load other stff fromstudent right here?????
+        if additional_args.pretrained_pruned_model is not None: #from args menas the model is already pruned:
+            try:
+                print("Trying to prune that unpruned")
+                student_model_ = load_pruned_structure_then_weights(
+                    student_model,
+                    model_dir=training_args.output_dir,
+                    zs_path=os.path.join(training_args.output_dir, "zs.pt"),
+                    config=config,
+                    tokenizer=tokenizer,
+                    device=device,
+                    hf_name=model_args.model_name_or_path,
+                )
+                trained_student = True
+                student_model=student_model_
+            except:
+                pass
+    except:
+        print("Pruning physically")
+        student_model = load_pruned_structure_then_weights(
+            Student_Model,
+            model_dir=training_args.output_dir,
+            zs_path=os.path.join(training_args.output_dir, "zs.pt"),
+            config=config,
+            tokenizer=tokenizer,
+            device=device,
+            hf_name=model_args.model_name_or_path,
+        )
+        trained_student = True
+        
     print(f'Loaded student model from : {student_path} to {student_model.device}, trained? {trained_student}')
     LABEL_STOI = {"entailment": 0, "neutral": 1, "contradiction": 2}
     LABEL_ITOS = {v: k for k, v in LABEL_STOI.items()}
