@@ -25,7 +25,7 @@ from transformers.trainer_utils import (PREFIX_CHECKPOINT_DIR, EvalPrediction,
                                         TrainOutput)
 from transformers.utils import logging
 import logging
-
+import shutil
 from transformers.training_args import TrainingArguments
 import data.snli as snli 
 from args import AdditionalArguments
@@ -430,7 +430,7 @@ class CoFiTrainer(Trainer):
       
         self.is_finetune_run = self.teacher_model is None and not self.additional_args.do_layer_distill
         num_prune_epochs = num_train_epochs
-        assert num_prune_epochs==10, f'num_prune_epochs={num_prune_epochs}'
+       
         resume_status = self.resume_from(num_prune_epochs=num_prune_epochs)
 
         if resume_status == "resumed":
@@ -444,7 +444,7 @@ class CoFiTrainer(Trainer):
             self.l0_optimizer = None
             self.lagrangian_optimizer = None
             self.create_optimizer_and_scheduler(self.t_total, build_l0_optimizer=False)
-
+            
         elif resume_status == "prune_complete":
             print("Pruning already complete; returning so finetune command can start")
             return self.model
@@ -494,7 +494,7 @@ class CoFiTrainer(Trainer):
         print(f"Will prune/train for {num_prune_epochs} total. Have completed {epochs_trained} from ckpt")
         self.evaluate()
         epochs_trained = int(epochs_trained)
-        for epoch in range(epochs_trained,int(num_train_epochs)): #! 20 epoch
+        for epoch in range(epochs_trained,int(num_prune_epochs)): #! 20 epoch
             print(f"Starting epoch {epoch}")
             #resume stuff (if resuming the if applies only)
             
@@ -518,7 +518,8 @@ class CoFiTrainer(Trainer):
             for step, inputs in enumerate(epoch_iterator):
               # in orig foi they say self.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps:
                     # but this is because they train the student first run. we may start with a trained student alr
-                if self.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps: 
+                print(f"self.global_step={self.global_step} \nself.prepruning_finetune_steps: = {self.prepruning_finetune_steps} and max is {self.args.max_steps}")
+                if self.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps:
                     print("Pruning")
                     self.start_prune = True
                     self.global_step = self.prepruning_finetune_steps
@@ -675,10 +676,10 @@ class CoFiTrainer(Trainer):
                 if self.args.max_steps > 0 and self.global_step >= self.args.max_steps:
                     print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity} with expected at {self.expected_sparsity}")
                     self.save_model(model, student=False)
-                
-                
                     break
-
+                
+                
+                    
             epoch_end = time.time()
             # wandb.log({'epoch':epoch})
             logger.info(
@@ -702,11 +703,6 @@ class CoFiTrainer(Trainer):
                         "num_layers": 22,
                     }
                 )
-            #logging step
-            if self.args.max_steps > 0 and self.global_step >= self.args.max_steps:
-                print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity} with expected at {self.expected_sparsity}")
-                break
-            
 
         train_pbar.close()
 
@@ -1048,9 +1044,34 @@ class CoFiTrainer(Trainer):
 
             torch.save(self.l0_module, os.path.join(output_dir, "l0_module.pt"))
 
+        if not self.is_finetune_run:
+            return
+        
         print(f"Saving Zipped Version to {self.args.output_dir}")
-        train_utils.zip_directory(self.args.output_dir, self.args.output_dir)
-            
+        zip_path =  train_utils.zip_directory(self.args.output_dir, self.args.output_dir)
+        
+
+        # If zip_directory does not return the zip path, infer the common path.
+        if zip_path is None:
+            zip_path = self.args.output_dir.rstrip("/") + ".zip"
+
+        zip_path = os.path.abspath(zip_path)
+        output_dir_abs = os.path.abspath(self.args.output_dir)
+
+        # Delete everything in output_dir except the zip, if the zip was written inside output_dir.
+        
+        for name in os.listdir(self.args.output_dir):
+            path = os.path.join(self.args.output_dir, name)
+
+            if os.path.abspath(path) == zip_path:
+                continue
+
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.remove(path)
+
+        print(f"Kept zip only: {zip_path}")
    
     def calculate_layer_distillation_loss(self, teacher_outputs, student_outputs, zs):
         assert not self.is_finetune_run, f'NO DISTILLATION DURIN FINETUNING'
@@ -1313,6 +1334,8 @@ class CoFiTrainer(Trainer):
                     for k, v in inputs.items()
                 }
 
+        distill_loss = None
+        distill_ce_loss = None
         if self.teacher_model is not None:
             with torch.no_grad():
                 if self.model_name == 'bowman':
@@ -1356,6 +1379,8 @@ class CoFiTrainer(Trainer):
                 
         else:
             loss = self.compute_loss(model, inputs)
+            
+            
 
         lagrangian_loss = None
         if self.start_prune:
