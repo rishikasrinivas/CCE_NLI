@@ -512,7 +512,7 @@ class CoFiTrainer(Trainer):
               # in orig foi they say self.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps:
                     # but this is because they train the student first run. we may start with a trained student alr
                 
-                if self.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps:
+                if self.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps and not self.is_finetune_run:
                     print("Pruning")
                     self.start_prune = True
                     self.global_step = self.prepruning_finetune_steps
@@ -969,7 +969,7 @@ class CoFiTrainer(Trainer):
             if not pruning_done and self.is_finetune_run:
                 print("Checkpoint is still in pruning phase; FT run should not resume it")
                 return "wrong_phase"
-        self.model.load_state_dict(torch.load(model_path, map_location=self.device)["state_dict"])
+        self.model.load_state_dict(torch.load(model_path, map_location=self.device)["state_dict"], strict=False)
         
         # Only restore optimizers for the matching active run.
         self.create_optimizer_and_scheduler(
@@ -1016,7 +1016,7 @@ class CoFiTrainer(Trainer):
 
         training_state = {
             "global_step": self.global_step,
-            "epoch": self.epoch + 1,
+            "epoch": self.epoch + 1 if phase == "prune" else  self.epoch + self.args.num_train_epochs + 1
             "student_optimizer": self.student_optimizer.state_dict() if self.student_optimizer else None,
             "lr_scheduler": self.lr_scheduler.state_dict() if self.lr_scheduler else None,
             "l0_optimizer": self.l0_optimizer.state_dict() if self.l0_optimizer else None,

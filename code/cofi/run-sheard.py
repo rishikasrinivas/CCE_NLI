@@ -129,8 +129,8 @@ def main():
  
     device = data_args.device
     max_data = None if data_args.data_debug > 0 else None
-    #train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, pruning_method='CoFi', max_data=None, debug=False)
-    train,val,dl = train_utils.create_dataloaders(model_type=additional_args.model_name, pruning_method='CoFi', max_data=10000, debug=True)
+    train,val,dl = train_utils.create_dataloaders(model_type= additional_args.model_name, pruning_method='CoFi', max_data=None, debug=False)
+    #train,val,dl = train_utils.create_dataloaders(model_type=additional_args.model_name, pruning_method='CoFi', max_data=10000, debug=True)
     label_list = list(set(train.labels))
     vocab= {'stoi': train.stoi, 'itos': train.itos}
 
