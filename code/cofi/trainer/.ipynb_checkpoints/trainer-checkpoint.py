@@ -466,12 +466,13 @@ class CoFiTrainer(Trainer):
                 if load_status not in ("resumed", "prune_complete"):
                     raise RuntimeError("Cannot start finetune: no completed pruning checkpoint found.")
 
-                epochs_trained = num_prune_epochs
+                epochs_trained = 0
                 self.start_prune = False
                 self.student_optimizer = None
                 self.lr_scheduler = None
                 self.l0_optimizer = None
                 self.lagrangian_optimizer = None
+                self.global_step = 0
                 self.create_optimizer_and_scheduler(self.t_total, build_l0_optimizer=False)
 
             else:
@@ -484,10 +485,10 @@ class CoFiTrainer(Trainer):
                 print(f"Loading state from {student_dir}")
 
                 if student_status == "resumed":
-                    epochs_trained = 0
+                    epochs_trained = self.epoch
                     self.start_prune = True
                 else:
-                    epochs_trained = -1
+                    epochs_trained = 0
                     self.start_prune = False
                     
         
@@ -1023,7 +1024,7 @@ class CoFiTrainer(Trainer):
 
         training_state = {
             "global_step": self.global_step,
-            "epoch": self.epoch,
+            "epoch": self.epoch + 1,
             "student_optimizer": self.student_optimizer.state_dict() if self.student_optimizer else None,
             "lr_scheduler": self.lr_scheduler.state_dict() if self.lr_scheduler else None,
             "l0_optimizer": self.l0_optimizer.state_dict() if self.l0_optimizer else None,
