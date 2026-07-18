@@ -660,7 +660,7 @@ class CoFiTrainer(Trainer):
        
                     #ckpt-ing
                     if self.global_step % SAVE_EVERY == 0 and using_trained_student:
-                        self.save_model(model, student=False)
+                        self.save_model(model, student=False,  save=True)
                         
 
                 epoch_pbar.update(1)
@@ -668,7 +668,7 @@ class CoFiTrainer(Trainer):
                     #TODO: check what their max_steps is if its eqiuv to the epochs then its fine with ours 
                 if self.args.max_steps > 0 and self.global_step >= self.args.max_steps:
                     print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity} with expected at {self.expected_sparsity}")
-                    self.save_model(model, student=False, save=True)
+                    self.save_model(model, student=False)
                     break
                 
                 
@@ -994,7 +994,7 @@ class CoFiTrainer(Trainer):
 
         return "resumed"
        
-    def save_model(self, model, student=False, output_dir=None, phase=None, phase_complete=False):
+    def save_model(self, model, student=False, output_dir=None, phase=None, phase_complete=False, save=False):
         output_dir = output_dir if output_dir is not None else self.args.output_dir
         os.makedirs(output_dir, exist_ok=True)
 
@@ -1016,7 +1016,7 @@ class CoFiTrainer(Trainer):
 
         training_state = {
             "global_step": self.global_step,
-            "epoch": self.epoch + 1 if phase == "prune" else  self.epoch + self.args.num_train_epochs + 1
+            "epoch": self.epoch + 1 if phase == "prune" else  self.epoch + self.args.num_train_epochs + 1,
             "student_optimizer": self.student_optimizer.state_dict() if self.student_optimizer else None,
             "lr_scheduler": self.lr_scheduler.state_dict() if self.lr_scheduler else None,
             "l0_optimizer": self.l0_optimizer.state_dict() if self.l0_optimizer else None,
@@ -1265,31 +1265,6 @@ class CoFiTrainer(Trainer):
 
             return self.teacher_model
         
-        os.makedirs(teacher_model_path , exist_ok=True)
-        #use full data just for training teacher model
-        dataloaders = {
-            'train': self.full_train_dataloader,
-            'val':self.full_eval_dataloader,
-        }
-        print(f"training using full loaders", len(self.full_train_dataloader.dataset))
-       
-        criterion = nn.CrossEntropyLoss()
-        
-        self.teacher_model = train_utils.finetune_pruned_model(model=teacher,model_type=self.model_name, optimizer=self.teacher_optimizer, pruning_method='CoFi', criterion=criterion, dataloaders = dataloaders, finetune_epochs=5, prune_metrics_dir=teacher_model_path,device = self.device)
-        weights = teacher.state_dict()
-       
-        
-        util.save_checkpoint(
-            train_utils.serialize(self.teacher_model, self.model_name, self.dataset),
-            is_best=True,
-            exp_dir=teacher_model_path
-        )
-        
-        print(f"Saving to {teacher_model_path}")
-       
-        self.save_model(self.teacher_model, output_dir=teacher_model_path)
-        return self.teacher_model
-
     
 
 

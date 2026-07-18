@@ -22,9 +22,9 @@ import models
 import util
 import train_utils
 import data.snli
-from cofi.utils.utils import calculate_parameters
+from cofi.utils import *
 
-from cofi.utils.cofi_utils import load_model
+from cofi.utils.cofi_utils import *
 def predict(model, premise, hypothesis, nlp, stoi, args):
     pre, prelen = tokenize(premise, nlp, stoi)
     hyp, hyplen = tokenize(hypothesis, nlp, stoi)
@@ -85,12 +85,41 @@ def get_percent_pruned(model):
     final_weights_pruned= np.round(100*torch.where(torch.tensor(final_weights) == 0,1,0).sum().item()/(model.mlp[0].weight.shape[0]*model.mlp[0].weight.shape[1]), 3)
     return final_weights_pruned
 
+def load_pruned_structure_then_weights(model, model_dir, zs_path, config, tokenizer, device, **kwargs):
+    # 1. Build fresh base/dense model
+    model = model(config).to('cpu')
+
+    # 2. Load zs and apply structure pruning
+    zs = torch.load(zs_path, map_location='cpu')
+
+    if model.model_name == "bowman":
+        update_LSTM_params(model, zs)
+        prune_hidden_mlp(zs, model)
+    elif model.model_name == "llama":
+        update_llama_params(model, zs)
+        model = prune_model_with_z(zs, model)
+    else:
+        update_bert_params(model, zs)
+        model = prune_model_with_z(zs, model)
+
+    # 3. Load weights AFTER structure exists
+    ckpt_path = os.path.join(model_dir, "model_best.pth")
+    ckpt = torch.load(ckpt_path, map_location='cpu')
+    result = model.load_state_dict(ckpt["state_dict"], strict=False)
+
+    print("Missing keys:", result.missing_keys)
+    print("Unexpected keys:", result.unexpected_keys)
+
+    return model.to(device)
+
+from models.cofi_models.modeling_bert import CoFiBertForSequenceClassification
+from models.cofi_models.modeling_llama import CoFiLlamaForSequenceClassification
 def main(args):
     print("using weights from ", args.ckpt)
     nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger", "ner"])
     ckpt = torch.load(args.ckpt, map_location = 'cuda' if settings.CUDA else 'cpu')
     print("Building dataset")
-    train,_,dataloaders=train_utils.create_dataloaders(max_data=None, model_type=args.model_type, pruning_method=args.pruning_method)
+    train,_,dataloaders=train_utils.create_dataloaders(max_data=10000, model_type=args.model_type, pruning_method=args.pruning_method)
     # ==== BUILD MODEL ====
     model,_ = train_utils.build_model(vocab_size=len(train.stoi), model_type=args.model_type, vocab={'stoi': train.stoi, 'itos': train.itos}, embedding_dim=300, hidden_dim=512, is_cofi=args.pruning_method=='CoFi')
    
@@ -102,7 +131,16 @@ def main(args):
             inputs[key] = zs[key]
         return inputs
 
-    
+    config = AutoConfig.from_pretrained(
+            'knowledgator/Sheared-LLaMA-encoder-1.3B',
+            num_labels=3,
+            finetuning_task='snli'
+        )
+    tokenizer = AutoTokenizer.from_pretrained(
+            'knowledgator/Sheared-LLaMA-encoder-1.3B',
+            
+        )
+    Student_Model = CoFiLlamaForSequenceClassification
     try:
         if args.pruning_method == 'CoFi':
             if args.model_type in ['bert', 'llama']:
@@ -112,9 +150,20 @@ def main(args):
                 tokenizer = model.encoder
 
 
-            zs=torch.load(os.path.join(args.root_dir,"zs.pt"))
+            #zs=torch.load(os.path.join(args.root_dir,"zs.pt"))
 
-            pruned_model = load_model(os.path.join(args.root_dir), model, zs,tokenizer, train_data=train, ckpt=os.path.join(args.root_dir, 'model_best.pth'), device='cuda')
+            #pruned_model = load_model(os.path.join(args.root_dir, 'model_best.pth'), model, zs,tokenizer, train_data=train, ckpt=os.path.join(args.root_dir, 'model_best.pth'), device='cuda')
+            
+            pruned_model = load_pruned_structure_then_weights(
+                Student_Model,
+                model_dir=args.root_dir,
+                zs_path=os.path.join(args.root_dir, "zs.pt"),
+                config=config,
+                tokenizer=tokenizer,
+                device='cuda',
+                hf_name='knowledg',
+            )
+            
             pruned_model.eval()
 
             if settings.CUDA:
@@ -205,7 +254,6 @@ def main(args):
     #pd.DataFrame({'folder':accs.keys(), 'accs':accs.values()}).to_csv(f"{args.root_dir}/accuracy.csv")
 
 
-   
 
 
     # ==== INTERACTIVE ====

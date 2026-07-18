@@ -241,21 +241,22 @@ def main():
         ) #! inside the function, we get the original struct  #! CofiBertForSequenceClassification
         #load other stff fromstudent right here?????
         if additional_args.pretrained_pruned_model is not None: #from args menas the model is already pruned:
-            try:
-                print("Trying to prune that unpruned")
-                student_model_ = load_pruned_structure_then_weights(
-                    student_model,
-                    model_dir=training_args.output_dir,
-                    zs_path=os.path.join(training_args.output_dir, "zs.pt"),
-                    config=config,
-                    tokenizer=tokenizer,
-                    device=device,
-                    hf_name=model_args.model_name_or_path,
-                )
-                trained_student = True
-                student_model=student_model_
-            except:
-                pass
+            print("Trying to prune that unpruned")
+            zs=torch.load(os.path.join(training_args.output_dir, "zs.pt"))
+            ckpt=os.path.join(training_args.output_dir, 'model_best.pth')
+            student_model_ = load_model_with_zs(ckpt, student_model, zs=zs, train_data=train, ckpt=ckpt,  encoder=tokenizer, device=device)
+            '''student_model_ = load_pruned_structure_then_weights(
+                student_model,
+                model_dir=training_args.output_dir,
+                zs_path=os.path.join(training_args.output_dir, "zs.pt"),
+                config=config,
+                tokenizer=tokenizer,
+                device=device,
+                hf_name=model_args.model_name_or_path,
+            )
+            trained_student = True'''
+            student_model=student_model_
+            
     except:
         print("Pruning physically")
         student_model = load_pruned_structure_then_weights(
@@ -388,7 +389,7 @@ def main():
     if training_args.do_train:
         trainer.train(using_trained_student=trained_student)
         
-        #print(trainer.evaluate())
+        print(trainer.evaluate())
         
     
 
