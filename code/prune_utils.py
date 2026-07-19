@@ -76,7 +76,7 @@ def run_expls(
     
     # Gets the ckpt and numeric pruning iter
     for prune_iter in range(0, len(os.listdir(path_to_weights)) +1):
-        prune_metrics_dir  = f"4_Pruning_Iter"
+        prune_metrics_dir  = f"{prune_iter}_Pruning_Iter"
         
         if prune_metrics_dir not in os.listdir(path_to_weights): 
             print(f"{prune_metrics_dir} is not a valid directory in {path_to_weights}. Skipping")

@@ -1,4 +1,3 @@
-32pt 
 import math
 import os
 import sys
@@ -573,7 +572,7 @@ class CoFiTrainer(Trainer):
                     self.student_optimizer.step()
 
                     if self.l0_module is not None and self.l0_optimizer is not None:
-                        assert self.start_prune:
+                        assert self.start_prune
                         self.l0_optimizer.step()
                         self.lagrangian_optimizer.step()
 

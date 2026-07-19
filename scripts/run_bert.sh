@@ -4,14 +4,14 @@ python -c "import os; print(os.path.abspath('analyze.py'))"
 
 for i in {4..5}; do
     if [[ $i -eq 4 ]]; then
-        python3 code/lotteryTicket/snli_lottery_ticket_training.py \
+        CUDA_VISIBLE_DEVICES=1 python3 code/lotteryTicket/snli_lottery_ticket_training.py \
             --model_type bert \
-            --filename "Run0.25_$i" \
+            --filename "Run1" \
             --finetune_epochs 3 \
             --start_idx 0 \
             --pretrained_ckpt BERT/models/pretrained/bert_MAIN_pretrained_inits.pth
     else
-        python3 code/lotteryTicket/snli_lottery_ticket_training.py \
+        CUDA_VISIBLE_DEVICES=1 python3 code/lotteryTicket/snli_lottery_ticket_training.py \
             --model_type bert \
             --filename "Run1" \
             --finetune_epochs 3 \
