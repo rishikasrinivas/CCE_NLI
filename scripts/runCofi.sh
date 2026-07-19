@@ -58,7 +58,7 @@ if (( start_index == -1 )); then
     exit 2
 fi
 
-for run in {1..3}; do
+for run in {2..3}; do
     seed="${seeds[$((run - 1))]}"
 
     for index in "${!sparsities[@]}"; do
