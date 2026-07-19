@@ -156,6 +156,17 @@ def main():
     elif model_args.model_name_or_path.startswith('knowledgator'):
         Teach_Model = CoFiLlamaForSequenceClassification
         Student_Model = CoFiLlamaForSequenceClassification
+    elif model_args.model_name_or_path.startswith('bowman'):
+        tokenizer_teacher = TextEncoder(len(vocab['stoi']))
+        tokenizer= TextEncoder(len(vocab['stoi']))
+        from types import SimpleNamespace
+        import yaml
+
+        with open("./BOWMAN/models/bowman.yaml", "r") as f:
+            config = SimpleNamespace(**yaml.safe_load(f))
+        Teach_Model = CoFiBowmanEntailmentClassifier(tokenizer_teacher, config, training_args.device)
+        Student_Model = CoFiBowmanEntailmentClassifier(tokenizer,config, training_args.device)
+        
     # ======= Load the model params ========
     base_model_path = os.path.join(data_args.teacher_model_dir, '0_Pruning_Iter', 'model_best.pth')
     pretrained_path = os.path.join(data_args.path_to_pretrained, f'{additional_args.model_name}_MAIN_pretrained_inits.pth')
@@ -205,17 +216,20 @@ def main():
             #config.output_hidden_states = True
             
     else:
-        tokenizer_teacher = TextEncoder(len(vocab['stoi']))
-        tokenizer= TextEncoder(len(vocab['stoi']))
-        Teach_Model = CoFiBowmanEntailmentClassifier(tokenizer_teacher, training_args.device)
-        Student_Model = CoFiBowmanEntailmentClassifier(tokenizer, training_args.device)
-        teacher_model, trained_teacher = Teach_Model.from_pretrained(
+        
+        
+        if additional_args.do_distill:
+        
+            teacher_model, trained_teacher = Teach_Model.from_pretrained(
                 pretrained_model_name_or_path=base_model_path,
                 encoder=tokenizer_teacher,
                 device=device,
+                config=config,
                 hf_name = model_args.model_name_or_path
 
             )
+            config.do_layer_distill = additional_args.do_layer_distill #! True
+        
     if teacher_model:
         teacher_model.eval()
 

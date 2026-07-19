@@ -132,15 +132,25 @@ class L0Module_Sheared(nn.Module):
     def __init__(self, config, device, target_sparsity, pruning_modules):
 
         super(L0Module_Sheared, self).__init__()
-   
-        self.n_matrix_mlp = 2 if "bert" in config._name_or_path else 3
+        self.config=config
+        
+        if 'bowman' in config._name_or_path:
+            self.n_matrix_mlp = 0
+        elif "bert" in config._name_or_path:
+            self.n_matrix_mlp = 2
+        elif 'llama' in config._name_or_path.lower():
+            self.n_matrix_mlp = 3
+        
+        
+        self.pruning_modules = pruning_modules.split("+") 
         self.set_model_info(config, n_matrix_mlp=self.n_matrix_mlp) 
         
         target_model_cfg= None
         self.target_model_info = None
         # l0 config
         
-        self.pruning_modules = pruning_modules.split("+")  
+        
+    
         self.start_sparsity = 0.0
         self.lagrangian_warmup_steps = 0
         self.device = device
@@ -178,38 +188,50 @@ class L0Module_Sheared(nn.Module):
         
     def set_model_info(self, cfg, n_matrix_mlp):
         
-        self.hidden_size = cfg.hidden_size
-        self.intermediate_size = cfg.intermediate_size
-        self.num_attention_heads = cfg.num_attention_heads
-        self.mlp_num_per_layer = 1
-        self.dim_per_head = self.hidden_size // self.num_attention_heads 
-        self.num_layers = cfg.num_hidden_layers
-        self.vocab_size = cfg.vocab_size
+        
+        #bert llama only
+        self.hidden_size = cfg.hidden_size if cfg is not None else 512
+        if "bert" in self.config._name_or_path.lower() or 'llama' in self.config._name_or_path.lower():
+            self.intermediate_size = cfg.intermediate_size
+            self.num_attention_heads = cfg.num_attention_heads
+            self.mlp_num_per_layer = 1
+            self.dim_per_head = self.hidden_size // self.num_attention_heads 
+            self.num_layers = cfg.num_hidden_layers
+            self.vocab_size = cfg.vocab_size
+
+        # also bowman
+        
         self.final_mlp_hidden = 1024
         self.out_params=3 
         
+        #bert llama only
+        if "bert" in self.config._name_or_path.lower() or 'llama' in self.config._name_or_path.lower():
+            self.params_per_head_layer = self.hidden_size * self.hidden_size * 4
+            self.params_per_head =  self.params_per_head_layer // self.num_attention_heads
+            self.params_per_mlp_layer = self.hidden_size * self.intermediate_size * self.n_matrix_mlp
+            self.params_per_intermediate_dim = self.params_per_mlp_layer // self.intermediate_size
         
-        self.params_per_head_layer = self.hidden_size * self.hidden_size * 4
-        self.params_per_head =  self.params_per_head_layer // self.num_attention_heads
-        self.params_per_mlp_layer = self.hidden_size * self.intermediate_size * self.n_matrix_mlp
-        self.params_per_intermediate_dim = self.params_per_mlp_layer // self.intermediate_size
+        
         self.params_finalmlp_layer = self.hidden_size * 4 * self.final_mlp_hidden + (self.final_mlp_hidden* self.out_params)  
         self.params_finalmlp_layer=self.params_finalmlp_layer
         self.params_per_hidden_dim_final_mlp = self.params_finalmlp_layer // self.final_mlp_hidden
-        self.full_model_size = (self.params_per_head_layer + self.params_per_mlp_layer) * self.num_layers + self.params_finalmlp_layer
+        self.full_model_size = self.calculate_prunable_model_size()
         
         
     def calculate_prunable_model_size(self):
-        prunable_mlp_size = self.params_per_mlp_layer * self.num_layers
-        prunable_head_layer_size = self.params_per_head_layer * self.num_layers
+        
         prunable_model_size = 0
-        if "hidden" in self.pruning_modules:
-            return prunable_mlp_size + prunable_head_layer_size + self.params_finalmlp_layer
+        
         if "head_layer" in self.pruning_modules or "head" in self.pruning_modules:
+            prunable_head_layer_size = self.params_per_head_layer * self.num_layers
             prunable_model_size += prunable_head_layer_size
         if "mlp" in self.pruning_modules or "intermediate" in self.pruning_modules:
+            prunable_mlp_size = self.params_per_mlp_layer * self.num_layers
             prunable_model_size += prunable_mlp_size
         prunable_model_size += self.params_finalmlp_layer
+        
+        if "hidden" in self.pruning_modules:
+            return prunable_mlp_size + prunable_head_layer_size + self.params_finalmlp_layer
 
         return prunable_model_size
         
@@ -460,38 +482,42 @@ class L0Module_Sheared(nn.Module):
        
         # 12 * 1 
         # 12 * 12
-        head_layer_score, head_score = self.transform_scores_for_head(expected_scores)
-        mlp_score, int_score = self.transform_scores_for_mlp(expected_scores)
-        
-        head_score = (head_layer_score * head_score) # 12 * 12
-        int_score = (mlp_score * int_score) # 12 * 3072
+        if "bert" in self.config._name_or_path.lower() or 'llama' in self.config._name_or_path.lower():
+            head_layer_score, head_score = self.transform_scores_for_head(expected_scores)
+            mlp_score, int_score = self.transform_scores_for_mlp(expected_scores)
 
-        qk_score = None
-        if "qk_head_dim" in expected_scores:
-            qk_head_dim_score = expected_scores["qk_head_dim"] # num_layer * hidden_size
-            vo_head_dim_score = expected_scores["vo_head_dim"] # num_layer * hidden_size
-            qk_head_dim_score = qk_head_dim_score.view(qk_head_dim_score.shape[0], -1) # 12 * 768
-            vo_head_dim_score = vo_head_dim_score.view(vo_head_dim_score.shape[0], -1) # 12 * 768
-            head_score = torch.repeat_interleave(head_score, self.dim_per_head, dim=1) # 12 * 768
+            head_score = (head_layer_score * head_score) # 12 * 12
+            int_score = (mlp_score * int_score) # 12 * 3072
 
-            qk_score = head_score * qk_head_dim_score # 12 * 768
-            vo_score = head_score * vo_head_dim_score # 12 * 768
-                
-        if "hidden" in expected_scores:
-            hidden_score = expected_scores["hidden"] # 768 
-            
-            if qk_score is None:
-                num_parameters += torch.outer(hidden_score, head_score.reshape(-1)).sum() * self.masks.head.num_params_per_mask / self.hidden_size # 768 * 144
-                num_parameters += torch.outer(hidden_score, int_score.reshape(-1)).sum() * self.masks.intermediate.num_params_per_mask / self.hidden_size # 768 * 36864
+            qk_score = None
+            if "qk_head_dim" in expected_scores:
+                qk_head_dim_score = expected_scores["qk_head_dim"] # num_layer * hidden_size
+                vo_head_dim_score = expected_scores["vo_head_dim"] # num_layer * hidden_size
+                qk_head_dim_score = qk_head_dim_score.view(qk_head_dim_score.shape[0], -1) # 12 * 768
+                vo_head_dim_score = vo_head_dim_score.view(vo_head_dim_score.shape[0], -1) # 12 * 768
+                head_score = torch.repeat_interleave(head_score, self.dim_per_head, dim=1) # 12 * 768
+
+                qk_score = head_score * qk_head_dim_score # 12 * 768
+                vo_score = head_score * vo_head_dim_score # 12 * 768
+
+            if "hidden" in expected_scores:
+                hidden_score = expected_scores["hidden"] # 768 
+
+                if qk_score is None:
+                    num_parameters += torch.outer(hidden_score, head_score.reshape(-1)).sum() * self.masks.head.num_params_per_mask / self.hidden_size # 768 * 144
+                    num_parameters += torch.outer(hidden_score, int_score.reshape(-1)).sum() * self.masks.intermediate.num_params_per_mask / self.hidden_size # 768 * 36864
+                else:
+                    num_parameters += torch.sum(torch.matmul(hidden_score.reshape(1, -1, 1), qk_score.unsqueeze(1))) * 2 # 12 * 768 * 768
+                    num_parameters += torch.sum(torch.matmul(hidden_score.reshape(1, -1, 1), vo_score.unsqueeze(1))) * 2 # 12 * 768 * 768
+                    num_parameters += torch.sum(torch.matmul(hidden_score.reshape(1, -1, 1), int_score.unsqueeze(1))) * 3 # 12 * 768 * 3072
+
             else:
-                num_parameters += torch.sum(torch.matmul(hidden_score.reshape(1, -1, 1), qk_score.unsqueeze(1))) * 2 # 12 * 768 * 768
-                num_parameters += torch.sum(torch.matmul(hidden_score.reshape(1, -1, 1), vo_score.unsqueeze(1))) * 2 # 12 * 768 * 768
-                num_parameters += torch.sum(torch.matmul(hidden_score.reshape(1, -1, 1), int_score.unsqueeze(1))) * 3 # 12 * 768 * 3072
+                assert False, f'must prune hidden dims'
+                num_parameters += torch.sum(head_score) * self.masks.head.num_params_per_mask
+                num_parameters += torch.sum(int_score) * self.masks.intermediate.num_params_per_mask
             
         else:
-            assert False, f'must prune hidden dims'
-            num_parameters += torch.sum(head_score) * self.masks.head.num_params_per_mask
-            num_parameters += torch.sum(int_score) * self.masks.intermediate.num_params_per_mask
+            hidden_score = torch.ones(512).to(expected_scores["final_mlp_hidden"].device)
             
         if "final_mlp_hidden" in expected_scores:
             final_hidden_score = expected_scores["final_mlp_hidden"]  # (1024,)
@@ -564,51 +590,61 @@ class L0Module_Sheared(nn.Module):
     
     def calculate_model_size_LLM(self, zs):
         numpified_zs = self.get_z_from_zs(zs)
+        remaining_model_size=0
+        results = {}
         hidden_z = numpified_zs.get("hidden", np.ones(self.hidden_size))
-        intermediate_z = numpified_zs.get("intermediate",np.ones((self.num_layers, self.intermediate_size)))
-        mlp_z = numpified_zs.get("mlp",np.ones(self.num_layers)).reshape(-1, 1)
-        head_z = numpified_zs.get("head",np.ones((self.num_layers, self.num_attention_heads)))
-       
-        head_layer_z = numpified_zs.get("head_layer",np.ones((self.num_layers,))).reshape(-1, 1) 
-        mlp_final_hidden = numpified_zs.get("final_mlp_hidden",np.ones(1024)) #should be 1024
+        if "bert" in self.config._name_or_path.lower() or 'llama' in self.config._name_or_path.lower():
+            intermediate_z = numpified_zs.get("intermediate",np.ones((self.num_layers, self.intermediate_size)))
+            mlp_z = numpified_zs.get("mlp",np.ones(self.num_layers)).reshape(-1, 1)
+            head_z = numpified_zs.get("head",np.ones((self.num_layers, self.num_attention_heads)))
 
+            head_layer_z = numpified_zs.get("head_layer",np.ones((self.num_layers,))).reshape(-1, 1) 
+            
+        
+       
+
+
+            remaining_hidden_dims = hidden_z.sum().item()
+            remaining_intermediate_nums = intermediate_z.reshape(self.num_layers, self.intermediate_size).sum(-1).tolist()
+            remaining_head_nums = head_z.reshape(self.num_layers, self.num_attention_heads).sum(-1).tolist()
+            
+
+
+            head_nums = np.outer((head_z * head_layer_z).reshape(-1), hidden_z).sum().item()
+
+            """
+            hidden_z: (2048,)
+            intermediate_z:(24, 5504)
+            mlp_z : (24, 1)
+            head_z: (24, 16)
+            head_layer_z: (24, 1)
+
+
+            """
+            intermediate_nums = np.outer((intermediate_z * mlp_z).reshape(-1), hidden_z).sum().item()
+            print(f"remaining_hidden_dims: {remaining_hidden_dims}\nremaining_intermediate_nums: {remaining_intermediate_nums}")
+
+            remaining_model_size = head_nums * self.dim_per_head * 4 + intermediate_nums * self.n_matrix_mlp 
+            
+            results["head_layers"] = head_layer_z.reshape(-1).astype(int).tolist()
+            results["mlp_layers"] = mlp_z.reshape(-1).astype(int).tolist()
+            results["hidden_dims"] = remaining_hidden_dims
+            results["intermediate_dims"] = remaining_intermediate_nums
+            results["head_nums"] = remaining_head_nums
+        
+        
+        mlp_final_hidden = numpified_zs.get("final_mlp_hidden",np.ones(1024)) #should be 1024
         mlp_final_input = np.concatenate((hidden_z,hidden_z,hidden_z,hidden_z) )
-        
-        print(f"hidden_z: {hidden_z.shape}\nintermediate_z:{intermediate_z.shape}\nmlp_z : {mlp_z.shape}\nhead_z: {head_z.shape}\nhead_layer_z: {head_layer_z.shape}")
-        
-        remaining_hidden_dims = hidden_z.sum().item()
-        remaining_intermediate_nums = intermediate_z.reshape(self.num_layers, self.intermediate_size).sum(-1).tolist()
-        remaining_head_nums = head_z.reshape(self.num_layers, self.num_attention_heads).sum(-1).tolist()
         remaining_mlp_inp=mlp_final_input.sum().item()
         remaining_mlp_hidden=mlp_final_hidden.sum().item()
         
-        
-        head_nums = np.outer((head_z * head_layer_z).reshape(-1), hidden_z).sum().item()
-        
-        """
-        hidden_z: (2048,)
-        intermediate_z:(24, 5504)
-        mlp_z : (24, 1)
-        head_z: (24, 16)
-        head_layer_z: (24, 1)
-
-    
-        """
-        intermediate_nums = np.outer((intermediate_z * mlp_z).reshape(-1), hidden_z).sum().item()
-        print(f"remaining_hidden_dims: {remaining_hidden_dims}\nremaining_intermediate_nums: {remaining_intermediate_nums}")
-
-        
         final_mlp  = np.outer(mlp_final_input, mlp_final_hidden).sum().item()
-        remaining_model_size = head_nums * self.dim_per_head * 4 + intermediate_nums * self.n_matrix_mlp + (final_mlp) + (remaining_mlp_hidden * self.out_params)
+        remaining_model_size += (final_mlp) + (remaining_mlp_hidden * self.out_params)
         pruned_model_size = self.prunable_model_size - remaining_model_size
 
-        results = {}
+        
         # Not multiplied with each other
-        results["head_layers"] = head_layer_z.reshape(-1).astype(int).tolist()
-        results["mlp_layers"] = mlp_z.reshape(-1).astype(int).tolist()
-        results["hidden_dims"] = remaining_hidden_dims
-        results["intermediate_dims"] = remaining_intermediate_nums
-        results["head_nums"] = remaining_head_nums
+        
         results["mlp_input_3072"] = remaining_mlp_inp
         results["mlp_input_1024"] = remaining_mlp_hidden
         results["pruned_params"] = pruned_model_size

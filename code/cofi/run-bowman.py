@@ -121,7 +121,7 @@ def main():
     t_name=data_args.task_name
         
     tokenizer = TextEncoder(len(vocab['stoi']))
-    Model = CoFiBowmanEntailmentClassifier(tokenizer, device)
+    Model = CoFiBowmanEntailmentClassifier(tokenizer, config, device)
     
     #load the teacher model as a CofiBERT object (teacher is the finetuned bert no pruning)
     teacher_model = None

@@ -10,7 +10,7 @@ from transformers.modeling_outputs import BaseModelOutput, SequenceClassifierOut
 from transformers import AutoTokenizer, AutoConfig
 from transformers.models.llama.modeling_llama import LlamaRMSNorm, LlamaRotaryEmbedding, LlamaPreTrainedModel
 from transformers.cache_utils import Cache, DynamicCache
-from llm2vec.models.bidirectional_llama import LlamaBiModel, ModifiedLlamaDecoderLayer, ModifiedLlamaAttention, ModifiedLlamaFlashAttention2
+from llm2vec.models.bidirectional_llama import LlamaBiModel, ModifiedLlamaDecoderLayer, ModifiedLlamaAttention, ModifiedLlamaSdpaAttention
 from transformers.trainer import Trainer
 from transformers.training_args import TrainingArguments
 from cofi.utils.cofi_utils import *
@@ -129,7 +129,7 @@ def flash_attn_encoder_forward(q, k, v, padding_mask, dropout_p=0.0, softmax_sca
 
     return pad_input(out_unpad, indices, B, S)
 
-class CoFiModifiedLlamaAttention(ModifiedLlamaFlashAttention2):
+class CoFiModifiedLlamaAttention(ModifiedLlamaSdpaAttention):
     def __init__(self, config, layer_idx):
         super().__init__(config, layer_idx)
         
@@ -778,7 +778,7 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
                 weights[new_key] = weights.pop(old_key)
 
         
-            
+            load_pruned_model(model, weights)
             trained = True
             
 

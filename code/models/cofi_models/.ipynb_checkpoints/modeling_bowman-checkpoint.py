@@ -19,9 +19,10 @@ class CoFiBowmanEntailmentClassifier(torch.nn.Module):
     The RNN-based entailment model of Bowman et al 2017
     """
 
-    def __init__(self, encoder, device):
+    def __init__(self, encoder,config, device):
         super().__init__()
         self.model_name = 'bowman'
+        self.config=config
         self.encoder = encoder.to(device)
         self.encoder_dim = encoder.output_dim
         self.mlp_input_dim = self.encoder_dim * 4
@@ -45,7 +46,8 @@ class CoFiBowmanEntailmentClassifier(torch.nn.Module):
         # Always initialize random weights
         # -------------------------------
         print("Initializing Bowman model with random weights")
-        model = cls(kwargs['encoder'], device='cuda')
+        model = cls(kwargs['encoder'], kwargs['config'], device='cuda')
+        
         trained = False
         # Optional: if you have pruning weights, you can still load them
         if pretrained_model_name_or_path and '.pth' in str(pretrained_model_name_or_path) and os.path.exists(pretrained_model_name_or_path):
@@ -73,9 +75,9 @@ class CoFiBowmanEntailmentClassifier(torch.nn.Module):
     
     def forward(self, s1, s1len, s2, s2len, labels,final_mlp_hidden_z=None):
         
-        s1enc = self.encoder(s1, s1len)
+        s1enc = self.encoder(s1, s1len).float()
 
-        s2enc = self.encoder(s2, s2len)
+        s2enc = self.encoder(s2, s2len).float()
 
         
         diffs = s1enc - s2enc

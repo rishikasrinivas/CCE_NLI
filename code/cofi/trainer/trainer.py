@@ -191,8 +191,6 @@ class CoFiTrainer(Trainer):
         
         self.dataset=dataset
         self.additional_args = additional_args
-        self.finetuned_teacher = trained_teacher
-        
         self.l0_module = l0_module
         if l0_module is not None:
             self.l0_module = self.l0_module.to(device)
@@ -226,7 +224,7 @@ class CoFiTrainer(Trainer):
         logger.setLevel(log_level)
         
         self.full_eval_dataloader = full_eval_dataset
-        print(self.model_name)
+   
         
         self.full_train_dataloader =full_train_dataset
         import wandb
@@ -418,12 +416,8 @@ class CoFiTrainer(Trainer):
         train_pbar = trange(epochs_trained, int(
             np.ceil(num_train_epochs)), desc="Epoch", disable=disable_tqdm)
 
-        #Train the teacher model first bc in cofi orig repo they start with a trained teacher but here the frist run teach might not be trained yet so train it
 
         if self.teacher_model is not None:
-            if not self.finetuned_teacher:
-                self.teacher_model = self.finetune_teacher(self.teacher_model)
-                self.finetuned_teacher = True
 
             self.teacher_model.eval()
             assert not self.teacher_model.training, f'Teacher not supposed to be in training mode. call self.teacher_model.eval()'
@@ -432,13 +426,16 @@ class CoFiTrainer(Trainer):
         num_prune_epochs = num_train_epochs
         assert self.teacher_model is not None if not self.is_finetune_run else  self.teacher_model is  None, f' self.is_finetune_run={ self.is_finetune_run}'
        
+    
+        # handles ckpt resumes
         resume_status = self.resume_from(num_prune_epochs=num_prune_epochs)
 
         if resume_status == "resumed":
             epochs_trained = int(self.epoch)
 
         elif resume_status == "init_finetune":
-            epochs_trained = 0
+            epochs_trained = num_train_epochs
+            end_epoch = epochs_trained + num_train_epochs
             self.start_prune = False
             self.student_optimizer = None
             self.lr_scheduler = None
@@ -456,7 +453,8 @@ class CoFiTrainer(Trainer):
             raise RuntimeError("Finetune command got a checkpoint from before pruning finished.")
 
         else:  # "missing"
-            if self.is_finetune_run:
+            assert not self.is_finetune_run, f"Couldn't find {self.args.output_dir} but am supposed to finetune."
+            '''if self.is_finetune_run:
                 
                 epochs_trained = 0
                 self.start_prune = False
@@ -467,29 +465,30 @@ class CoFiTrainer(Trainer):
                 self.global_step = 0
                 self.create_optimizer_and_scheduler(self.t_total, build_l0_optimizer=False)
 
+            else:'''
+            # Pruning command has no pruning checkpoint yet, so initialize from pre-pruning student.
+            path_to_student = "/".join(self.args.output_dir.split("/")[:-2])
+            student_dir = os.path.join(path_to_student, "student")
+            os.makedirs(student_dir, exist_ok=True)
+
+            student_status = self.resume_from(student_dir)
+            print(f"Loading state from {student_dir}")
+
+            if student_status == "resumed":
+                epochs_trained = self.epoch
+                
+                self.start_prune = True
             else:
-                # Pruning command has no pruning checkpoint yet, so initialize from pre-pruning student.
-                path_to_student = "/".join(self.args.output_dir.split("/")[:-2])
-                student_dir = os.path.join(path_to_student, "student")
-                os.makedirs(student_dir, exist_ok=True)
-
-                student_status = self.resume_from(student_dir)
-                print(f"Loading state from {student_dir}")
-
-                if student_status == "resumed":
-                    epochs_trained = self.epoch
-                    self.start_prune = True
-                else:
-                    epochs_trained = 0
-                    self.start_prune = False
+                epochs_trained = 0
+                self.start_prune = False
+            end_epoch = num_train_epochs
                     
         
-        print(f"Will prune/train for {num_prune_epochs} total. Have completed {epochs_trained} from ckpt")
+        print(f"Will prune/train from {epochs_trained} to {end_epoch} total. Have completed {epochs_trained} from ckpt")
         self.evaluate()
         epochs_trained = int(epochs_trained)
-        for epoch in range(epochs_trained,int(num_prune_epochs)): #! 20 epoch
+        for epoch in range(epochs_trained,int(end_epoch)): #! 20 epoch
             print(f"Starting epoch {epoch}")
-            #resume stuff (if resuming the if applies only)
             
             epoch_start = time.time()
 
@@ -509,11 +508,8 @@ class CoFiTrainer(Trainer):
             
             
             for step, inputs in enumerate(epoch_iterator):
-              # in orig foi they say self.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps:
-                    # but this is because they train the student first run. we may start with a trained student alr
                 
                 if self.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps and not self.is_finetune_run:
-                    print("Pruning")
                     self.start_prune = True
                     self.global_step = self.prepruning_finetune_steps
                     self.student_optimizer = None
@@ -524,7 +520,12 @@ class CoFiTrainer(Trainer):
                     self.create_optimizer_and_scheduler(lr_steps, self.start_prune)
                     
                     logger.info("Starting l0 regularization!")
-                assert not self.start_prune if self.is_finetune_run else  self.start_prune, f'self.start_prune={self.start_prune} and self.is_finetune_run-{self.is_finetune_run}'
+                if not self.is_finetune_run and using_trained_student:
+                    assert self.start_prune
+                elif not using_trained_student:
+                    assert not self.is_finetune_run and not self.start_prune
+                elif self.is_finetune_run:
+                    assert using_trained_student
                 
                 if self.start_prune:
                     zs = self.l0_module.forward(training=True) #! get the zs
@@ -592,8 +593,8 @@ class CoFiTrainer(Trainer):
                             **bad_grads,
                         })
 
-                        print("Non-finite gradient norm before optimizer step")
-                        print(e)
+                        logger.error("Non-finite gradient norm before optimizer step")
+                        logger.error(e)
                         sys.exit(1)
                     
                     
@@ -1016,7 +1017,7 @@ class CoFiTrainer(Trainer):
 
         training_state = {
             "global_step": self.global_step,
-            "epoch": self.epoch + 1 if phase == "prune" else  self.epoch + self.args.num_train_epochs + 1,
+            "epoch": self.epoch if phase == "prune" else  self.epoch + self.args.num_train_epochs,
             "student_optimizer": self.student_optimizer.state_dict() if self.student_optimizer else None,
             "lr_scheduler": self.lr_scheduler.state_dict() if self.lr_scheduler else None,
             "l0_optimizer": self.l0_optimizer.state_dict() if self.l0_optimizer else None,
@@ -1119,18 +1120,15 @@ class CoFiTrainer(Trainer):
                     elif hasattr(self.model, 'model'): #llama
                         last_aligned_layer = 24
                     specified_teacher_layers = [2,5,8,11]
-                        
-                #logger.warning(f"sampled teacher layers: {specified_teacher_layers}")
-                
-                
-                #here not yet accounting for mlp. pulling teaacher output for 2,5,8,11 in bert layers 
+                    
                 transformed_s_layer_o_pre = [self.model.layer_transformation(
                 s_pre_layer_o) for s_pre_layer_o in student_pre_layer_output]
                 
+           
+                
                 transformed_s_layer_o_hyp = [self.model.layer_transformation(
                 s_hyp_layer_o) for s_hyp_layer_o in student_hyp_layer_output]
-                    #rn its [layer1 out, layer2 out, etc]
-                        #change to [(layer1 pre, layer1 hyp), (layer2 pre, layer2 hyp), etc...]
+                 
                 
                 specified_teacher_layer_reps_pre = [
                     teacher_pre_layer_output[i] for i in specified_teacher_layers] #! teacher: 4x[32,113,768]
@@ -1138,8 +1136,6 @@ class CoFiTrainer(Trainer):
                 
                 specified_teacher_layer_reps_hyp = [
                     teacher_hyp_layer_output[i] for i in specified_teacher_layers]
-                        #rn its [layer1 out, layer2 out, etc]
-                        #change to [(layer1 pre, layer1 hyp), (layer2 pre, layer2 hyp), etc...]
 
                 device = transformed_s_layer_o_hyp[0].device
 
@@ -1152,11 +1148,9 @@ class CoFiTrainer(Trainer):
                         s_hyp_layer_o = s_hyp_layer_o.float()
                         l.append(mse_loss(t_pre_layer_o, s_pre_layer_o)+ mse_loss(t_hyp_layer_o,s_hyp_layer_o))
 
-                #now dp lloss for mlp
 
                 layerwiseloss = torch.stack(l).reshape(
                     len(specified_teacher_layer_reps_pre), len(student_pre_layer_output)) #! [4,12] cannot do w list of tuples'''
-
 
 
                 existing_layers = None
@@ -1195,7 +1189,7 @@ class CoFiTrainer(Trainer):
                     sys.exit()
 
                 layerwise = torch.arange(len(specified_teacher_layers)).to(device)
-                #print(f"MLP LAYER LOSS: {layer_loss}")
+               
                 layer_loss += layerwiseloss[layerwise, alignment].sum() #! layerwise: teacher (specified layers) / alignment: student (min loss layers) / layerwiseloss: [4,12]
                 if self.global_step % 100 == 0:
                     logger.info(f"v{self.additional_args.layer_distill_version} Global step: {self.global_step}, Alignment: " + str(alignment))
@@ -1247,27 +1241,8 @@ class CoFiTrainer(Trainer):
         if "token_type_ids" in inputs:
             inputs["token_type_ids"] = inputs["token_type_ids"][:, :max_length]
       
-    def finetune_teacher(self,teacher):
-        save_teacher_dir= f'0_Pruning_Iter'
-        teacher_model_path=os.path.join(self.teacher_model_dir, save_teacher_dir)
-            
-        # Load rfrm pth (deal)
-        if os.path.exists(teacher_model_path) and 'model_best.pth' in  os.listdir(teacher_model_path):
-            print(f"Reloading Finetuning SNLI teacher model ")
-            print(f"Loading from {teacher_model_path}")
-            print(os.listdir(self.teacher_model_dir))
-            
-            state_dict = torch.load(os.path.join(teacher_model_path, 'model_best.pth'))['state_dict'] #os.path.join(teacher_model_path,'model_best.pth'))
-            self.teacher_model.load_state_dict(state_dict, strict=False)
-            for n,p in self.teacher_model.named_parameters():
-                p.requires_grad = False
-    
-
-            return self.teacher_model
+  
         
-    
-
-
     def training_step(self, model: torch.nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> List[torch.Tensor]:
         model.train()
         assert self.l0_module is None if self.is_finetune_run else self.l0_module is not None, f'self.is_finetune_run ={self.is_finetune_run}, self.l0_module={self.l0_module} '
@@ -1308,11 +1283,11 @@ class CoFiTrainer(Trainer):
             with autocast():
                 student_outputs = self.model(**inputs)
 
-            #student_outputs = self.model(**inputs)
+
 
                
             zs = {key: inputs[key] for key in inputs if "_z" in key}
-            #if zs: assert zs['hidden_z'] is not None 
+   
     
            
             with torch.autocast(device_type="cuda", enabled=False):
