@@ -1,3 +1,4 @@
+32pt 
 import math
 import os
 import sys
@@ -34,7 +35,7 @@ from cofi.utils.utils import *
 import torch.nn as nn
 import torch.optim as optim
 import train_utils
-from torch.cuda.amp import autocast, GradScaler
+
 from transformers.utils import logging
 import util
 import random
@@ -207,14 +208,12 @@ class CoFiTrainer(Trainer):
         self.model_name = model_name
         self.pruned_sparsity = 0.0
         self.expected_sparsity= 1.0 #make sure the expected-pruned check doesn't say > epsilon 
-        self.scaler = GradScaler(enabled=True)
+ 
         self.device=device
-        print("initiaalt student on ", self.device)
         self.model.to(self.device)
         
         self.teacher_model = teacher_model
         if self.teacher_model is not None:
-            print(f"MOVIG TEACHER TO {self.device}")
             self.teacher_model = self.teacher_model.to(self.device)
         
         self.is_finetune_run = self.current_run_is_finetune()
@@ -510,6 +509,7 @@ class CoFiTrainer(Trainer):
             
             for step, inputs in enumerate(epoch_iterator):
                 
+                
                 if self.prepruning_finetune_steps > 0 and self.global_step == self.prepruning_finetune_steps and not self.is_finetune_run:
                     self.start_prune = True
                     self.global_step = self.prepruning_finetune_steps
@@ -546,83 +546,55 @@ class CoFiTrainer(Trainer):
                 
                 if (step + 1) % self.args.gradient_accumulation_steps == 0 or (
                         len(epoch_iterator) <= self.args.gradient_accumulation_steps
-                        and(step + 1) == len(epoch_iterator)
+                        and (step + 1) == len(epoch_iterator)
                 ):
-                    
-                    self.scaler.unscale_(self.student_optimizer)
-
                     if self.start_prune:
-                        self.scaler.unscale_(self.l0_optimizer)
-                        self.scaler.unscale_(self.lagrangian_optimizer)
                         l0_stats = {}
 
                         for name, p in self.l0_module.named_parameters():
                             if p.grad is not None:
                                 l0_stats[f"l0/{name}_norm"] = p.grad.norm().item()
                                 l0_stats[f"l0/{name}_max"] = p.grad.abs().max().item()
+
                         wandb.log({**l0_stats})
-                    
-                    # gradient clipping and error if encountering NANs
-                    grad_norm = None
-                    try:
-                        grad_norm = torch.nn.utils.clip_grad_norm_(
-                            model.parameters(),
-                            self.args.max_grad_norm
-                        )
 
-                        wandb.log({
-                            "train/grad_norm": grad_norm.item(),
-                            "train/max_grad_norm": self.args.max_grad_norm,
-                            "train/step": self.global_step,
-                            "debug/scaler_scale": self.scaler.get_scale(),
-                        })
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        model.parameters(),
+                        self.args.max_grad_norm,
+                        error_if_nonfinite=True,
+                    )
 
-                    except RuntimeError as e:
-                        bad_grads = {}
+                    wandb.log({
+                        "train/grad_norm": grad_norm.item(),
+                        "train/max_grad_norm": self.args.max_grad_norm,
+                        "train/step": self.global_step,
+                    })
 
-                        for name, p in model.named_parameters():
-                            if p.grad is not None and not torch.isfinite(p.grad).all():
-                                g = p.grad.detach()
-                                bad_grads[f"bad_grad/{name}_nan"] = torch.isnan(g).sum().item()
-                                bad_grads[f"bad_grad/{name}_inf"] = torch.isinf(g).sum().item()
-                                bad_grads[f"bad_grad/{name}_max_abs"] = g.nan_to_num().abs().max().item()
+                    self.student_optimizer.step()
 
-                        wandb.log({
-                            "train/nonfinite_grad_norm": 1,
-                            
- 
-                            **bad_grads,
-                        })
-
-                        logger.error("Non-finite gradient norm before optimizer step")
-                        logger.error(e)
-                        sys.exit(1)
-                    
-                    
-                    #replace vanilla optimizer strep with scalars to prevent 0 grads
-                    self.scaler.step(self.student_optimizer)
-
-                    # Do not step stale L0 optimizers during post-pruning finetuning.
-                    if self.start_prune:
-                        self.scaler.step(self.l0_optimizer)
-                        self.scaler.step(self.lagrangian_optimizer)
-                    
-                    self.scaler.update()
+                    if self.l0_module is not None and self.l0_optimizer is not None:
+                        assert self.start_prune:
+                        self.l0_optimizer.step()
+                        self.lagrangian_optimizer.step()
 
                     if self.lr_scheduler is not None:
                         self.lr_scheduler.step()
 
-                    if self.l0_module is not None and self.start_prune: #dont touch zs if no pruning
+                    if self.l0_module is not None:
                         self.l0_module.constrain_parameters()
 
-                    model.zero_grad()
+                    model.zero_grad(set_to_none=True)
+
                     if self.l0_module is not None:
-                        self.l0_module.zero_grad()
-                    self.student_optimizer.zero_grad()
+                        self.l0_module.zero_grad(set_to_none=True)
+
+                    self.student_optimizer.zero_grad(set_to_none=True)
+
                     if self.l0_optimizer is not None:
-                        self.l0_optimizer.zero_grad()
+                        self.l0_optimizer.zero_grad(set_to_none=True)
+
                     if self.lagrangian_optimizer is not None:
-                        self.lagrangian_optimizer.zero_grad()
+                        self.lagrangian_optimizer.zero_grad(set_to_none=True)
 
                     self.global_step += 1
                     self.epoch = epoch + (step + 1) / len(epoch_iterator)
@@ -636,16 +608,19 @@ class CoFiTrainer(Trainer):
                         lag_loss_scalar = lag_loss.item()
 
                         logs["loss"] = (
-                            tr_loss_scalar - logging_loss_scalar) / self.args.logging_steps
+                            tr_loss_scalar - logging_loss_scalar
+                        ) / self.args.logging_steps
                         logs["reg_loss"] = (
-                            reg_loss_scalar - logging_reg_loss_scalar) / self.args.logging_steps
+                            reg_loss_scalar - logging_reg_loss_scalar
+                        ) / self.args.logging_steps
                         logs["lag_loss"] = (
-                            lag_loss_scalar - logging_lag_loss_scalar) / self.args.logging_steps
+                            lag_loss_scalar - logging_lag_loss_scalar
+                        ) / self.args.logging_steps
 
-                        # backward compatibility for pytorch schedulers
                         if self.lr_scheduler is not None:
                             lr = self.lr_scheduler.get_last_lr()[0] if version.parse(
-                                torch.__version__) >= version.parse("1.4") else self.lr_scheduler.get_lr()[0]
+                                torch.__version__
+                            ) >= version.parse("1.4") else self.lr_scheduler.get_lr()[0]
                         else:
                             lr = self.args.learning_rate
 
@@ -658,22 +633,10 @@ class CoFiTrainer(Trainer):
 
                     if self.global_step % self.args.eval_steps == 0:
                         self.evaluate()
-                   
-       
-                    #ckpt-ing
-                    if self.global_step % SAVE_EVERY == 0 and using_trained_student:
-                        self.save_model(model, student=False,  save=True)
-                        
+                    epoch_pbar.update(1)
 
-                epoch_pbar.update(1)
-                  #they stop when self.args.max_steps > 0 and self.global_step >= self.args.max_steps: and we stop when sparsity is reached 
-                    #TODO: check what their max_steps is if its eqiuv to the epochs then its fine with ours 
-                if self.args.max_steps > 0 and self.global_step >= self.args.max_steps:
-                    print(f"Reached target sparsity {self.additional_args.target_sparsity}: at {self.pruned_sparsity} with expected at {self.expected_sparsity}")
-                    self.save_model(model, student=False)
-                    break
-                
-                
+                    if self.global_step % SAVE_EVERY == 0 and using_trained_student:
+                        self.save_model(model, student=False, save=True)
                     
             epoch_end = time.time()
             # wandb.log({'epoch':epoch})
@@ -772,8 +735,7 @@ class CoFiTrainer(Trainer):
                 # Pass the inputs directly to the model. 
                 # Because we bypass the Trainer's wrapper, your cuda:1 tensors stay on cuda:1!
                 
-                with autocast():
-                    outputs = model(**inputs)
+                outputs = model(**inputs)
 
                 # Reconstruct the loss, logits, and labels manually to match your loop variables
                 loss = outputs.loss if hasattr(outputs, "loss") else None
@@ -985,8 +947,6 @@ class CoFiTrainer(Trainer):
         if state.get("lr_scheduler") and self.lr_scheduler:
             self.lr_scheduler.load_state_dict(state["lr_scheduler"])
 
-        if state.get("scaler"):
-            self.scaler.load_state_dict(state["scaler"])
 
         if not self.is_finetune_run and self.start_prune:
             if state.get("l0_optimizer") and self.l0_optimizer:
@@ -1027,7 +987,6 @@ class CoFiTrainer(Trainer):
             "prepruning_finetune_steps": self.prepruning_finetune_steps,
             "phase": phase,
             "phase_complete": phase_complete,
-            "scaler": self.scaler.state_dict(),
         }
 
         torch.save(training_state, os.path.join(output_dir, "training_state.pth"))
@@ -1230,6 +1189,27 @@ class CoFiTrainer(Trainer):
 
 
    
+    def assert_finite_tensor(self, name, x):
+        if x is None:
+            return
+
+        if isinstance(x, (tuple, list)):
+            for i, v in enumerate(x):
+                self.assert_finite_tensor(f"{name}[{i}]", v)
+            return
+
+        if hasattr(x, "logits"):
+            self.assert_finite_tensor(f"{name}.logits", x.logits)
+
+        if torch.is_tensor(x) and not torch.isfinite(x).all():
+            print(
+                f"NONFINITE {name}: "
+                f"nan={torch.isnan(x).sum().item()} "
+                f"inf={torch.isinf(x).sum().item()} "
+                f"min={x.nan_to_num().min().item()} "
+                f"max={x.nan_to_num().max().item()}"
+            )
+            raise RuntimeError(f"Nonfinite {name} at step {self.global_step}")
     def shortens_inputs(self, inputs):
         if self.model_name=='bowman': return inputs
         max_length = inputs["pre_attention_mask"].sum(-1).max().item()
@@ -1269,35 +1249,24 @@ class CoFiTrainer(Trainer):
 
                 teacher_inputs = {key: inputs[key].to(self.device) for key in teacher_inputs_keys if key in inputs}
                 self.shortens_inputs(teacher_inputs)
-                with torch.no_grad():
-                    with autocast():
-                        teacher_outputs = self.teacher_model(**teacher_inputs)
+                teacher_outputs = self.teacher_model(**teacher_inputs)
 
-
-                #teacher_outputs = self.teacher_model(**teacher_inputs)
-                
 
             self.shortens_inputs(inputs)
 
 
             
-            with autocast():
-                student_outputs = self.model(**inputs)
+            student_outputs = self.model(**inputs)
 
 
-
-               
             zs = {key: inputs[key] for key in inputs if "_z" in key}
    
-    
-           
-            with torch.autocast(device_type="cuda", enabled=False):
-                distill_loss, distill_ce_loss, loss = self.calculate_distillation_loss(
-                    teacher_outputs,
-                    student_outputs,
-                    zs,
-                )
-                loss = loss.float()
+            distill_loss, distill_ce_loss, loss = self.calculate_distillation_loss(
+                teacher_outputs,
+                student_outputs,
+                zs,
+            )
+                
                 
         else:
             loss = self.compute_loss(model, inputs)
@@ -1308,28 +1277,23 @@ class CoFiTrainer(Trainer):
         if self.start_prune:
             lagrangian_loss, _, _ = self.l0_module.lagrangian_regularization(
                 self.global_step - self.prepruning_finetune_steps)
+            
+    
             loss += lagrangian_loss
 
         if self.args.gradient_accumulation_steps > 1:
             loss = loss / self.args.gradient_accumulation_steps
 
-        #loss.backward()
+        loss.backward()
         
-        #addung scaler 
+ 
         if not torch.isfinite(loss):
             raise RuntimeError(f"Nonfinite forward loss at step {self.global_step}: {loss}")
-        self.scaler.scale(loss).backward()
+        
        
         # Check gradient norms
         if self.global_step % 5000 == 0:
-            total_norm = 0
-            #norm = self.model.bert.encoder.layer[9].output.LayerNorm
-            #if self.start_prune and norm.weight.grad is not None:
-                #print(f"BERT Layer 0 norm weight grad - mean: {norm.weight.grad.abs().mean():.6f} zeros: {norm.weight.grad.eq(0).sum().item()}/{norm.weight.grad.numel()}"
 
-                
-            
-            
             wandb.log({
                 # Your existing metrics
 
@@ -1338,15 +1302,9 @@ class CoFiTrainer(Trainer):
                 "train/distill_layer_loss": distill_loss.item() if distill_loss is not None else float('inf'),
                 "train/distill_ce_loss": distill_ce_loss.item()  if distill_ce_loss is not None else float('inf'),
                 "train/total_distill_loss": loss.item(),
-                "train/gradient_norm": total_norm,
+        
                 "train/learning_rate": self.student_optimizer.param_groups[0]['lr'],
                 "train/step": self.global_step,
-                
-                #"grad/layer_kl_cosine": grad_stats["cosine"],
-                #"grad/layer_norm": grad_stats["layer_norm"],
-                #"grad/ce_norm": grad_stats["ce_norm"],
-                #"grad/layer_to_kl_ratio": grad_stats["layer_norm"] / (grad_stats["ce_norm"] + 1e-12),
-
 
             })
             for n, p in self.model.named_parameters():
