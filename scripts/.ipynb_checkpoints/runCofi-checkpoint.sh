@@ -15,20 +15,27 @@ if [[ ! "$gpu" =~ ^[0-9]+$ ]]; then
     echo "Invalid GPU: $gpu" >&2
     exit 2
 fi
-
 case "$model" in
     llama)
         model_dir="LLAMA"
         model_name_or_path="knowledgator/Sheared-LLaMA-encoder-1.3B"
-        reg_learning_rate="0.5"
+        reg_learning_rate="0.1"
+        prune_modules="head+head_layer+intermediate+mlp+final_mlp_hidden+hidden"
         ;;
     bert)
         model_dir="BERT"
         model_name_or_path="bert-base-uncased"
         reg_learning_rate="0.01"
+        prune_modules="head+head_layer+intermediate+mlp+final_mlp_hidden+hidden"
+        ;;
+    bowman)
+        model_dir="BOWMAN"
+        model_name_or_path="bowman"
+        reg_learning_rate="0.1"
+        prune_modules="final_mlp_hidden"
         ;;
     *)
-        echo "Unsupported model: $model (expected llama or bert)" >&2
+        echo "Unsupported model: $model (expected llama, bert, or bowman)" >&2
         exit 2
         ;;
 esac
@@ -64,10 +71,7 @@ for run in {1..3}; do
 
         output_dir="/workspace/CCE_NLI/${model_dir}/models/CoFi/Run${run}/${iteration}_Pruning_Iter"
 
-        if [[ -f "${output_dir}/model_best.pth" ]]; then
-            echo "Skipping ${output_dir}: model_best.pth found"
-            
-        fi
+       
 
         echo "Starting Run${run}"
         echo "Iteration: ${iteration}"
@@ -103,7 +107,7 @@ for run in {1..3}; do
             --eval_steps 500 \
             --evaluation_strategy steps \
             --seed "$seed" \
-            --pruning_type head+head_layer+intermediate+mlp+final_mlp_hidden+hidden \
+            --pruning_type "$prune_modules" \
             --pretrained_pruned_model None \
             --target_sparsity "$sparsity" \
             --freeze_embeddings \
