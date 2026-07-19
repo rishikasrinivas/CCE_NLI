@@ -432,10 +432,11 @@ class CoFiTrainer(Trainer):
 
         if resume_status == "resumed":
             epochs_trained = int(self.epoch)
+            end_epoch = num_train_epochs
 
         elif resume_status == "init_finetune":
-            epochs_trained = num_train_epochs
-            end_epoch = epochs_trained + num_train_epochs
+            epochs_trained = 0
+            end_epoch = num_train_epochs
             self.start_prune = False
             self.student_optimizer = None
             self.lr_scheduler = None
