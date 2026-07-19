@@ -101,12 +101,12 @@ def load_pruned_structure_then_weights(model, model_dir, zs_path, config, tokeni
     else:
         update_bert_params(model, zs)
         model = prune_model_with_z(zs, model)
-
+ 
     # 3. Load weights AFTER structure exists
     ckpt_path = os.path.join(model_dir, "model_best.pth")
     ckpt = torch.load(ckpt_path, map_location='cpu')
-    result = model.load_state_dict(ckpt["state_dict"], strict=False)
-
+    print(model_dir, ckpt['state_dict']['mlp.0.weight'].shape)
+    result = model.load_state_dict(ckpt["state_dict"], strict=True)
     print("Missing keys:", result.missing_keys)
     print("Unexpected keys:", result.unexpected_keys)
 
