@@ -237,13 +237,13 @@ class CoFiTrainer(Trainer):
             self.wanda_project_name='llama-cofi'
             
         wandb.init(
-            project=f"{self.wanda_project_name}-distillation",
+            project=f"{self.wanda_project_name}-Lab-Pruning",
             name=self.wanda_project_name,
             config={
                 "layer_distill_version": self.additional_args.layer_distill_version,
                 "learning_rate": self.args.learning_rate,
                 "batch_size": self.args.per_device_train_batch_size,
-                "num_layers": 22,
+                "num_layers": 24,
             }
         )
         
@@ -453,18 +453,7 @@ class CoFiTrainer(Trainer):
 
         else:  # "missing"
             assert not self.is_finetune_run, f"Couldn't find {self.args.output_dir} but am supposed to finetune."
-            '''if self.is_finetune_run:
-                
-                epochs_trained = 0
-                self.start_prune = False
-                self.student_optimizer = None
-                self.lr_scheduler = None
-                self.l0_optimizer = None
-                self.lagrangian_optimizer = None
-                self.global_step = 0
-                self.create_optimizer_and_scheduler(self.t_total, build_l0_optimizer=False)
-
-            else:'''
+            
             # Pruning command has no pruning checkpoint yet, so initialize from pre-pruning student.
             path_to_student = "/".join(self.args.output_dir.split("/")[:-2])
             student_dir = os.path.join(path_to_student, "student")
@@ -475,10 +464,11 @@ class CoFiTrainer(Trainer):
 
             if student_status == "resumed":
                 epochs_trained = self.epoch
-                
+                using_trained_student=True
                 self.start_prune = True
             else:
-                epochs_trained = 0
+                using_trained_student=False
+                epochs_trained = -1
                 self.start_prune = False
             end_epoch = num_train_epochs
                     
@@ -651,7 +641,7 @@ class CoFiTrainer(Trainer):
                 using_trained_student = True
                 wandb.finish()
                 wandb.init(
-                    project=f"{self.wanda_project_name}-pruning_round",
+                    project=f"{self.wanda_project_name}-Lab-Pruning",
                     name=self.wanda_project_name,
                     config={
                         "layer_distill_version": self.additional_args.layer_distill_version,
@@ -932,6 +922,9 @@ class CoFiTrainer(Trainer):
             if not pruning_done and self.is_finetune_run:
                 print("Checkpoint is still in pruning phase; FT run should not resume it")
                 return "wrong_phase"
+        if not os.path.exists(model_path):
+            print(f"Couldnt find {model_path}")
+            return 'missing'
         self.model.load_state_dict(torch.load(model_path, map_location=self.device)["state_dict"], strict=False)
         
         # Only restore optimizers for the matching active run.

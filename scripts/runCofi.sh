@@ -2,19 +2,26 @@
 
 set -euo pipefail
 
-if (( $# < 1 || $# > 3 )); then
-    echo "Usage: $0 <llama|bert> [start_sparsity] [gpu]" >&2
+if (( $# < 1 || $# > 4 )); then
+    echo "Usage: $0 <llama|bert|bowman> [start_sparsity] [gpu] [start_run]" >&2
     exit 2
 fi
 
 model="$1"
 start_sparsity="${2:-0.25}"
 gpu="${3:-0}"
+start_run="${4:-1}"
 
 if [[ ! "$gpu" =~ ^[0-9]+$ ]]; then
     echo "Invalid GPU: $gpu" >&2
     exit 2
 fi
+
+if [[ ! "$start_run" =~ ^[1-3]$ ]]; then
+    echo "Invalid start_run: $start_run (expected 1, 2, or 3)" >&2
+    exit 2
+fi
+
 case "$model" in
     llama)
         model_dir="LLAMA"
@@ -58,7 +65,7 @@ if (( start_index == -1 )); then
     exit 2
 fi
 
-for run in {2..3}; do
+for run in $(seq "$start_run" 3); do
     seed="${seeds[$((run - 1))]}"
 
     for index in "${!sparsities[@]}"; do
@@ -69,7 +76,7 @@ for run in {2..3}; do
         iteration=$((index + 1))
         sparsity="${sparsities[$index]}"
 
-        output_dir="/workspace/CCE_NLI/${model_dir}/models/CoFi/Run${run}/${iteration}_Pruning_Iter"
+        output_dir="./${model_dir}/models/CoFi/Run${run}/${iteration}_Pruning_Iter"
 
        
 
@@ -87,7 +94,7 @@ for run in {2..3}; do
             --model_name "$model" \
             --using_untrained_student False \
             --path_to_pretrained "${model_dir}/models/pretrained/" \
-            --teacher_model_dir "/workspace/CCE_NLI/${model_dir}/models/lottery_ticket/Run1/" \
+            --teacher_model_dir "./${model_dir}/models/lottery_ticket/Run1/" \
             --data_debug 100 \
             --output_dir "$output_dir" \
             --logging_steps 100 \
@@ -126,7 +133,7 @@ for run in {2..3}; do
             --model_name "$model" \
             --using_untrained_student False \
             --path_to_pretrained "${model_dir}/models/pretrained/" \
-            --teacher_model_dir "/workspace/CCE_NLI/${model_dir}/models/lottery_ticket/Run1/" \
+            --teacher_model_dir "./${model_dir}/models/lottery_ticket/Run1/" \
             --data_debug 100 \
             --output_dir "$output_dir" \
             --logging_steps 100 \

@@ -250,7 +250,7 @@ def run(split, epoch, model, model_type, pruning_method, optimizer, criterion, d
     model.to(device)
     if training:
         # CORRECTED: Disable autocast for this test
-        ctx = autocast
+        ctx = nullcontext
         model.train()
     else:
         ctx = torch.no_grad

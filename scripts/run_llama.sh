@@ -37,9 +37,9 @@ for i in {8..9}; do
     
     #echo "Running pruning explanation for iteration $i"
     python3 code/pruning_explanation.py \
-        --model_type llama \
+        --model_type bert \
         --pruning_method lottery_ticket \
-        --ckpt "LLAMA/models/lottery_ticket/Run1/0_Pruning_Iter/model_best.pth" \
+        --ckpt "BERT/models/lottery_ticket/Run1/0_Pruning_Iter/model_best.pth" \
         --filename "Run1"
     
     
