@@ -28,8 +28,8 @@ pip install -U llm2vec
 
 # for llama cofi
 #load the student model 
-wget https://huggingface.co/ccenli/llama/resolve/main/llama_student_cofi.tar.gz
-tar -xvzf llama_student_cofi.tar.gz
+wget https://huggingface.co/ccenli/llama/resolve/main/llama_fullprec_student.tar.gz
+tar -xvzf llama_fullprec_student.tar.gz
 
 #load the teacher model 
 wget https://huggingface.co/ccenli/llama/resolve/main/llama_dense.tar.gz
