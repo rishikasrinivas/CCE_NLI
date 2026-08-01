@@ -24,6 +24,7 @@ from transformers import AutoTokenizer
 from torch.nn.utils.rnn import pad_sequence
 import glob
 import json
+from cofi.utils.cofi_utils import *
 
 def collate_as_dict(batch):
     """
@@ -403,8 +404,33 @@ def build_model(model_type, vocab, vocab_size=None, pretrained=True, embedding_d
         else:
             raise ValueError(f"Unknown model_type: {model_type}")
     return model, tokenizer
+def load_pruned_structure_then_weights(model, zs, config, tokenizer, device, ckpt, **kwargs):
+    # 1. Build fresh base/dense model
+    model = model(config).to('cpu')
 
-def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, pruning_method='', device='cuda', i=0, zs=None):
+
+    if model.model_name == "bowman":
+        update_LSTM_params(model, zs)
+        prune_hidden_mlp(zs, model)
+    elif model.model_name == "llama":
+        update_llama_params(model, zs)
+        model = prune_model_with_z(zs, model)
+    else:
+        update_bert_params(model, zs)
+        model = prune_model_with_z(zs, model)
+ 
+    # 3. Load weights AFTER structure exists
+
+    ckpt=torch.load(ckpt, map_location='cpu')
+    print(ckpt['state_dict']['mlp.0.weight'].shape)
+    result = model.load_state_dict(ckpt["state_dict"], strict=True)
+    print("Missing keys:", result.missing_keys)
+    print("Unexpected keys:", result.unexpected_keys)
+
+    return model
+
+
+def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, pruning_method='', device='cuda', i=0, zs=None, config=None):
     """
     Loads or initializes a model.
     """
@@ -422,7 +448,19 @@ def load_model(model_type, train, ckpt=None, use_pretrained_weights=True, prunin
     if ckpt and os.path.exists(ckpt): #and not cofi
         if zs or cofi:
             print(f"Loading model from {ckpt}")
-            model = cofi_utils.load_model_with_zs(ckpt, model, zs=zs, train_data=train, ckpt=ckpt,  encoder=tokenizer, device=device)
+            try:
+                model = cofi_utils.load_model_with_zs(ckpt, model, zs=zs, train_data=train, ckpt=ckpt,  encoder=tokenizer, device=device)
+            except:
+                print(f'load_pruned_structure_then_weights' )
+                model = load_pruned_structure_then_weights(
+                    model,
+                    ckpt=ckpt,
+                    zs=zs,
+                    config=config,
+                    tokenizer=tokenizer,
+                    device=device,
+                    hf_name='knowledg',
+                )
         else:
             print(f"Loading from checkpoint (no zs): {ckpt}")
             ckpt_ = torch.load(ckpt, map_location=torch.device(device))

@@ -35,7 +35,9 @@ tar -xvzf llama_fullprec_student.tar.gz
 wget https://huggingface.co/ccenli/llama/resolve/main/llama_dense.tar.gz
 tar -xvzf llama_dense.tar.gz -C ../
 
-./scripts/runCofi.sh llama <starting sparsity> <device number> 
+./scripts/runCofi.sh llama <starting sparsity> <device number> <run#>
+# ex: ./scripts/runCofi.sh llama 0.25 0 3 
+# runs llama from 25% pruning on gpu 0 on run3
 #device number = 0 if on 1st gpu, 1 if on 2nd, etc
 #starting sparsity options are 0.25, 0.4375, 0.57812, 0.68359, 0.7627. if it crashes specify which sparsity to restart from
 

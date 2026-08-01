@@ -854,7 +854,7 @@ def initiate_exp_run(save_exp_dir, save_masks_dir, activations_dir, masks_saved,
     
     with open(f"{save_masks_dir}/OrigActivations.pkl",'wb') as f:
         pickle.dump(states,f)
-    
+    return {}
    
     print("Extracting sentence token features")
     

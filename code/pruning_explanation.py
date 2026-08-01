@@ -9,6 +9,7 @@ import os
 import torch
 import torch.optim as optim
 import torch.nn as nn
+from transformers import AutoConfig, AutoTokenizer
 import spacy
 import en_core_web_sm
 nlp = en_core_web_sm.load()
@@ -24,6 +25,7 @@ import importlib.util
 import train_utils
 import prune_utils
 import sys
+from cofi.utils.cofi_utils import *
 sys.path.append("CCE_NLI/Analysis/")
 #import ..Analysis as Analysis
 #import alignment
@@ -52,21 +54,26 @@ def main(args):
       
     train,val,dataloaders=train_utils.create_dataloaders(model_type=args.model_type,pruning_method=args.pruning_method, max_data=max_data, debug=args.debug)
     
+    hf_name={'llama': 'knowledgator/Sheared-LLaMA-encoder-1.3B', 'bert': 'bert-base-uncased', 'bowman': 'bowman'}
     
-    if args.pruning_method in ['lottery_ticket', 'wanda']:
-        ckpt = os.path.join(args.model_type.upper(), "models", 'lottery_ticket', args.filename, '0_Pruning_Iter/model_best.pth')
-    else:
-        ckpt = os.path.join(args.model_type.upper(), "models", args.pruning_method, args.filename, '0_Pruning_Iter')
+    base_ckpt = os.path.join(args.model_type.upper(), "models", 'lottery_ticket', args.filename, '0_Pruning_Iter/model_best.pth')
+       
+    config = AutoConfig.from_pretrained(
+        hf_name[args.model_type.lower()],
+        num_labels=3,
+        finetuning_task='snli'
+    )
     
     
     zs=None
-    if args.pruning_method.lower() == 'cofi':
-        logger.info(f"Loading zs for {args.pruning_method}")
-        zs_path= os.path.join("/".join(args.ckpt.split("/")[:-1]),'zs.pt')
-        print(f"expanding on {device}")
-        zs = torch.load(zs_path, map_location=device)
+        
     print(args.ckpt)
-    model,ckpt = train_utils.load_model(model_type=args.model_type, pruning_method=args.pruning_method, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=args.ckpt, device=device, zs=zs)
+    model,ckpt = train_utils.load_model(model_type=args.model_type, pruning_method='lottery_ticket', use_pretrained_weights = use_pretrained_weights, train=train, ckpt=base_ckpt, device=device, zs=zs, config=config)
+    original_model_size=calculate_parameters(model) #get og size
+    if args.pruning_method.lower() =='cofi':
+        zs_path= os.path.join("/".join(args.ckpt.split("/")[:-1]),'zs.pt')
+        zs = torch.load(zs_path, map_location=device)
+        model,ckpt = train_utils.load_model(model_type=args.model_type, pruning_method=args.pruning_method, use_pretrained_weights = use_pretrained_weights, train=train, ckpt=args.ckpt, device=device, zs=zs, config=config)
     print("Got model")
     # ==== BUILD VOCAB ====
     print(f"Using {ckpt} for vocab (one-time)")
@@ -80,7 +87,8 @@ def main(args):
     dataset = analysis.AnalysisDataset(lines, vocab)
     
     print(f"Starting explanations")
-    all_fm_masks = prune_utils.run_expls(args, model,dataset, dataloaders,device, train=train,debug=args.debug, logger=logger)
+    
+    all_fm_masks = prune_utils.run_expls(args, model,dataset, dataloaders,device, train=train,debug=args.debug, logger=logger, config=config, original_model_size=original_model_size)
     
     #alignment.calculate_alignment(all_fm_masks, path_to_overlap)  
     return all_fm_masks

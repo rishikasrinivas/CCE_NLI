@@ -685,7 +685,9 @@ class CoFiLlamaForSequenceClassification(LlamaPreTrainedModel):
         super().__init__(config)
         self.model_name='llama'
         
+        config.pruned_heads = {}
         self.config=config
+        
         self.model = CoFiLlamaBiModel(config)
    
         self.tokenizer = AutoTokenizer.from_pretrained('knowledgator/Sheared-LLaMA-encoder-1.3B')

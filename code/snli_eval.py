@@ -85,12 +85,11 @@ def get_percent_pruned(model):
     final_weights_pruned= np.round(100*torch.where(torch.tensor(final_weights) == 0,1,0).sum().item()/(model.mlp[0].weight.shape[0]*model.mlp[0].weight.shape[1]), 3)
     return final_weights_pruned
 
-def load_pruned_structure_then_weights(model, model_dir, zs_path, config, tokenizer, device, **kwargs):
+def load_pruned_structure_then_weights(model, model_dir, zs, config, tokenizer, device,ckpt, **kwargs):
     # 1. Build fresh base/dense model
     model = model(config).to('cpu')
 
     # 2. Load zs and apply structure pruning
-    zs = torch.load(zs_path, map_location='cpu')
 
     if model.model_name == "bowman":
         update_LSTM_params(model, zs)
@@ -103,7 +102,6 @@ def load_pruned_structure_then_weights(model, model_dir, zs_path, config, tokeni
         model = prune_model_with_z(zs, model)
  
     # 3. Load weights AFTER structure exists
-    ckpt_path = os.path.join(model_dir, "model_best.pth")
     ckpt = torch.load(ckpt_path, map_location='cpu')
     print(model_dir, ckpt['state_dict']['mlp.0.weight'].shape)
     result = model.load_state_dict(ckpt["state_dict"], strict=True)
@@ -157,11 +155,12 @@ def main(args):
             pruned_model = load_pruned_structure_then_weights(
                 Student_Model,
                 model_dir=args.root_dir,
-                zs_path=os.path.join(args.root_dir, "zs.pt"),
+                zs_path=torch.load(os.path.join(args.root_dir, "zs.pt"),map_location='cpu'),
                 config=config,
                 tokenizer=tokenizer,
                 device='cuda',
                 hf_name='knowledg',
+                ckpt=args.ckpt
             )
             
             pruned_model.eval()

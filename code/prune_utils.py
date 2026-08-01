@@ -53,7 +53,9 @@ def run_expls(
     device,
     train,
     debug,
-    logger
+    logger,
+    config,
+    original_model_size
     ):
     
     '''
@@ -94,15 +96,14 @@ def run_expls(
         #TODO: need to reload model load_model with zs from cofi utils and load zs (as demoed in calc_pruning)
         #model.load_state_dict(torch.load(filepath, map_location=torch.device(device))['state_dict'], strict=False) #loading the already finetuned weights
         zs=None
-        if args.pruning_method == 'CoFi':
+        if args.pruning_method == 'CoFi' and prune_iter>0 :
             
             zs_path= os.path.join(path_to_weights,prune_metrics_dir, 'zs.pt')
             zs = torch.load(zs_path, map_location=device)
         
-        model,ckpt = train_utils.load_model(model_type=args.model_type, pruning_method=args.pruning_method, train=train, ckpt=os.path.join(path_to_weights, prune_metrics_dir, 'model_best.pth'), device=device, zs=zs)
-        if prune_iter==0:
-            original_model_size=calculate_parameters(model)
-        original_model_size=1222643715
+     
+        model,ckpt = train_utils.load_model(model_type=args.model_type, pruning_method=args.pruning_method, train=train, ckpt=os.path.join(path_to_weights, prune_metrics_dir, 'model_best.pth'), device=device, zs=zs, config=config)
+       
 
             
         
