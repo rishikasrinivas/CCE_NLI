@@ -25,11 +25,12 @@ pip install -r requirements.txt
 ./downloads.sh
 pip install -U llm2vec
 
+# =================================================
 # TO REPRODUCT PLOTS
 wget https://huggingface.co/ccenli/baylearn-expls/resolve/main/LTH%2BWANDA.zip
 mv LTH_WANDA PaperExpOnly/Refactored
-
-#Run Refactored_NeuronAndClusMig.ipynb
+# Then Run Refactored_NeuronAndClusMig.ipynb
+# =================================================
 
 # for llama cofi
 #load the student model 
