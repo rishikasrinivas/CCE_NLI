@@ -26,7 +26,7 @@ pip install -r requirements.txt
 pip install -U llm2vec
 
 # =================================================
-# TO REPRODUCT PLOTS
+# TO REPRODUCE PLOTS
 wget https://huggingface.co/ccenli/baylearn-expls/resolve/main/LTH%2BWANDA.zip
 mv LTH_WANDA PaperExpOnly/Refactored
 # Then Run Refactored_NeuronAndClusMig.ipynb
